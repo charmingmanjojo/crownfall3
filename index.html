@@ -9,9 +9,9 @@
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#09070b;--gold:#c8a84b;--gold2:#e8c870;--dim:#6a5535;
-  --text:#b8a070;--border:rgba(180,140,60,0.15);--red:#a03020;--green:#5a8e42;
-  --panel:rgba(0,0,0,0.22);
+  --bg:#0a0e1a;--gold:#c8a84b;--gold2:#e8c870;--dim:#7a8fad;
+  --text:#dce8f5;--border:rgba(100,140,200,0.18);--red:#c0392b;--green:#5a8e42;
+  --panel:rgba(5,8,18,0.55);
 }
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fell English',Georgia,serif;overflow:hidden}
 ::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(180,140,60,0.1)}
@@ -20,7 +20,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 
 /* ── AUTH ── */
 #p-auth{flex-direction:column;align-items:center;justify-content:center;
-  background:radial-gradient(ellipse at 40% 35%,rgba(70,40,8,0.6) 0%,transparent 55%),var(--bg)}
+  background:radial-gradient(ellipse at 40% 35%,rgba(10,25,60,0.8) 0%,transparent 55%),var(--bg)}
 .auth-box{width:380px;padding:0 20px}
 .auth-logo{text-align:center;margin-bottom:32px}
 .auth-title{font-family:'Cinzel',serif;font-size:42px;color:var(--gold);letter-spacing:.18em;text-shadow:0 0 60px rgba(180,110,20,.3)}
@@ -30,25 +30,25 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .auth-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 .auth-field{margin-bottom:16px}
 .auth-label{display:block;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.28em;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
-.auth-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:16px;padding:7px 0;outline:none;transition:border-color .2s}
+.auth-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(100,140,200,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:16px;padding:7px 0;outline:none;transition:border-color .2s}
 .auth-input:focus{border-bottom-color:var(--gold)}
-.auth-input::placeholder{color:rgba(80,62,28,.4);font-style:italic}
+.auth-input::placeholder{color:rgba(100,140,200,.3);font-style:italic}
 .auth-btn{width:100%;padding:13px;background:transparent;border:1px solid rgba(180,140,60,.35);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.25em;text-transform:uppercase;cursor:pointer;transition:all .22s;margin-top:8px}
 .auth-btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}
 .auth-btn:disabled{opacity:.25;cursor:not-allowed}
 .auth-err{font-size:12px;font-style:italic;color:rgba(180,60,40,.7);text-align:center;margin-top:10px;min-height:18px}
-.auth-sub{font-size:11px;font-style:italic;color:rgba(100,78,35,.5);text-align:center;margin-top:18px;line-height:1.55}
+.auth-sub{font-size:11px;font-style:italic;color:rgba(100,140,200,.5);text-align:center;margin-top:18px;line-height:1.55}
 
 /* ── CHAR LIST ── */
 #p-chars{flex-direction:column;align-items:center;justify-content:flex-start;overflow-y:auto;
-  background:radial-gradient(ellipse at 30% 20%,rgba(55,30,6,.5) 0%,transparent 50%),var(--bg)}
+  background:radial-gradient(ellipse at 30% 20%,rgba(10,25,60,.6) 0%,transparent 50%),var(--bg)}
 .chars-wrap{width:680px;max-width:95vw;padding:52px 20px 80px}
 .chars-header{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:32px}
 .chars-title{font-family:'Cinzel',serif;font-size:26px;color:var(--gold)}
 .chars-sub{font-size:12px;font-style:italic;color:var(--dim);margin-top:3px}
 .chars-new-btn{background:transparent;border:1px solid rgba(180,140,60,.3);color:var(--gold);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.2em;padding:9px 18px;cursor:pointer;transition:all .2s;text-transform:uppercase}
 .chars-new-btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}
-.char-card{display:flex;align-items:center;gap:16px;padding:16px;border:1px solid rgba(100,78,35,.18);background:rgba(0,0,0,.2);margin-bottom:10px;cursor:pointer;transition:all .18s}
+.char-card{display:flex;align-items:center;gap:16px;padding:16px;border:1px solid rgba(60,90,150,.22);background:rgba(5,10,25,.4);margin-bottom:10px;cursor:pointer;transition:all .18s}
 .char-card:hover{border-color:rgba(180,140,60,.3);background:rgba(180,140,60,.04)}
 .char-card.dead-card{opacity:.45;cursor:default}
 .char-card-sigil{width:42px;height:42px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
@@ -56,15 +56,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .char-card-info{flex:1}
 .char-card-name{font-family:'Cinzel',serif;font-size:16px;color:var(--gold)}
 .char-card-sub{font-size:12px;font-style:italic;color:var(--dim);margin-top:2px}
-.char-card-status{font-size:10px;color:rgba(100,78,35,.5);margin-top:4px}
+.char-card-status{font-size:10px;color:rgba(100,140,200,.5);margin-top:4px}
 .char-card-dead-badge{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;color:rgba(90,70,30,.45);border:1px solid rgba(90,70,30,.18);padding:2px 8px;flex-shrink:0;text-transform:uppercase}
-.chars-signout{background:transparent;border:none;color:rgba(80,62,28,.3);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:28px auto 0;transition:color .2s}
+.chars-signout{background:transparent;border:none;color:rgba(100,140,200,.3);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:28px auto 0;transition:color .2s}
 .chars-signout:hover{color:var(--dim)}
-.chars-empty{text-align:center;padding:60px 0;font-size:14px;font-style:italic;color:rgba(100,78,35,.4)}
+.chars-empty{text-align:center;padding:60px 0;font-size:14px;font-style:italic;color:rgba(100,140,200,.4)}
 
 /* ── CREATE ── */
 #p-create{flex-direction:column;overflow-y:auto;
-  background:radial-gradient(ellipse at 25% 15%,rgba(55,30,6,.55) 0%,transparent 50%),var(--bg)}
+  background:radial-gradient(ellipse at 25% 15%,rgba(10,25,60,.65) 0%,transparent 50%),var(--bg)}
 .create-wrap{max-width:820px;margin:0 auto;padding:48px 24px 100px;width:100%}
 .create-title{font-family:'Cinzel',serif;font-size:28px;color:var(--gold);margin-bottom:3px}
 .create-sub{font-size:13px;font-style:italic;color:var(--dim);line-height:1.7;margin-bottom:40px}
@@ -74,36 +74,36 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
 .cr-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:18px;padding:7px 0;outline:none;transition:border-color .2s}
 .cr-input:focus{border-bottom-color:var(--gold)}
-.cr-input::placeholder{color:rgba(80,62,28,.45);font-style:italic}
+.cr-input::placeholder{color:rgba(100,140,200,.35);font-style:italic}
 .cr-input.sm{font-size:14px}
 .cr-ta{width:100%;background:rgba(255,255,255,.018);border:1px solid rgba(180,140,60,.1);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;line-height:1.65;padding:9px 12px;outline:none;resize:vertical;min-height:72px;transition:border-color .2s}
 .cr-ta:focus{border-color:rgba(180,140,60,.3)}
-.cr-ta::placeholder{color:rgba(80,62,28,.45);font-style:italic}
+.cr-ta::placeholder{color:rgba(100,140,200,.35);font-style:italic}
 .cr-select{width:100%;background:rgba(255,255,255,.02);border:1px solid rgba(180,140,60,.18);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:9px 11px;outline:none;cursor:pointer}
-.cr-select option{background:#120d06}
+.cr-select option{background:#080d1c}
 
 /* House grid */
 .house-search{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:7px 0;outline:none;margin-bottom:14px}
-.house-search::placeholder{color:rgba(80,62,28,.4);font-style:italic}
+.house-search::placeholder{color:rgba(100,140,200,.35);font-style:italic}
 .house-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-height:320px;overflow-y:auto;padding-right:4px}
-.house-tile{border:1px solid rgba(100,78,35,.15);padding:10px 6px 8px;cursor:pointer;transition:all .16s;background:rgba(0,0,0,.15);display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
+.house-tile{border:1px solid rgba(60,90,150,.18);padding:10px 6px 8px;cursor:pointer;transition:all .16s;background:rgba(5,10,28,.3);display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
 .house-tile:hover{border-color:rgba(180,140,60,.28);background:rgba(180,140,60,.04)}
 .house-tile.on{border-color:rgba(180,140,60,.5);background:rgba(180,140,60,.08)}
 .house-tile img{width:30px;height:30px;object-fit:contain;opacity:.85}
 .h-name{font-size:10px;color:var(--text);line-height:1.2}
-.h-region-tag{font-size:8px;color:rgba(100,78,35,.5);font-style:italic}
+.h-region-tag{font-size:8px;color:rgba(100,140,200,.5);font-style:italic}
 
 /* Selected house info */
-.house-selected-box{border:1px solid rgba(100,78,35,.2);padding:14px 16px;margin-top:12px;background:rgba(0,0,0,.2);display:none}
+.house-selected-box{border:1px solid rgba(60,90,150,.25);padding:14px 16px;margin-top:12px;background:rgba(5,10,28,.4);display:none}
 .house-selected-box.visible{display:block}
 .hsb-row{display:flex;align-items:center;gap:14px;margin-bottom:10px}
 .hsb-sigil{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .hsb-sigil img{width:44px;height:44px;object-fit:contain}
 .hsb-name{font-family:'Cinzel',serif;font-size:18px;color:var(--gold)}
 .hsb-words{font-size:11px;font-style:italic;color:var(--dim);margin-top:1px}
-.hsb-region{font-size:10px;color:rgba(120,90,40,.55);margin-top:2px}
-.hsb-desc{font-size:13px;font-style:italic;color:rgba(140,110,50,.65);line-height:1.6;margin-bottom:10px}
-.hsb-bonus{font-size:11px;color:rgba(120,95,42,.6)}
+.hsb-region{font-size:10px;color:rgba(100,140,200,.55);margin-top:2px}
+.hsb-desc{font-size:13px;font-style:italic;color:rgba(180,210,240,.6);line-height:1.6;margin-bottom:10px}
+.hsb-bonus{font-size:11px;color:rgba(100,160,200,.6)}
 
 /* Stats */
 .stat-pool-note{font-size:12px;color:var(--dim);margin-bottom:10px}
@@ -111,13 +111,13 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .stat-row{display:grid;grid-template-columns:80px 1fr 65px;align-items:center;gap:10px}
 .stat-name{font-size:11px;color:var(--dim)}
 .stat-controls{display:flex;align-items:center;gap:6px}
-.stat-bar-bg{flex:1;height:3px;background:rgba(100,78,35,.14);border-radius:2px;overflow:hidden}
+.stat-bar-bg{flex:1;height:3px;background:rgba(60,90,150,.2);border-radius:2px;overflow:hidden}
 .stat-bar-fill{height:3px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px;transition:width .2s}
-.stat-adj{width:20px;height:20px;background:transparent;border:1px solid rgba(180,140,60,.2);color:var(--dim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .14s;flex-shrink:0}
+.stat-adj{width:20px;height:20px;background:transparent;border:1px solid rgba(100,140,200,.2);color:var(--dim);cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:all .14s;flex-shrink:0}
 .stat-adj:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}
 .stat-adj:disabled{opacity:.15;cursor:not-allowed}
 .stat-val{font-size:14px;color:var(--gold);text-align:center;min-width:18px}
-.stat-hint{font-size:9px;font-style:italic;color:rgba(100,78,35,.45)}
+.stat-hint{font-size:9px;font-style:italic;color:rgba(100,140,200,.45)}
 
 /* Traits */
 .trait-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
@@ -159,41 +159,41 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .hb-Wounded{color:#b09030;border-color:rgba(180,140,60,.28)}
 .hb-Grievously{color:#a03020;border-color:rgba(160,50,32,.28)}
 .hb-Dead{color:#555;border-color:rgba(80,80,80,.22)}
-.tb-season{font-size:11px;font-style:italic;color:rgba(100,78,35,.5)}
+.tb-season{font-size:11px;font-style:italic;color:rgba(120,160,210,.55)}
 .tb-right{display:flex;gap:6px}
-.tb-btn{background:transparent;border:1px solid rgba(100,78,35,.18);color:rgba(100,78,35,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.14em;padding:4px 10px;cursor:pointer;transition:all .16s;text-transform:uppercase}
+.tb-btn{background:transparent;border:1px solid rgba(60,90,150,.2);color:rgba(100,140,200,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.14em;padding:4px 10px;cursor:pointer;transition:all .16s;text-transform:uppercase}
 .tb-btn:hover{border-color:rgba(180,140,60,.3);color:var(--dim)}
 .tb-btn.danger{color:rgba(140,60,40,.45);border-color:rgba(140,60,40,.18)}
 .tb-btn.danger:hover{border-color:rgba(180,80,60,.35);color:rgba(180,80,60,.6)}
 .game-cols{display:grid;grid-template-columns:240px 1fr 238px;flex:1;overflow:hidden;min-height:0}
 .left-col{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--panel)}
-.psec{padding:10px 12px;border-bottom:1px solid rgba(100,78,35,.08);flex-shrink:0}
-.plbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.26em;color:rgba(100,78,35,.45);text-transform:uppercase;display:block;margin-bottom:6px}
+.psec{padding:10px 12px;border-bottom:1px solid rgba(60,90,150,.1);flex-shrink:0}
+.plbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.26em;color:rgba(100,140,200,.45);text-transform:uppercase;display:block;margin-bottom:6px}
 .char-name-big{font-family:'Cinzel',serif;font-size:15px;color:var(--gold);line-height:1.2;display:flex;align-items:center;gap:8px}
 .char-name-big img{width:20px;height:20px;object-fit:contain;opacity:.75;flex-shrink:0}
 .char-sub{font-size:11px;font-style:italic;color:var(--dim);margin-top:3px}
-.char-gold{font-size:11px;color:rgba(160,128,52,.5);margin-top:4px}
+.char-gold{font-size:11px;color:rgba(140,190,100,.5);margin-top:4px}
 .stat-mini{display:grid;grid-template-columns:60px 1fr 16px;align-items:center;gap:5px;margin-bottom:5px}
 .sml-name{font-size:10px;color:var(--dim)}
-.sml-track{height:3px;background:rgba(100,78,35,.13);border-radius:2px;overflow:hidden}
+.sml-track{height:3px;background:rgba(60,90,150,.2);border-radius:2px;overflow:hidden}
 .sml-fill{height:3px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px}
 .sml-val{font-size:10px;color:var(--gold);text-align:right}
 .trait-pips{display:flex;flex-wrap:wrap;gap:3px}
-.tpip{font-size:9px;padding:2px 5px;border:1px solid rgba(180,140,60,.14);color:rgba(120,95,45,.6)}
+.tpip{font-size:9px;padding:2px 5px;border:1px solid rgba(100,140,200,.16);color:rgba(140,180,220,.6)}
 .tpip.neg{border-color:rgba(160,60,40,.15);color:rgba(140,70,50,.6)}
 .map-wrap{flex:1;min-height:0;padding:8px 10px;display:flex;flex-direction:column;gap:4px}
-.map-frame{flex:1;min-height:0;background:#050309;border:1px solid rgba(100,78,35,.13);overflow:hidden}
+.map-frame{flex:1;min-height:0;background:#04080f;border:1px solid rgba(60,90,150,.15);overflow:hidden}
 .map-frame svg{width:100%;height:100%;display:block}
 .center-col{display:flex;flex-direction:column;overflow:hidden}
 .story-scroll{flex:1;overflow-y:auto;padding:20px 24px}
-.scene-summary{font-size:12px;font-style:italic;color:rgba(100,78,35,.5);margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(100,78,35,.08)}
+.scene-summary{font-size:12px;font-style:italic;color:rgba(100,140,200,.55);margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(100,78,35,.08)}
 .hist-block{margin-bottom:24px;opacity:.38}
-.hist-choice{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.17em;color:rgba(100,78,35,.5);display:block;margin-bottom:8px}
+.hist-choice{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.17em;color:rgba(100,140,200,.5);display:block;margin-bottom:8px}
 .hist-choice::before{content:"↳  "}
 .prose{font-size:15px;line-height:1.88;color:var(--text)}
 .prose p{margin-bottom:.9em}
 .prose p:first-child::first-letter{font-family:'Cinzel',serif;font-size:44px;float:left;line-height:.82;margin:5px 7px -3px 0;color:var(--gold)}
-.scene-hr{border:none;border-top:1px solid rgba(100,78,35,.08);margin:20px 0}
+.scene-hr{border:none;border-top:1px solid rgba(60,90,150,.15);margin:20px 0}
 .dice-block{padding:9px 12px;border:1px solid rgba(100,78,35,.18);background:rgba(0,0,0,.38);margin-bottom:12px}
 .dice-block.win{border-color:rgba(80,140,55,.28)}
 .dice-block.lose{border-color:rgba(160,50,32,.28)}
@@ -202,7 +202,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .die-face{width:26px;height:26px;border:1px solid rgba(180,140,60,.2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:bold;color:#c0a060}
 .dice-total{font-size:19px;font-weight:bold;margin-left:4px}
 .dice-result-text{font-size:11px;font-style:italic;color:rgba(140,110,50,.7);margin-top:4px}
-.loading-wrap{display:flex;align-items:center;gap:7px;padding:14px 0;color:rgba(100,78,35,.5);font-style:italic;font-size:14px}
+.loading-wrap{display:flex;align-items:center;gap:7px;padding:14px 0;color:rgba(100,140,200,.5);font-style:italic;font-size:14px}
 .ld{animation:pulse 1.4s ease-in-out infinite;opacity:0}
 .ld:nth-child(2){animation-delay:.22s}
 .ld:nth-child(3){animation-delay:.44s}
@@ -212,30 +212,30 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .start-wrap{padding:52px 20px;text-align:center}
 .start-btn{background:transparent;border:1px solid rgba(180,140,60,.3);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.22em;padding:13px 40px;cursor:pointer;transition:all .22s;text-transform:uppercase}
 .start-btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}
-.choices-panel{border-top:1px solid var(--border);padding:12px 16px 14px;flex-shrink:0;background:rgba(0,0,0,.3)}
+.choices-panel{border-top:1px solid var(--border);padding:12px 16px 14px;flex-shrink:0;background:rgba(4,8,20,.6)}
 .choices-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
-.choices-hdr-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.22em;color:rgba(100,78,35,.5);text-transform:uppercase}
-.custom-toggle{background:transparent;border:none;font-family:'IM Fell English',serif;font-size:11px;font-style:italic;color:rgba(100,78,35,.45);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.choices-hdr-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.22em;color:rgba(100,140,200,.5);text-transform:uppercase}
+.custom-toggle{background:transparent;border:none;font-family:'IM Fell English',serif;font-size:11px;font-style:italic;color:rgba(100,140,200,.45);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
 .custom-toggle:hover{color:var(--dim)}
 .choices-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
-.choice-btn{background:transparent;border:1px solid rgba(180,140,60,.1);border-left:2px solid rgba(180,140,60,.15);color:rgba(140,108,50,.7);font-family:'IM Fell English',Georgia,serif;font-size:13px;font-style:italic;padding:9px 12px;cursor:pointer;text-align:left;line-height:1.38;transition:all .18s}
+.choice-btn{background:transparent;border:1px solid rgba(60,90,150,.15);border-left:2px solid rgba(100,140,200,.2);color:rgba(140,180,220,.7);font-family:'IM Fell English',Georgia,serif;font-size:13px;font-style:italic;padding:9px 12px;cursor:pointer;text-align:left;line-height:1.38;transition:all .18s}
 .choice-btn:hover:not(:disabled){border-left-color:var(--gold);color:var(--text);background:rgba(180,140,60,.04);padding-left:15px}
 .choice-btn:disabled{opacity:.22;cursor:not-allowed}
 .custom-row{display:flex;gap:6px}
-.custom-area{flex:1;background:rgba(255,255,255,.02);border:1px solid rgba(180,140,60,.13);border-bottom-color:rgba(180,140,60,.38);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:7px 10px;outline:none;resize:none}
+.custom-area{flex:1;background:rgba(255,255,255,.02);border:1px solid rgba(60,90,150,.15);border-bottom-color:rgba(100,140,200,.4);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:7px 10px;outline:none;resize:none}
 .custom-area:focus{border-bottom-color:var(--gold)}
 .act-btn{background:transparent;border:1px solid rgba(180,140,60,.24);color:var(--gold);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:8px 12px;cursor:pointer;align-self:flex-end;transition:all .18s;flex-shrink:0;text-transform:uppercase}
 .act-btn:hover:not(:disabled){background:rgba(180,140,60,.07);border-color:var(--gold)}
 .act-btn:disabled{opacity:.2;cursor:not-allowed}
 .right-col{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:var(--panel)}
-.event-item{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);padding:5px 0;border-bottom:1px solid rgba(100,78,35,.07);line-height:1.4}
+.event-item{font-size:11px;font-style:italic;color:rgba(120,160,210,.6);padding:5px 0;border-bottom:1px solid rgba(60,90,150,.1);line-height:1.4}
 .event-item.fresh{color:rgba(158,124,48,.8);animation:appear .4s ease}
 .event-item:last-child{border:none}
 .npc-scroll{flex:1;overflow-y:auto;padding:0 12px 10px}
-.npc-card{padding:9px 0;border-bottom:1px solid rgba(100,78,35,.07)}
+.npc-card{padding:9px 0;border-bottom:1px solid rgba(60,90,150,.1)}
 .npc-card:last-child{border:none}
 .npc-name{font-size:13px;color:var(--gold);margin-bottom:2px}
-.npc-mood{font-size:10px;color:rgba(100,78,35,.5);margin-bottom:3px}
+.npc-mood{font-size:10px;color:rgba(100,140,200,.55);margin-bottom:3px}
 .npc-mem{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);line-height:1.38}
 .npc-mem::before{content:"· "}
 .no-npcs{font-size:11px;font-style:italic;color:rgba(80,62,28,.35);padding-top:4px}
@@ -266,23 +266,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .modal-close:hover{color:var(--text)}
 .modal-name{font-family:'Cinzel',serif;font-size:21px;color:var(--gold);margin-bottom:2px}
 .modal-sub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:20px}
-.modal-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.25em;color:rgba(100,78,35,.5);text-transform:uppercase;margin-bottom:7px;display:block}
-.modal-text{font-size:13px;font-style:italic;color:rgba(160,128,52,.7);line-height:1.65;margin-bottom:16px}
+.modal-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.25em;color:rgba(100,140,200,.5);text-transform:uppercase;margin-bottom:7px;display:block}
+.modal-text{font-size:13px;font-style:italic;color:rgba(160,200,240,.65);line-height:1.65;margin-bottom:16px}
 .modal-stat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:16px}
-.modal-stat{text-align:center;padding:9px 5px;border:1px solid rgba(100,78,35,.14)}
+.modal-stat{text-align:center;padding:9px 5px;border:1px solid rgba(60,90,150,.18)}
 .modal-stat-val{font-family:'Cinzel',serif;font-size:21px;color:var(--gold)}
 .modal-stat-name{font-size:8px;color:var(--dim);margin-top:2px}
 .modal-traits{display:flex;flex-wrap:wrap;gap:5px}
-.modal-trait{font-size:10px;padding:2px 7px;border:1px solid rgba(180,140,60,.16);color:var(--dim)}
+.modal-trait{font-size:10px;padding:2px 7px;border:1px solid rgba(100,140,200,.18);color:var(--dim)}
 .modal-trait.neg{border-color:rgba(160,60,40,.18);color:rgba(140,70,50,.7)}
 
 /* ── TOAST ── */
-.toast{position:fixed;bottom:44px;right:14px;background:rgba(7,4,1,.97);border:1px solid rgba(180,140,60,.2);padding:9px 12px;max-width:238px;z-index:400;pointer-events:none;display:none}
+.toast{position:fixed;bottom:44px;right:14px;background:rgba(5,10,25,.97);border:1px solid rgba(100,140,200,.2);padding:9px 12px;max-width:238px;z-index:400;pointer-events:none;display:none}
 .toast-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.18em;color:rgba(180,140,60,.45);text-transform:uppercase;margin-bottom:2px}
-.toast-msg{font-size:11px;font-style:italic;color:rgba(110,86,40,.72);line-height:1.38}
+.toast-msg{font-size:11px;font-style:italic;color:rgba(140,190,230,.7);line-height:1.38}
 
 /* ── SPINNER ── */
-.spinner-overlay{display:none;position:fixed;inset:0;background:rgba(9,7,11,.6);z-index:600;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+.spinner-overlay{display:none;position:fixed;inset:0;background:rgba(5,10,25,.7);z-index:600;align-items:center;justify-content:center;flex-direction:column;gap:12px}
 .spinner-overlay.show{display:flex}
 .spinner{width:32px;height:32px;border:2px solid rgba(180,140,60,.12);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -296,14 +296,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .raven-tab{flex:1;background:transparent;border:none;padding:9px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:var(--dim);cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
 .raven-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
 .raven-inbox{display:flex;flex-direction:column;gap:0}
-.raven-item{padding:10px 0;border-bottom:1px solid rgba(100,78,35,.09);cursor:pointer;transition:background .15s}
+.raven-item{padding:10px 0;border-bottom:1px solid rgba(60,90,150,.12);cursor:pointer;transition:background .15s}
 .raven-item:hover{background:rgba(180,140,60,.03)}
 .raven-item.unread .raven-item-from{color:var(--gold)}
 .raven-item-from{font-size:13px;color:var(--text);margin-bottom:2px;display:flex;align-items:center;gap:6px}
 .raven-unread-dot{width:6px;height:6px;border-radius:50%;background:#a03020;flex-shrink:0}
 .raven-item-sub{font-size:11px;font-style:italic;color:var(--dim);margin-bottom:2px}
-.raven-item-preview{font-size:11px;color:rgba(100,78,35,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.raven-empty{font-size:13px;font-style:italic;color:rgba(80,62,28,.4);padding:20px 0;text-align:center}
+.raven-item-preview{font-size:11px;color:rgba(100,140,200,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.raven-empty{font-size:13px;font-style:italic;color:rgba(100,140,200,.4);padding:20px 0;text-align:center}
 .raven-compose-field{margin-bottom:14px}
 .raven-compose-label{display:block;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.26em;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
 .raven-compose-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:6px 0;outline:none;transition:border-color .2s}
@@ -314,26 +314,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .raven-send-btn{background:transparent;border:1px solid rgba(180,140,60,.32);color:var(--gold);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.22em;padding:10px 22px;cursor:pointer;transition:all .2s;text-transform:uppercase;float:right}
 .raven-send-btn:hover{background:rgba(180,140,60,.07)}
 .raven-send-btn:disabled{opacity:.2;cursor:not-allowed}
-.raven-char-results{border:1px solid rgba(100,78,35,.18);background:rgba(0,0,0,.4);margin-top:4px;display:none}
-.raven-char-result{padding:8px 10px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid rgba(100,78,35,.08);transition:background .14s}
+.raven-char-results{border:1px solid rgba(60,90,150,.2);background:rgba(5,10,25,.95);margin-top:4px;display:none}
+.raven-char-result{padding:8px 10px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid rgba(60,90,150,.1);transition:background .14s}
 .raven-char-result:hover{background:rgba(180,140,60,.06)}
 .raven-char-result:last-child{border:none}
 .raven-read-box{padding:4px 0}
-.raven-read-header{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(100,78,35,.1)}
+.raven-read-header{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(60,90,150,.15)}
 .raven-read-from{font-family:'Cinzel',serif;font-size:14px;color:var(--gold);margin-bottom:3px}
 .raven-read-sub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:2px}
-.raven-read-date{font-size:10px;color:rgba(100,78,35,.4)}
+.raven-read-date{font-size:10px;color:rgba(100,140,200,.4)}
 .raven-read-body{font-size:14px;line-height:1.82;color:var(--text);font-style:italic}
 .raven-back{background:transparent;border:none;color:var(--dim);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.18em;cursor:pointer;text-transform:uppercase;margin-bottom:14px;padding:0}
 .raven-back:hover{color:var(--text)}
 
 /* ── WHO'S HERE ── */
 .who-scroll{overflow-y:auto;padding:0 12px 8px;max-height:110px}
-.who-card{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(100,78,35,.07)}
+.who-card{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(60,90,150,.1)}
 .who-card:last-child{border:none}
 .who-sigil{width:20px;height:20px;object-fit:contain;opacity:.7;flex-shrink:0}
 .who-name{font-size:12px;color:var(--text)}
-.who-sub{font-size:10px;font-style:italic;color:rgba(100,78,35,.5)}
+.who-sub{font-size:10px;font-style:italic;color:rgba(100,140,200,.5)}
 
 /* ── SOUNDSCAPE ── */
 .sound-btn{background:transparent;border:1px solid rgba(100,78,35,.18);color:rgba(100,78,35,.5);font-size:13px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
@@ -348,8 +348,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .map-wrap{position:relative}
 
 /* ── INSCRIBE ── */
-.inscribe-btn{background:transparent;border:none;color:rgba(100,78,35,.35);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:6px 0 0 24px}
+.inscribe-btn{background:transparent;border:none;color:rgba(100,140,200,.35);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:6px 0 0 24px}
 .inscribe-btn:hover{color:var(--dim)}
+
+/* ── SHARED SCENE ── */
+.scene-invite-btn{background:transparent;border:1px solid rgba(100,140,200,.2);color:rgba(100,140,200,.5);font-size:11px;width:22px;height:22px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0;border-radius:2px}
+.scene-invite-btn:hover{border-color:var(--gold);color:var(--gold)}
+.scene-banner{background:rgba(10,30,60,.8);border:1px solid rgba(100,140,200,.3);border-left:3px solid var(--gold);padding:8px 12px;margin:8px 0;font-size:12px;font-style:italic;color:rgba(160,200,240,.8);display:flex;align-items:center;gap:10px}
+.scene-banner-leave{background:transparent;border:1px solid rgba(180,140,60,.3);color:var(--gold);font-family:'Cinzel',serif;font-size:8px;letter-spacing:.15em;padding:3px 8px;cursor:pointer;margin-left:auto;text-transform:uppercase;transition:all .18s}
+.scene-banner-leave:hover{background:rgba(180,140,60,.08)}
+.scene-invite-modal{max-width:400px}
+.scene-pending-banner{background:rgba(180,140,60,.06);border:1px solid rgba(180,140,60,.2);padding:8px 12px;margin:8px 0;font-size:12px;font-style:italic;color:rgba(200,168,75,.7);text-align:center}
 </style>
 </head>
 <body>
@@ -363,7 +372,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
   <div class="auth-box">
     <div class="auth-logo">
       <div class="auth-title">CROWNFALL</div>
-      <div class="auth-orn">⚔ &nbsp; 250 AC &nbsp; ⚔</div>
+      <div class="auth-orn">⚔ &nbsp; The Reign of Aegon V &nbsp; ⚔</div>
     </div>
     <div class="auth-tabs">
       <button class="auth-tab on" onclick="authTab('login')">Sign In</button>
@@ -492,7 +501,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       </div>
     </div>
 
-    <button class="begin-btn" id="btn-begin" disabled onclick="beginGame()">Enter the Realm — 250 AC</button>
+    <button class="begin-btn" id="btn-begin" disabled onclick="beginGame()">Enter the Realm — 250 AC, Aegon V</button>
   </div>
 </div>
 
@@ -506,6 +515,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     <div class="tb-mid">
       <span class="hbadge hb-Hale" id="tb-health">Hale</span>
       <span class="tb-season" id="tb-season">Early Spring, 250 AC</span>
+      <span id="tb-realm-clock" style="font-size:10px;font-style:italic;color:rgba(200,168,75,.5);margin-left:4px"></span>
+      <span id="tb-scene-indicator" style="display:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;color:var(--gold);border:1px solid rgba(180,140,60,.3);padding:2px 8px">⚔ SHARED SCENE</span>
     </div>
     <div class="tb-right">
       <button class="sound-btn" id="sound-btn" onclick="toggleSound()" title="Ambient Sound">🔇</button>
@@ -728,6 +739,47 @@ create policy "Users manage own characters"
   with check (auth.uid() = user_id);
 
 ═══════════════════════════════════════════════════════
+REALM CLOCK — run this too
+═══════════════════════════════════════════════════════
+
+create table if not exists realm_clock (
+  id int primary key default 1,
+  season text default 'Early Spring, 250 AC',
+  updated_at timestamptz default now()
+);
+insert into realm_clock (id, season) values (1, 'Early Spring, 250 AC')
+  on conflict (id) do nothing;
+
+-- Only the service role (worker) can update this. Anon can read.
+alter table realm_clock enable row level security;
+create policy "Anyone can read clock" on realm_clock for select using (true);
+
+═══════════════════════════════════════════════════════
+SHARED SCENES — run this too
+═══════════════════════════════════════════════════════
+
+create table if not exists shared_scenes (
+  id            uuid primary key default gen_random_uuid(),
+  location      text not null,
+  initiator_id  uuid references characters(id) not null,
+  guest_id      uuid references characters(id),
+  status        text default 'pending',  -- pending | active | ended
+  msgs          jsonb default '[]',
+  created_at    timestamptz default now(),
+  updated_at    timestamptz default now()
+);
+
+alter table shared_scenes enable row level security;
+
+create policy "Participants can read their scenes"
+  on shared_scenes for select
+  using (
+    initiator_id in (select id from characters where user_id = auth.uid())
+    or
+    guest_id in (select id from characters where user_id = auth.uid())
+  );
+
+═══════════════════════════════════════════════════════
 */
 
 // ══════════════════════════════════════════════════════
@@ -746,9 +798,9 @@ const HOUSES = {
     name:'Targaryen', full:'House Targaryen', words:'Fire and Blood',
     color:'#c0392b', region:'The Crownlands', seat:'kings_landing',
     icon:'targaryen', major:true,
-    desc:'The dragon lords of old Valyria. Royal blood runs in your veins. The Iron Throne is your inheritance — or your cage. Every Targaryen burns or is burned.',
+    desc:'The blood of Old Valyria still runs in your veins, but the dragons are gone. Aegon V sits the Iron Throne — the smallfolk king, the reformer, the man his own lords despise. As a Targaryen you are close to power and close to danger. The throne is not yours. But it watches you.',
     bonus:{learning:1}, startTraits:['Valyrian Heritage'],
-    positions:['Son of the King','Daughter of the King','Prince (Cousin)','Princess (Cousin)','Bastard of Dragonstone','Legitimised Bastard','Kingsguard Knight'],
+    positions:['Prince (Cousin of the King)','Princess (Cousin of the King)','Bastard of Dragonstone','Legitimised Bastard','Kingsguard Knight','Steward of Dragonstone','Scholar of the Citadel'],
   },
   stark: {
     name:'Stark', full:'House Stark', words:'Winter Is Coming',
@@ -778,7 +830,7 @@ const HOUSES = {
     name:'Baratheon of Dragonstone', full:'House Baratheon of Dragonstone', words:'Ours is the Fury',
     color:'#6c3483', region:'The Crownlands', seat:'dragonstone',
     icon:'baratheon_dragonstone', major:true,
-    desc:'The cadet branch at Dragonstone. Close to the throne, close to the fire. You grew up in a castle of dragon-carved stone with ambition carved into every wall.',
+    desc:'The cadet branch at Dragonstone. Close to the throne, close to old fire. The castle was built for dragons that no longer come. The stone still smells of ash. The ambition never left.',
     bonus:{intrigue:1}, startTraits:['Dragonstone-Born'],
     positions:["Lord's Son",'Lord\'s Daughter','Ward of Dragonstone','Bastard Stone','Knight of Dragonstone'],
   },
@@ -802,7 +854,7 @@ const HOUSES = {
     name:'Martell', full:'House Martell', words:'Unbowed, Unbent, Unbroken',
     color:'#e67e22', region:'Dorne', seat:'sunspear',
     icon:'martell', major:true,
-    desc:'The sand and sun of Dorne. They play the long game. The Targaryens tried to break them. They bent, and snapped back. They are still playing.',
+    desc:'The sand and sun of Dorne. They play the long game. The Targaryens never truly conquered them — they negotiated. A century later the Dornish still remember the difference. They are still playing.',
     bonus:{intrigue:1}, startTraits:['Dornish Blood'],
     positions:["Son of the Prince",'Daughter of the Prince','Bastard Sand','Cousin of Sunspear','Ward of Dorne','Knight of Dorne'],
   },
@@ -1132,7 +1184,7 @@ const LOCS = [
 
 const DEFAULT_EVENTS = [
   "A comet burns above Oldtown — maesters debate its meaning.",
-  "Jaehaerys I holds court at King's Landing.",
+  "Aegon V holds court at King's Landing. The smallfolk call him the Unlikely.",
   "The Night's Watch requests more men from the lords of the realm.",
   "Ser Duncan the Tall rides the kingsroad south.",
   "Ravens report unrest in the border keeps.",
@@ -1570,6 +1622,8 @@ function mountGame() {
   renderMap();
   renderEvents();
   renderNPCs();
+  fetchRealmClock();
+  startScenePolling();
 }
 
 function traitLabel(id) {
@@ -1722,7 +1776,7 @@ async function act(text) {
 
   // ── Call the worker — it reads char from DB, calls AI, writes state back ──
   let resp;
-  try { resp = await callAct(text); }
+  try { resp = await callAct(text, S.sharedSceneId); }
   catch(e) { removeLoading(); appendError(e.message); S.busy = false; return; }
 
   // Worker returns a parsed scene object directly (not raw text)
@@ -1937,7 +1991,7 @@ function buildSystemPrompt() {
     ? '\nNPC MEMORIES:\n' + Object.entries(c.npcs).map(([n,mems]) => `- ${n}: ${mems.slice(-3).map(m=>m.t).join(' | ')}`).join('\n')
     : '';
 
-  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Jaehaerys I Targaryen, the Conciliator.
+  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, the Unlikely.
 
 CHARACTER:
 Name: ${c.name}${c.nickname?' ("'+c.nickname+'")':''} | Age: ${c.age}${c.gender?' | '+c.gender:''} 
@@ -1979,7 +2033,7 @@ ON CHARACTER DEATH:
 <status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0}</status>`;
 }
 
-async function callAct(action) {
+async function callAct(action, sceneId) {
   const res = await fetch(PROXY_URL + '/act', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -1987,6 +2041,7 @@ async function callAct(action) {
       userId:      S.user.id,
       characterId: S.charId,
       action,
+      sceneId: sceneId || null,
     }),
   });
   if (!res.ok) {
@@ -2031,6 +2086,7 @@ window.addEventListener('load', async () => {
   }
 
   setInterval(tickerTick, 6500);
+  setInterval(fetchRealmClock, 60000); // update clock every minute
 });
 
 // ── Supabase auth state listener ──
@@ -2040,6 +2096,169 @@ sb.auth.onAuthStateChange((event, session) => {
     go('auth');
   }
 });
+
+// ══════════════════════════════════════════════════════
+// REALM CLOCK
+// ══════════════════════════════════════════════════════
+async function fetchRealmClock() {
+  try {
+    const { data } = await sb.from('realm_clock').select('season').eq('id', 1).single();
+    if (data?.season) {
+      const el = document.getElementById('tb-realm-clock');
+      if (el) el.textContent = '· ' + data.season;
+    }
+  } catch {}
+}
+
+// ══════════════════════════════════════════════════════
+// SHARED SCENES
+// ══════════════════════════════════════════════════════
+S.sharedSceneId   = null;  // current shared scene id
+S.pendingInviteId = null;  // incoming invite scene id
+S.invitedCharId   = null;  // who we're inviting
+S.invitedCharName = null;
+
+let sceneChannel = null;
+
+function inviteToScene(charId, charName) {
+  if (S.sharedSceneId) return; // already in a scene
+  S.invitedCharId   = charId;
+  S.invitedCharName = charName;
+  document.getElementById('scene-invite-sub').textContent =
+    'Invite ' + charName + ' to share this scene with ' + (S.char?.name || 'you') + '.';
+  document.getElementById('scene-invite-modal').style.display = 'flex';
+}
+
+function closeSceneInviteModal() {
+  document.getElementById('scene-invite-modal').style.display = 'none';
+  S.invitedCharId = null; S.invitedCharName = null;
+}
+
+async function confirmSceneInvite() {
+  if (!S.invitedCharId || !S.charId) return;
+  document.getElementById('scene-invite-confirm-btn').disabled = true;
+
+  const { data, error } = await sb.from('shared_scenes').insert({
+    location:     S.char.location,
+    initiator_id: S.charId,
+    guest_id:     S.invitedCharId,
+    status:       'pending',
+    msgs:         [],
+  }).select().single();
+
+  document.getElementById('scene-invite-confirm-btn').disabled = false;
+  closeSceneInviteModal();
+
+  if (error || !data) { showToast('Scene', 'Failed to send invitation.'); return; }
+
+  S.sharedSceneId = data.id;
+  showToast('Scene', 'Invitation sent to ' + S.invitedCharName + '. Waiting for them to accept...');
+  document.getElementById('tb-scene-indicator').style.display = '';
+  subscribeSharedScene(data.id);
+}
+
+async function subscribeSharedScene(sceneId) {
+  if (sceneChannel) sceneChannel.unsubscribe();
+  sceneChannel = sb.channel('scene-' + sceneId)
+    .on('postgres_changes', {
+      event: 'UPDATE', schema: 'public', table: 'shared_scenes',
+      filter: 'id=eq.' + sceneId,
+    }, payload => {
+      handleSceneUpdate(payload.new);
+    })
+    .subscribe();
+}
+
+function handleSceneUpdate(scene) {
+  if (scene.status === 'active' && !S.sceneActive) {
+    S.sceneActive = true;
+    showToast('Scene', 'The parley begins. You are now in a shared scene.');
+    appendSharedSceneBanner();
+  }
+  if (scene.status === 'ended') {
+    leaveSceneLocally('The shared scene has ended.');
+  }
+}
+
+function appendSharedSceneBanner() {
+  const scroll = document.getElementById('story-scroll');
+  if (!scroll) return;
+  const d = document.createElement('div');
+  d.className = 'scene-banner'; d.id = 'scene-banner';
+  d.innerHTML = `<span>⚔ Shared scene — ${esc(S.invitedCharName || 'another character')} is present</span>
+    <button class="scene-banner-leave" onclick="leaveScene()">Leave Scene</button>`;
+  scroll.appendChild(d);
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+async function leaveScene() {
+  if (!S.sharedSceneId) return;
+  await fetch(PROXY_URL + '/scene/leave', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userId: S.user.id, characterId: S.charId, sceneId: S.sharedSceneId }),
+  });
+  leaveSceneLocally('You have left the shared scene.');
+}
+
+function leaveSceneLocally(msg) {
+  S.sharedSceneId = null; S.sceneActive = false;
+  if (sceneChannel) { sceneChannel.unsubscribe(); sceneChannel = null; }
+  document.getElementById('tb-scene-indicator').style.display = 'none';
+  document.getElementById('scene-banner')?.remove();
+  showToast('Scene', msg);
+  renderWhoIsHere(); // re-render to show invite buttons again
+}
+
+// ── Poll for incoming invites every 15 seconds ──
+async function pollSceneInvites() {
+  if (!S.charId || S.sharedSceneId) return;
+  const { data } = await sb.from('shared_scenes')
+    .select('id,initiator_id,location')
+    .eq('guest_id', S.charId)
+    .eq('status', 'pending')
+    .limit(1);
+  if (!data?.length) return;
+  const invite = data[0];
+  if (S.pendingInviteId === invite.id) return; // already showing
+  S.pendingInviteId = invite.id;
+
+  // Look up initiator name
+  const { data: chars } = await sb.from('characters').select('name,house_full').eq('id', invite.initiator_id).single();
+  const fromName = chars ? chars.name + ' of ' + (chars.house_full || 'No House') : 'Someone';
+
+  document.getElementById('scene-invite-from-text').textContent =
+    fromName + ' invites you to a shared scene at ' + (invite.location || 'your current location') + '.';
+  document.getElementById('scene-invite-notification').style.display = 'block';
+}
+
+function declineSceneInvite() {
+  document.getElementById('scene-invite-notification').style.display = 'none';
+  if (S.pendingInviteId) {
+    sb.from('shared_scenes').update({ status: 'ended' }).eq('id', S.pendingInviteId);
+    S.pendingInviteId = null;
+  }
+}
+
+async function acceptSceneInvite() {
+  if (!S.pendingInviteId) return;
+  document.getElementById('scene-invite-notification').style.display = 'none';
+  const sceneId = S.pendingInviteId;
+  S.pendingInviteId = null;
+
+  await sb.from('shared_scenes').update({ status: 'active' }).eq('id', sceneId);
+  S.sharedSceneId = sceneId;
+  S.sceneActive   = true;
+  document.getElementById('tb-scene-indicator').style.display = '';
+  appendSharedSceneBanner();
+  subscribeSharedScene(sceneId);
+  showToast('Scene', 'You have joined the shared scene.');
+}
+
+// Start polling for invites when in game
+function startScenePolling() {
+  setInterval(pollSceneInvites, 15000);
+}
 
 
 // ══════════════════════════════════════════════════════
@@ -2083,10 +2302,11 @@ function renderWhoIsHere() {
   el.innerHTML = here.map(c => `
     <div class="who-card">
       <img class="who-sigil" src="${ICONS[c.house_key]||ICONS.none}" alt=""/>
-      <div>
+      <div style="flex:1">
         <div class="who-name">${esc(c.name)}</div>
         <div class="who-sub">${esc(c.house_full||'No House')} · ${esc(c.health||'Hale')}</div>
       </div>
+      ${S.sharedSceneId ? '' : `<button class="scene-invite-btn" onclick="inviteToScene('${c.id}','${esc(c.name)}')" title="Invite to shared scene">⚔</button>`}
     </div>`).join('');
 }
 
@@ -2472,6 +2692,35 @@ function scheduleRavenCalls() {
       <div style="clear:both"></div>
       <div id="raven-compose-status" style="font-size:12px;font-style:italic;color:rgba(100,78,35,.5);margin-top:10px;text-align:right"></div>
     </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     SHARED SCENE INVITE MODAL
+════════════════════════════════════════════ -->
+<div class="modal-bg" id="scene-invite-modal">
+  <div class="modal-box scene-invite-modal">
+    <button class="modal-close" onclick="closeSceneInviteModal()">✕</button>
+    <div class="modal-name">Shared Scene</div>
+    <div class="modal-sub" id="scene-invite-sub">Invite another character to share this scene.</div>
+    <p style="font-size:13px;font-style:italic;color:rgba(160,200,240,.7);line-height:1.7;margin-bottom:18px">
+      Both characters will be present in the same scene. The AI will see and react to both of you.
+      Either of you can act. Either of you can leave at any time.
+    </p>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="page-btn" onclick="closeSceneInviteModal()">Cancel</button>
+      <button class="begin-btn" id="scene-invite-confirm-btn" style="width:auto;padding:10px 24px" onclick="confirmSceneInvite()">Send Invitation</button>
+    </div>
+  </div>
+</div>
+
+<!-- INCOMING SCENE INVITE NOTIFICATION -->
+<div id="scene-invite-notification" style="display:none;position:fixed;bottom:60px;left:50%;transform:translateX(-50%);background:rgba(5,10,25,.97);border:1px solid rgba(180,140,60,.4);padding:14px 18px;z-index:500;max-width:380px;width:90%;text-align:center">
+  <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.2em;color:var(--gold);margin-bottom:6px">INVITATION TO PARLEY</div>
+  <div id="scene-invite-from-text" style="font-size:13px;font-style:italic;color:rgba(160,200,240,.8);margin-bottom:12px"></div>
+  <div style="display:flex;gap:8px;justify-content:center">
+    <button class="page-btn" onclick="declineSceneInvite()">Decline</button>
+    <button class="begin-btn" style="width:auto;padding:8px 20px" onclick="acceptSceneInvite()">Accept</button>
   </div>
 </div>
 </body>
