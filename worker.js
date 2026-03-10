@@ -1,12 +1,4 @@
-// ═══════════════════════════════════════════════════════════
-// CROWNFALL — Cloudflare Worker  (server-authoritative build)
-//
-// Environment variables (Cloudflare dashboard):
-//   ANTHROPIC_KEY         → sk-ant-... key            (Secret)
-//   ADMIN_KEY             → any password               (Secret)
-//   SUPABASE_URL          → https://yourproject.supabase.co
-//   SUPABASE_SERVICE_KEY  → service_role key           (Secret)
-// ═══════════════════════════════════════════════════════════
+
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -38,10 +30,12 @@ export default {
     if (request.method !== 'POST')   return new Response('Method not allowed', { status: 405, headers: CORS });
 
     const path = new URL(request.url).pathname;
-    if (path === '/act')      return handleAct(request, env);
-    if (path === '/raven')    return handleRaven(request, env);
-    if (path === '/inscribe') return handleInscribe(request, env);
-    if (path === '/admin')    return handleAdmin(request, env);
+    if (path === '/act')          return handleAct(request, env);
+    if (path === '/raven')        return handleRaven(request, env);
+    if (path === '/inscribe')     return handleInscribe(request, env);
+    if (path === '/scene/leave')  return handleSceneLeave(request, env);
+    if (path === '/admin')        return handleAdmin(request, env);
+    if (path === '/admin/clock')  return handleAdminClock(request, env);
     return json({ error: 'Not found' }, 404);
   }
 };
@@ -76,8 +70,27 @@ async function handleAct(request, env) {
   if (char.user_id !== userId)  return json({ error: 'Forbidden' }, 403);
   if (char.dead)                return json({ error: 'The dead do not act.' }, 403);
 
-  // ── Build conversation and call Claude ──
-  const msgs = [...(char.msgs || []), { role: 'user', content: action }];
+  // ── Load realm clock ──
+  const realmSeason = await getRealmClock(env);
+
+  // ── Load shared scene if active ──
+  const sceneId = body.sceneId || null;
+  let sharedScene = null;
+  let guestChar = null;
+  if (sceneId) {
+    sharedScene = await getSharedScene(sceneId, env);
+    if (sharedScene && sharedScene.status === 'active') {
+      const guestId = sharedScene.initiator_id === characterId
+        ? sharedScene.guest_id : sharedScene.initiator_id;
+      guestChar = guestId ? await getCharacter(guestId, env) : null;
+    } else {
+      sharedScene = null;
+    }
+  }
+
+  // ── Build conversation — shared scene uses scene msgs, solo uses char msgs ──
+  const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
+  const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -89,7 +102,7 @@ async function handleAct(request, env) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
-      system: buildSystemPrompt(char),   // always built here, never from client
+      system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: msgs.slice(-20),
     }),
   });
@@ -113,7 +126,13 @@ async function handleAct(request, env) {
   const hist = [...(char.hist || [])];
   if (hist.length > 28) hist.shift();
 
-  await updateCharacter(characterId, { ...updates, msgs: newMsgs, hist }, env);
+  if (sharedScene) {
+    // Shared scene: write msgs to scene table, state changes to character
+    await updateSharedScene(sceneId, { msgs: newMsgs }, env);
+    await updateCharacter(characterId, { ...updates, hist }, env);
+  } else {
+    await updateCharacter(characterId, { ...updates, msgs: newMsgs, hist }, env);
+  }
 
   // ── Return scene + validated state to client ──
   return json({
@@ -297,6 +316,52 @@ async function handleInscribe(request, env) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// /scene/leave
+// Client sends: { userId, characterId, sceneId }
+// Marks scene as ended so both players get notified.
+// ══════════════════════════════════════════════════════════════
+async function handleSceneLeave(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const { userId, characterId, sceneId } = body;
+  if (!userId || !characterId || !sceneId) return json({ error: 'Missing fields' }, 400);
+
+  const char = await getCharacter(characterId, env);
+  if (!char || char.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+
+  await updateSharedScene(sceneId, { status: 'ended' }, env);
+  return json({ ok: true });
+}
+
+// ══════════════════════════════════════════════════════════════
+// /admin/clock — advance the realm clock (admin only)
+// Body: { adminKey, season }
+// ══════════════════════════════════════════════════════════════
+async function handleAdminClock(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+  if (!body.season) return json({ error: 'Missing season' }, 400);
+
+  await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1`, {
+    method: 'PATCH',
+    headers: {
+      'apikey': env.SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ season: body.season.substring(0, 80), updated_at: new Date().toISOString() }),
+  });
+
+  return json({ ok: true, season: body.season });
+}
+
+// ══════════════════════════════════════════════════════════════
 // /admin
 // ══════════════════════════════════════════════════════════════
 async function handleAdmin(request, env) {
@@ -315,14 +380,24 @@ async function handleAdmin(request, env) {
 // ══════════════════════════════════════════════════════════════
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
-function buildSystemPrompt(c) {
+function buildSystemPrompt(c, realmSeason, guestChar) {
   const memBlock = c.npcs && Object.keys(c.npcs).length
     ? '\nNPC MEMORIES:\n' + Object.entries(c.npcs)
         .map(([n, mems]) => `- ${n}: ${mems.slice(-3).map(m => m.t).join(' | ')}`)
         .join('\n')
     : '';
 
+  const guestBlock = guestChar ? `
+
+ALSO PRESENT IN THIS SCENE:
+Name: ${guestChar.name} | House: ${guestChar.house_full} | Health: ${guestChar.health}
+Traits: ${(guestChar.traits || []).join(', ') || 'None'}
+This is a REAL player character. They will act independently. Acknowledge both characters in the scene. Do not speak for them — only for NPCs.` : '';
+
+  const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
+
   return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Jaehaerys I Targaryen, the Conciliator.
+Current realm date: ${seasonLine}
 
 CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
@@ -334,7 +409,7 @@ Personality: ${c.personality || 'Unknown'}
 Traits: ${(c.traits || []).join(', ') || 'None'}
 Martial:${(c.stats || {}).martial || 3} Diplomacy:${(c.stats || {}).diplomacy || 3} Intrigue:${(c.stats || {}).intrigue || 3} Stewardship:${(c.stats || {}).stewardship || 3} Learning:${(c.stats || {}).learning || 3}
 Health: ${c.health} | Gold: ${c.gold || 100} dragons
-${memBlock}
+${memBlock}${guestBlock}
 
 RULES:
 1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
@@ -406,6 +481,42 @@ async function getCharacter(id, env) {
   );
   const rows = await res.json();
   return rows?.[0] || null;
+}
+
+async function getRealmClock(env) {
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1&limit=1`,
+      { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+    );
+    const rows = await res.json();
+    return rows?.[0]?.season || null;
+  } catch { return null; }
+}
+
+async function getSharedScene(id, env) {
+  const res = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/shared_scenes?id=eq.${encodeURIComponent(id)}&limit=1`,
+    { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
+  );
+  const rows = await res.json();
+  return rows?.[0] || null;
+}
+
+async function updateSharedScene(id, fields, env) {
+  return fetch(
+    `${env.SUPABASE_URL}/rest/v1/shared_scenes?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: {
+        'apikey': env.SUPABASE_SERVICE_KEY,
+        'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
+    }
+  );
 }
 
 async function updateCharacter(id, fields, env) {
