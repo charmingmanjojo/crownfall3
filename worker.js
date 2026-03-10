@@ -1,4 +1,12 @@
-
+// ═══════════════════════════════════════════════════════════
+// CROWNFALL — Cloudflare Worker  (server-authoritative build)
+//
+// Environment variables (Cloudflare dashboard):
+//   ANTHROPIC_KEY         → sk-ant-... key            (Secret)
+//   ADMIN_KEY             → any password               (Secret)
+//   SUPABASE_URL          → https://yourproject.supabase.co
+//   SUPABASE_SERVICE_KEY  → service_role key           (Secret)
+// ═══════════════════════════════════════════════════════════
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -396,8 +404,16 @@ This is a REAL player character. They will act independently. Acknowledge both c
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
 
-  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Jaehaerys I Targaryen, the Conciliator.
-Current realm date: ${seasonLine}
+  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
+
+REALM CONTEXT:
+Aegon V is the reformist king — a man who grew up travelling Westeros as a hedge knight's squire and saw the smallfolk suffer firsthand. He has spent his reign trying to break the power of the great lords, curb serfdom, and raise the smallfolk up. The lords hate him for it. His Small Council is fractious. His own children defy him. The realm is stable on the surface and rotting underneath.
+The dragons are gone. The last died generations ago. There are rumours Aegon V is obsessed with hatching new ones — experiments at Summerhall, the royal pleasure castle. Nothing has come of it yet.
+Dorne was only formally united with the realm 36 years ago (214 AC) through marriage. The ink is barely dry. Old resentments persist.
+The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows.
+This is a world on the edge of something. No one knows what yet.
+
+Current realm date: \${seasonLine}
 
 CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
@@ -589,7 +605,7 @@ async function generateRealmSummary(stats, env) {
       model: 'claude-sonnet-4-6',
       max_tokens: 350,
       messages: [{ role: 'user', content:
-        `You are Grand Maester Pycelle writing a private intelligence report for the small council. The year is 250 AC.\n\nBased on this intelligence, write one flowing paragraph (5-7 sentences) on the state of the realm. Be specific. Name names. Be slightly ominous.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph.`
+        `You are Grand Maester Pycelle writing a private intelligence report for the small council of King Aegon V Targaryen. The year is 250 AC. The king is reformist and his lords are restless.\n\nBased on this intelligence, write one flowing paragraph (5-7 sentences) on the state of the realm. Be specific. Name names. Be slightly ominous.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph.`
       }],
     }),
   });
