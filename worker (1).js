@@ -1,12 +1,3 @@
-// ═══════════════════════════════════════════════════════════
-// CROWNFALL — Cloudflare Worker
-//
-// Environment variables to set in Cloudflare dashboard:
-//   ANTHROPIC_KEY         → your sk-ant-... key (Secret)
-//   ADMIN_KEY             → any password you choose (Secret)
-//   SUPABASE_URL          → https://yourproject.supabase.co (Plain text)
-//   SUPABASE_SERVICE_KEY  → service_role key from Supabase Settings → API (Secret)
-// ═══════════════════════════════════════════════════════════
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +28,11 @@ async function handleGame(request, env) {
   try { body = await request.json(); }
   catch { return json({ error: 'Invalid JSON' }, 400); }
 
+  // Build the system prompt server-side from the character data the client sends.
+  // The client must include a `character` object in the payload.
+  // We always overwrite whatever `system` the client sent — it cannot be spoofed.
+  const system = buildSystemPrompt(body.character);
+
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -44,11 +40,70 @@ async function handleGame(request, env) {
       'x-api-key': env.ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: body.max_tokens || 1000,
+      system,                        // always our prompt, never the client's
+      messages: body.messages || [],
+    }),
   });
 
   const data = await res.json();
   return json(data, res.status);
+}
+
+// ══════════════════════════════════
+// SYSTEM PROMPT (server-side)
+// ══════════════════════════════════
+function buildSystemPrompt(c) {
+  if (!c) return 'You are a Game of Thrones RPG Game Master set in 250 AC.';
+
+  const memBlock = c.npcs && Object.keys(c.npcs).length
+    ? '\nNPC MEMORIES:\n' + Object.entries(c.npcs)
+        .map(([n, mems]) => `- ${n}: ${mems.slice(-3).map(m => m.t).join(' | ')}`)
+        .join('\n')
+    : '';
+
+  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Jaehaerys I Targaryen, the Conciliator.
+
+CHARACTER:
+Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
+House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
+Current Location: ${c.location}
+Appearance: ${c.appear || 'Not described'}
+Backstory: ${c.backstory || 'Unknown'}
+Personality: ${c.personality || 'Unknown'}
+Traits: ${(c.traits || []).join(', ') || 'None'}
+Martial:${(c.stats || {}).martial || 3} Diplomacy:${(c.stats || {}).diplomacy || 3} Intrigue:${(c.stats || {}).intrigue || 3} Stewardship:${(c.stats || {}).stewardship || 3} Learning:${(c.stats || {}).learning || 3}
+Health: ${c.health} | Gold: ${c.gold || 100} dragons
+${memBlock}
+
+RULES:
+1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
+2. Characters CAN and WILL die. Do not protect them. Write deaths honestly and with consequence.
+3. All consequences are permanent. The dead stay dead. Burned bridges stay burned.
+4. Named NPCs remember what the character has done and act on it accordingly.
+5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
+6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
+7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious.
+8. The world moves without the character. Events happen offstage. Time passes.
+9. Custom player actions get resolved honestly — even if the result is fatal.
+10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
+
+INLINE TAGS — embed directly inside narrative prose where they naturally occur:
+{"npc":"Name","memory":"what they remember about this interaction","disposition":1}
+{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome text"}
+{"worldEvent":{"title":"Short title","description":"What happened in the wider world"}}
+
+RESPONSE FORMAT — use this exactly, nothing else:
+<narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
+<choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
+<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence of current situation.","goldChange":0}</status>
+
+ON CHARACTER DEATH:
+<narrative>Death scene. Specific. Consequential. Honest.</narrative>
+<choices>[]</choices>
+<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0}</status>`;
 }
 
 // ══════════════════════════════════
@@ -160,7 +215,7 @@ Write only the paragraph. No title, no sign-off, no "Pycelle" signature.`;
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 350,
       messages: [{ role: 'user', content: prompt }],
     }),
