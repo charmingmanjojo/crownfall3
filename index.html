@@ -287,6 +287,69 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .spinner{width:32px;height:32px;border:2px solid rgba(180,140,60,.12);border-top-color:var(--gold);border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .spinner-txt{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.25em;color:rgba(180,140,60,.4);text-transform:uppercase}
+
+/* ── RAVENS ── */
+.raven-btn-wrap{position:relative}
+.raven-unread{position:absolute;top:-4px;right:-4px;background:#a03020;color:#fff;font-family:'Cinzel',serif;font-size:8px;width:14px;height:14px;border-radius:50%;display:flex;align-items:center;justify-content:center;pointer-events:none;display:none}
+.raven-unread.show{display:flex}
+.raven-tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:16px}
+.raven-tab{flex:1;background:transparent;border:none;padding:9px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:var(--dim);cursor:pointer;text-transform:uppercase;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .2s}
+.raven-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.raven-inbox{display:flex;flex-direction:column;gap:0}
+.raven-item{padding:10px 0;border-bottom:1px solid rgba(100,78,35,.09);cursor:pointer;transition:background .15s}
+.raven-item:hover{background:rgba(180,140,60,.03)}
+.raven-item.unread .raven-item-from{color:var(--gold)}
+.raven-item-from{font-size:13px;color:var(--text);margin-bottom:2px;display:flex;align-items:center;gap:6px}
+.raven-unread-dot{width:6px;height:6px;border-radius:50%;background:#a03020;flex-shrink:0}
+.raven-item-sub{font-size:11px;font-style:italic;color:var(--dim);margin-bottom:2px}
+.raven-item-preview{font-size:11px;color:rgba(100,78,35,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.raven-empty{font-size:13px;font-style:italic;color:rgba(80,62,28,.4);padding:20px 0;text-align:center}
+.raven-compose-field{margin-bottom:14px}
+.raven-compose-label{display:block;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.26em;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
+.raven-compose-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:6px 0;outline:none;transition:border-color .2s}
+.raven-compose-input:focus{border-bottom-color:var(--gold)}
+.raven-compose-input::placeholder{color:rgba(80,62,28,.4);font-style:italic}
+.raven-compose-ta{width:100%;background:rgba(255,255,255,.018);border:1px solid rgba(180,140,60,.1);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;line-height:1.65;padding:9px 12px;outline:none;resize:vertical;min-height:100px;transition:border-color .2s}
+.raven-compose-ta:focus{border-color:rgba(180,140,60,.28)}
+.raven-send-btn{background:transparent;border:1px solid rgba(180,140,60,.32);color:var(--gold);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.22em;padding:10px 22px;cursor:pointer;transition:all .2s;text-transform:uppercase;float:right}
+.raven-send-btn:hover{background:rgba(180,140,60,.07)}
+.raven-send-btn:disabled{opacity:.2;cursor:not-allowed}
+.raven-char-results{border:1px solid rgba(100,78,35,.18);background:rgba(0,0,0,.4);margin-top:4px;display:none}
+.raven-char-result{padding:8px 10px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid rgba(100,78,35,.08);transition:background .14s}
+.raven-char-result:hover{background:rgba(180,140,60,.06)}
+.raven-char-result:last-child{border:none}
+.raven-read-box{padding:4px 0}
+.raven-read-header{margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(100,78,35,.1)}
+.raven-read-from{font-family:'Cinzel',serif;font-size:14px;color:var(--gold);margin-bottom:3px}
+.raven-read-sub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:2px}
+.raven-read-date{font-size:10px;color:rgba(100,78,35,.4)}
+.raven-read-body{font-size:14px;line-height:1.82;color:var(--text);font-style:italic}
+.raven-back{background:transparent;border:none;color:var(--dim);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.18em;cursor:pointer;text-transform:uppercase;margin-bottom:14px;padding:0}
+.raven-back:hover{color:var(--text)}
+
+/* ── WHO'S HERE ── */
+.who-scroll{overflow-y:auto;padding:0 12px 8px;max-height:110px}
+.who-card{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid rgba(100,78,35,.07)}
+.who-card:last-child{border:none}
+.who-sigil{width:20px;height:20px;object-fit:contain;opacity:.7;flex-shrink:0}
+.who-name{font-size:12px;color:var(--text)}
+.who-sub{font-size:10px;font-style:italic;color:rgba(100,78,35,.5)}
+
+/* ── SOUNDSCAPE ── */
+.sound-btn{background:transparent;border:1px solid rgba(100,78,35,.18);color:rgba(100,78,35,.5);font-size:13px;width:28px;height:28px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;flex-shrink:0}
+.sound-btn:hover{border-color:rgba(180,140,60,.3);color:var(--dim)}
+.sound-btn.on{border-color:rgba(180,140,60,.35);color:var(--gold)}
+
+/* ── SEASONAL SNOW ── */
+.snow-overlay{position:absolute;inset:0;pointer-events:none;overflow:hidden;display:none}
+.snow-overlay.on{display:block}
+.snowflake{position:absolute;color:rgba(200,220,255,.35);font-size:8px;animation:snowfall linear infinite}
+@keyframes snowfall{0%{transform:translateY(-10px) rotate(0deg);opacity:.6}100%{transform:translateY(105%) rotate(360deg);opacity:0}}
+.map-wrap{position:relative}
+
+/* ── INSCRIBE ── */
+.inscribe-btn{background:transparent;border:none;color:rgba(100,78,35,.35);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:6px 0 0 24px}
+.inscribe-btn:hover{color:var(--dim)}
 </style>
 </head>
 <body>
@@ -445,6 +508,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <span class="tb-season" id="tb-season">Early Spring, 250 AC</span>
     </div>
     <div class="tb-right">
+      <button class="sound-btn" id="sound-btn" onclick="toggleSound()" title="Ambient Sound">🔇</button>
+      <div class="raven-btn-wrap">
+        <button class="tb-btn" onclick="openRavens()">Ravens</button>
+        <div class="raven-unread" id="raven-badge">0</div>
+      </div>
       <button class="tb-btn" onclick="openSheet()">Character</button>
       <button class="tb-btn" onclick="goChars()">Characters</button>
       <button class="tb-btn danger" onclick="confirmNewChar()">New Char</button>
@@ -467,7 +535,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       </div>
       <div class="map-wrap">
         <span class="plbl">The Realm</span>
-        <div class="map-frame" id="g-map"></div>
+        <div style="position:relative;flex:1;min-height:0">
+        <div class="map-frame" id="g-map" style="height:100%"></div>
+        <div class="snow-overlay" id="snow-overlay"></div>
+        </div>
       </div>
     </div>
 
@@ -498,6 +569,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         <div id="events-list"></div>
       </div>
       <div class="psec" style="flex-shrink:0">
+        <span class="plbl">Who&#39;s Here</span>
+      </div>
+      <div class="who-scroll" id="who-here-list">
+        <div class="no-npcs">No others nearby.</div>
+      </div>
+      <div class="psec" style="flex-shrink:0;border-top:1px solid var(--border)">
         <span class="plbl">Known Persons</span>
       </div>
       <div class="npc-scroll" id="npc-list">
@@ -1208,6 +1285,8 @@ async function loadChar(id) {
   }
 
   mountGame();
+  subscribePresence();
+  subscribeRavens();
   if (S.char.msgs.length) restoreScene();
   else go('game');
 }
@@ -1221,24 +1300,8 @@ async function viewDeadChar(id) {
   showDeathScreen(data.death_narrative, data.death_summary);
 }
 
-async function saveChar() {
-  if (!S.charId || !S.char) return;
-  const c = S.char;
-  await sb.from('characters').update({
-    health: c.health,
-    location: c.location,
-    season: c.season,
-    dead: c.dead || false,
-    death_narrative: c.death_narrative || null,
-    death_summary: c.death_summary || null,
-    gold: c.gold || 100,
-    msgs: c.msgs || [],
-    hist: c.hist || [],
-    npcs: c.npcs || {},
-    events: c.events || [],
-    updated_at: new Date().toISOString(),
-  }).eq('id', S.charId);
-}
+// saveChar() removed — all state writes now go through the worker (/act endpoint).
+// The worker reads from DB, validates AI output, and patches state server-side.
 
 async function createCharInDB(charData) {
   const { data, error } = await sb.from('characters').insert({
@@ -1520,21 +1583,79 @@ function setHealth(h) {
   el.className = 'hbadge hb-' + (h||'Hale').split(' ')[0];
 }
 
+function getSeasonType(s) {
+  const str = (s||'').toLowerCase();
+  if (str.includes('winter')) return 'winter';
+  if (str.includes('summer')) return 'summer';
+  if (str.includes('autumn') || str.includes('fall')) return 'autumn';
+  return 'spring';
+}
+
+const SEASON_COLORS = {
+  spring: { land:'#160f08', water:'rgba(40,90,160,0.22)', wall:'rgba(170,190,215,0.4)', sky:'rgba(155,175,200,0.28)', bg:'#050309' },
+  summer: { land:'#1a1005', water:'rgba(30,70,130,0.2)',  wall:'rgba(170,190,215,0.35)',sky:'rgba(155,175,200,0.22)',bg:'#060408' },
+  autumn: { land:'#1e0e05', water:'rgba(25,55,110,0.18)', wall:'rgba(160,180,200,0.3)', sky:'rgba(140,160,185,0.22)',bg:'#070304' },
+  winter: { land:'#0d0e16', water:'rgba(55,85,165,0.25)', wall:'rgba(190,210,240,0.55)',sky:'rgba(170,195,230,0.38)',bg:'#050508' },
+};
+
 function renderMap() {
   const lid = S.char?.location || 'kings_landing';
+  const season = getSeasonType(S.char?.season);
+  const sc = SEASON_COLORS[season];
+
+  // Seasonal snow overlay
+  const snowEl = document.getElementById('snow-overlay');
+  if (snowEl) {
+    if (season === 'winter') {
+      if (!snowEl.classList.contains('on')) {
+        snowEl.classList.add('on');
+        snowEl.innerHTML = [...Array(18)].map((_,i) => {
+          const left = Math.random()*100;
+          const dur  = 4 + Math.random()*6;
+          const delay= Math.random()*8;
+          const size = 6 + Math.random()*6;
+          return `<div class="snowflake" style="left:${left}%;font-size:${size}px;animation-duration:${dur}s;animation-delay:-${delay}s">❄</div>`;
+        }).join('');
+      }
+    } else {
+      snowEl.classList.remove('on');
+      snowEl.innerHTML = '';
+    }
+  }
+
+  // Other chars at each location
+  const charsByLoc = {};
+  allCharsOnMap.forEach(c => {
+    if (!charsByLoc[c.location]) charsByLoc[c.location] = [];
+    charsByLoc[c.location].push(c);
+  });
+
   document.getElementById('g-map').innerHTML = `<svg viewBox="0 0 600 580">
-    <defs><filter id="gw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
-    <rect width="600" height="580" fill="#050309"/>
+    <defs>
+      <filter id="gw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      ${season==='winter'?'<filter id="wf"><feColorMatrix type="matrix" values="0.8 0.1 0.1 0 0.05  0.1 0.8 0.1 0 0.05  0.1 0.1 1.1 0 0.08  0 0 0 1 0"/></filter>':''}
+    </defs>
+    <rect width="600" height="580" fill="${sc.bg}" ${season==='winter'?'filter="url(#wf)"':''}/>
     ${[...Array(13)].map((_,i)=>`<path d="M${i*48} 0 Q${i*48+18} 290 ${i*48} 580" stroke="rgba(10,24,60,0.3)" stroke-width="0.5" fill="none"/>`).join('')}
-    <path d="M140,30 L200,20 L280,15 L350,25 L410,40 L450,70 L480,110 L490,150 L470,190 L490,220 L500,260 L480,300 L500,340 L510,380 L490,420 L460,460 L420,500 L380,530 L330,545 L280,540 L240,520 L200,500 L160,470 L130,440 L110,400 L100,360 L90,320 L95,280 L80,240 L85,200 L100,160 L110,120 L120,80 Z" fill="#160f08" stroke="rgba(160,120,48,0.16)" stroke-width="1.5"/>
-    <path d="M255,215 Q242,268 218,318 Q200,352 190,398" stroke="rgba(40,90,160,0.22)" stroke-width="1.5" fill="none"/>
-    <path d="M118,113 L422,93" stroke="rgba(170,190,215,0.4)" stroke-width="1.8" stroke-dasharray="7,4"/>
-    <text x="270" y="85" fill="rgba(155,175,200,0.28)" font-size="7.5" font-family="serif" text-anchor="middle">THE WALL</text>
-    ${LOCS.map(l => { const me = l.id===lid; return `<g>
-      ${me?`<circle cx="${l.x}" cy="${l.y}" r="12" fill="none" stroke="rgba(200,168,75,0.28)" stroke-width="1"><animate attributeName="r" values="8;15;8" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0.1;0.7" dur="2.3s" repeatCount="indefinite"/></circle>`:''}
-      <circle cx="${l.x}" cy="${l.y}" r="${me?5:3.5}" fill="${me?'#c8a84b':'rgba(140,105,40,0.6)'}" stroke="${me?'#e8c870':'rgba(85,62,15,0.8)'}" stroke-width="1" ${me?'filter="url(#gw)"':''}/>
-      <text x="${l.x}" y="${l.y+13}" fill="rgba(140,105,40,0.48)" font-size="6.5" font-family="IM Fell English,serif" text-anchor="middle">${l.name}</text>
-    </g>`; }).join('')}
+    <path d="M140,30 L200,20 L280,15 L350,25 L410,40 L450,70 L480,110 L490,150 L470,190 L490,220 L500,260 L480,300 L500,340 L510,380 L490,420 L460,460 L420,500 L380,530 L330,545 L280,540 L240,520 L200,500 L160,470 L130,440 L110,400 L100,360 L90,320 L95,280 L80,240 L85,200 L100,160 L110,120 L120,80 Z" fill="${sc.land}" stroke="rgba(160,120,48,0.16)" stroke-width="1.5"/>
+    <path d="M255,215 Q242,268 218,318 Q200,352 190,398" stroke="${sc.water}" stroke-width="1.5" fill="none"/>
+    <path d="M118,113 L422,93" stroke="${sc.wall}" stroke-width="1.8" stroke-dasharray="7,4"/>
+    <text x="270" y="85" fill="${sc.sky}" font-size="7.5" font-family="serif" text-anchor="middle">THE WALL</text>
+    ${LOCS.map(l => {
+      const me = l.id===lid;
+      const others = (charsByLoc[l.id]||[]).slice(0,4);
+      return `<g>
+        ${me?`<circle cx="${l.x}" cy="${l.y}" r="12" fill="none" stroke="rgba(200,168,75,0.28)" stroke-width="1"><animate attributeName="r" values="8;15;8" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0.1;0.7" dur="2.3s" repeatCount="indefinite"/></circle>`:''}
+        <circle cx="${l.x}" cy="${l.y}" r="${me?5:3.5}" fill="${me?'#c8a84b':'rgba(140,105,40,0.6)'}" stroke="${me?'#e8c870':'rgba(85,62,15,0.8)'}" stroke-width="1" ${me?'filter="url(#gw)"':''}/>
+        ${others.map((c,i) => {
+          const offX = (i%2===0?-1:1)*(8+Math.floor(i/2)*8);
+          const offY = -10 - Math.floor(i/2)*8;
+          return `<image href="${ICONS[c.house_key]||ICONS.none}" x="${l.x+offX-7}" y="${l.y+offY-7}" width="14" height="14" opacity="0.75" style="image-rendering:pixelated"/>
+            <line x1="${l.x}" y1="${l.y}" x2="${l.x+offX}" y2="${l.y+offY}" stroke="rgba(180,140,60,0.18)" stroke-width="0.8"/>`;
+        }).join('')}
+        <text x="${l.x}" y="${l.y+13}" fill="rgba(140,105,40,0.48)" font-size="6.5" font-family="IM Fell English,serif" text-anchor="middle">${l.name}</text>
+      </g>`;
+    }).join('')}
     <text x="10" y="572" fill="rgba(80,60,22,0.25)" font-size="7" font-family="serif">CROWNFALL · 250 AC</text>
   </svg>`;
 }
@@ -1590,63 +1711,50 @@ async function act(text) {
   S.busy = true;
   hideChoices();
 
+  // Optimistically show the user's action in history
   if (currentScene) {
     S.char.hist = S.char.hist || [];
-    S.char.hist.push({narrative:currentScene.narrative, choice:text, rolls:currentScene.rolls||[]});
+    S.char.hist.push({ narrative: currentScene.narrative, choice: text, rolls: currentScene.rolls || [] });
     if (S.char.hist.length > 28) S.char.hist.shift();
   }
-
-  S.char.msgs = S.char.msgs || [];
-  const fullMsgs = [...S.char.msgs, {role:'user', content:text}];
   renderHistory();
   appendLoading();
 
-  let raw;
-  try { raw = await callProxy(fullMsgs); }
-  catch(e) { removeLoading(); appendError(e.message); S.busy=false; return; }
+  // ── Call the worker — it reads char from DB, calls AI, writes state back ──
+  let resp;
+  try { resp = await callAct(text); }
+  catch(e) { removeLoading(); appendError(e.message); S.busy = false; return; }
 
-  S.char.msgs = [...fullMsgs, {role:'assistant', content:raw}];
-  if (S.char.msgs.length > 40) S.char.msgs = S.char.msgs.slice(-40);
-
-  const parsed = parseResp(raw);
+  // Worker returns a parsed scene object directly (not raw text)
+  const parsed = resp;
   currentScene  = parsed;
   currentChoices = parsed.choices || [];
 
-  if (parsed.status) {
-    if (parsed.status.health)    { S.char.health   = parsed.status.health; setHealth(parsed.status.health); }
-    if (parsed.status.season)    { S.char.season   = parsed.status.season; document.getElementById('tb-season').textContent = parsed.status.season; }
-    if (parsed.status.goldChange){ S.char.gold     = Math.max(0,(S.char.gold||100)+parsed.status.goldChange); document.getElementById('g-gold').textContent = '💰 '+S.char.gold+' dragons'; }
-    if (parsed.status.location) {
-      const f = LOCS.find(l => l.name.toLowerCase().includes(parsed.status.location.toLowerCase()) || parsed.status.location.toLowerCase().includes(l.name.toLowerCase()));
+  // ── Apply validated charState returned by server ──
+  if (resp.charState) {
+    const cs = resp.charState;
+    if (cs.health)   { S.char.health   = cs.health;   setHealth(cs.health); }
+    if (cs.season)   { S.char.season   = cs.season;   document.getElementById('tb-season').textContent = cs.season; }
+    if (cs.gold != null){ S.char.gold  = cs.gold;     document.getElementById('g-gold').textContent = '💰 ' + cs.gold + ' dragons'; }
+    if (cs.location) {
+      const f = LOCS.find(l =>
+        l.name.toLowerCase().includes(cs.location.toLowerCase()) ||
+        cs.location.toLowerCase().includes(l.name.toLowerCase())
+      );
       if (f) { S.char.location = f.id; renderMap(); }
     }
+    if (cs.npcs)   { S.char.npcs   = cs.npcs;   renderNPCs(); }
+    if (cs.events) { S.char.events = cs.events;  renderEvents(); }
   }
 
-  (parsed.memories||[]).forEach(m => {
-    S.char.npcs = S.char.npcs || {};
-    if (!S.char.npcs[m.npc]) S.char.npcs[m.npc] = [];
-    S.char.npcs[m.npc].push({t:m.memory, d:m.disposition||0});
-    if (S.char.npcs[m.npc].length > 7) S.char.npcs[m.npc].shift();
-    showToast(m.npc, m.memory);
-  });
-  if (parsed.memories?.length) renderNPCs();
+  // Show NPC memory toasts
+  (parsed.memories || []).forEach(m => { if (m.npc && m.memory) showToast(m.npc, m.memory); });
 
-  if (parsed.worldEvent) {
-    S.char.events = S.char.events || [];
-    S.char.events.unshift(parsed.worldEvent.title || parsed.worldEvent.description || '');
-    if (S.char.events.length > 18) S.char.events.pop();
-    renderEvents();
-  }
-
-  await saveChar();
   removeLoading();
 
-  if (parsed.status?.isDead) {
+  if (resp.charState?.dead) {
     S.char.dead = true;
-    S.char.death_narrative = parsed.narrative;
-    S.char.death_summary   = parsed.status.summary;
-    await saveChar();
-    setTimeout(() => showDeathScreen(parsed.narrative, parsed.status.summary), 600);
+    setTimeout(() => showDeathScreen(parsed.narrative, parsed.status?.summary), 600);
     S.busy = false;
     return;
   }
@@ -1680,7 +1788,8 @@ function renderHistory() {
 
 function appendScene(p) {
   const d = document.createElement('div'); d.className = 'appear';
-  d.innerHTML = `${(p.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(p.narrative)}</div>`;
+  d.innerHTML = `${(p.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(p.narrative)}</div>
+    <button class="inscribe-btn" onclick="inscribeDeed()">✦ Inscribe this deed in the chronicles</button>`;
   ss().appendChild(d);
 }
 
@@ -1870,23 +1979,21 @@ ON CHARACTER DEATH:
 <status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0}</status>`;
 }
 
-async function callProxy(msgs) {
-  const res = await fetch(PROXY_URL, {
+async function callAct(action) {
+  const res = await fetch(PROXY_URL + '/act', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      system: buildSystemPrompt(),
-      messages: msgs.slice(-20),
+      userId:      S.user.id,
+      characterId: S.charId,
+      action,
     }),
   });
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
-    throw new Error(e.error?.message || 'Proxy error ' + res.status);
+    throw new Error(e.error || 'Proxy error ' + res.status);
   }
-  const data = await res.json();
-  return data.content[0].text;
+  return res.json(); // { narrative, choices, status, rolls, memories, worldEvent, charState }
 }
 
 function parseResp(text) {
@@ -1934,6 +2041,438 @@ sb.auth.onAuthStateChange((event, session) => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════
+// REALTIME PRESENCE — who else is at my location
+// ══════════════════════════════════════════════════════
+let allCharsOnMap = [];
+let presenceChannel = null;
+
+async function subscribePresence() {
+  if (!S.char || !S.charId) return;
+  await refreshPresence();
+  if (presenceChannel) presenceChannel.unsubscribe();
+  presenceChannel = sb.channel('presence-' + S.charId)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'characters' }, () => {
+      refreshPresence();
+    })
+    .subscribe();
+}
+
+async function refreshPresence() {
+  if (!S.charId) return;
+  const { data } = await sb
+    .from('characters')
+    .select('id,name,house_key,house_full,location,health')
+    .eq('dead', false)
+    .neq('id', S.charId);
+  if (!data) return;
+  allCharsOnMap = data;
+  renderWhoIsHere();
+  renderMap();
+}
+
+function renderWhoIsHere() {
+  const el = document.getElementById('who-here-list');
+  if (!el || !S.char) return;
+  const here = allCharsOnMap.filter(c => c.location === S.char.location);
+  if (!here.length) {
+    el.innerHTML = '<div class="no-npcs" style="padding:5px 12px">No others nearby.</div>';
+    return;
+  }
+  el.innerHTML = here.map(c => `
+    <div class="who-card">
+      <img class="who-sigil" src="${ICONS[c.house_key]||ICONS.none}" alt=""/>
+      <div>
+        <div class="who-name">${esc(c.name)}</div>
+        <div class="who-sub">${esc(c.house_full||'No House')} · ${esc(c.health||'Hale')}</div>
+      </div>
+    </div>`).join('');
+}
+
+// ══════════════════════════════════════════════════════
+// RAVEN SYSTEM
+// ══════════════════════════════════════════════════════
+let ravenChannel = null;
+let ravenInbox = [];
+
+async function subscribeRavens() {
+  if (!S.charId) return;
+  await loadRavenInbox();
+  if (ravenChannel) ravenChannel.unsubscribe();
+  ravenChannel = sb.channel('ravens-' + S.charId)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'ravens',
+      filter: `to_char_id=eq.${S.charId}`
+    }, () => {
+      loadRavenInbox();
+      showToast('A raven arrives', 'You have received a new message.');
+    })
+    .subscribe();
+}
+
+async function loadRavenInbox() {
+  if (!S.charId) return;
+  const { data } = await sb
+    .from('ravens')
+    .select('*')
+    .eq('to_char_id', S.charId)
+    .order('created_at', { ascending: false });
+  ravenInbox = data || [];
+  const unread = ravenInbox.filter(r => !r.is_read).length;
+  const badge = document.getElementById('raven-badge');
+  if (badge) {
+    badge.textContent = unread;
+    badge.classList.toggle('show', unread > 0);
+  }
+  renderRavenInbox();
+}
+
+function openRavens() {
+  document.getElementById('ravens-modal').classList.add('open');
+  const c = S.char;
+  document.getElementById('ravens-char-name').textContent = c ? `${c.name} · ${c.house_full||'No House'}` : '—';
+  ravenTab('inbox');
+}
+
+function closeRavens() { document.getElementById('ravens-modal').classList.remove('open'); }
+
+let ravenTabMode = 'inbox';
+function ravenTab(mode) {
+  ravenTabMode = mode;
+  document.querySelectorAll('.raven-tab').forEach((t,i) => {
+    t.classList.toggle('on', (i===0&&mode==='inbox')||(i===1&&mode==='compose'));
+  });
+  document.getElementById('raven-inbox-panel').style.display = mode==='inbox'?'':'none';
+  document.getElementById('raven-read-panel').style.display = 'none';
+  document.getElementById('raven-compose-panel').style.display = mode==='compose'?'':'none';
+  if (mode==='inbox') renderRavenInbox();
+}
+
+function renderRavenInbox() {
+  const el = document.getElementById('raven-inbox-list');
+  if (!el) return;
+  if (!ravenInbox.length) {
+    el.innerHTML = '<div class="raven-empty">No ravens received yet.</div>';
+    return;
+  }
+  el.innerHTML = ravenInbox.map(r => `
+    <div class="raven-item ${r.is_read?'':'unread'}" onclick="readRaven('${r.id}')">
+      <div class="raven-item-from">
+        ${!r.is_read?'<div class="raven-unread-dot"></div>':''}
+        ${esc(r.from_char_name||'Unknown')}
+      </div>
+      <div class="raven-item-sub">${esc(r.subject||'(no subject)')}</div>
+      <div class="raven-item-preview">${esc((r.body||'').substring(0,80))}${(r.body||'').length>80?'…':''}</div>
+    </div>`).join('');
+}
+
+async function readRaven(id) {
+  const r = ravenInbox.find(x => x.id === id);
+  if (!r) return;
+  document.getElementById('raven-inbox-panel').style.display = 'none';
+  document.getElementById('raven-read-panel').style.display = '';
+  document.getElementById('rr-from').textContent = `From: ${r.from_char_name||'Unknown'} of ${r.from_house||'—'}`;
+  document.getElementById('rr-subject').textContent = r.subject || '(no subject)';
+  document.getElementById('rr-date').textContent = new Date(r.created_at).toLocaleDateString('en-US', {year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('rr-body').textContent = r.body || '';
+  if (!r.is_read) {
+    await sb.from('ravens').update({ is_read: true }).eq('id', id);
+    r.is_read = true;
+    const unread = ravenInbox.filter(x => !x.is_read).length;
+    const badge = document.getElementById('raven-badge');
+    if (badge) { badge.textContent = unread; badge.classList.toggle('show', unread>0); }
+  }
+}
+
+let ravenSearchTimeout;
+async function searchCharsForRaven(q) {
+  clearTimeout(ravenSearchTimeout);
+  document.getElementById('raven-to-id').value = '';
+  document.getElementById('raven-to-name').value = '';
+  const res = document.getElementById('raven-char-results');
+  if (!q || q.length < 2) { res.style.display = 'none'; return; }
+  ravenSearchTimeout = setTimeout(async () => {
+    const { data } = await sb.from('characters')
+      .select('id,name,house_full')
+      .eq('dead', false)
+      .neq('id', S.charId)
+      .ilike('name', `%${q}%`)
+      .limit(6);
+    if (!data || !data.length) { res.innerHTML = '<div class="raven-char-result" style="color:rgba(100,78,35,.4)">No characters found.</div>'; res.style.display='block'; return; }
+    res.innerHTML = data.map(c => `<div class="raven-char-result" onclick="selectRavenTarget('${c.id}','${esc(c.name)}')">
+      ${esc(c.name)} <span style="color:var(--dim);font-size:10px">· ${esc(c.house_full||'No House')}</span>
+    </div>`).join('');
+    res.style.display = 'block';
+  }, 300);
+}
+
+function selectRavenTarget(id, name) {
+  document.getElementById('raven-to-input').value = name;
+  document.getElementById('raven-to-id').value = id;
+  document.getElementById('raven-to-name').value = name;
+  document.getElementById('raven-char-results').style.display = 'none';
+}
+
+async function sendRaven() {
+  const toId      = document.getElementById('raven-to-id').value;
+  const toName    = document.getElementById('raven-to-name').value;
+  const subject   = document.getElementById('raven-subject').value.trim();
+  const body      = document.getElementById('raven-body').value.trim();
+  const statusEl  = document.getElementById('raven-compose-status');
+  const btn       = document.getElementById('raven-send-btn');
+
+  if (!toId)    { statusEl.textContent = 'Select a recipient from the search.'; return; }
+  if (!body)    { statusEl.textContent = 'Write a message before sending.'; return; }
+
+  btn.disabled = true;
+  statusEl.textContent = 'Dispatching raven...';
+
+  let ravenError = null;
+  try {
+    const res = await fetch(PROXY_URL + '/raven', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId:      S.user.id,
+        fromCharId:  S.charId,
+        toCharId:    toId,
+        subject,
+        ravenBody:   body,
+      }),
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); ravenError = e.error || 'Failed'; }
+  } catch(e) { ravenError = e.message; }
+
+  btn.disabled = false;
+  if (ravenError) {
+    statusEl.textContent = 'Failed: ' + ravenError;
+  } else {
+    statusEl.style.color = 'rgba(100,158,80,.8)';
+    statusEl.textContent = 'The raven takes wing.';
+    document.getElementById('raven-to-input').value = '';
+    document.getElementById('raven-to-id').value = '';
+    document.getElementById('raven-body').value = '';
+    document.getElementById('raven-subject').value = '';
+    setTimeout(() => { statusEl.textContent = ''; statusEl.style.color = ''; }, 3000);
+  }
+}
+
+// ══════════════════════════════════════════════════════
+// CHRONICLE — inscribe great deeds
+// ══════════════════════════════════════════════════════
+async function inscribeDeed() {
+  if (!S.char || !S.charId || !currentScene) return;
+  const excerpt = currentScene.narrative?.substring(0, 400) + (currentScene.narrative?.length > 400 ? '…' : '');
+  const season = S.char.season || 'Unknown, 250 AC';
+  const locName = LOCS.find(l => l.id === S.char.location)?.name || S.char.location;
+
+  let inscribeError = null;
+  try {
+    const res = await fetch(PROXY_URL + '/inscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId:            S.user.id,
+        characterId:       S.charId,
+        narrativeExcerpt:  excerpt,
+      }),
+    });
+    if (!res.ok) { const e = await res.json().catch(()=>({})); inscribeError = e.error || 'Failed'; }
+  } catch(e) { inscribeError = e.message; }
+
+  showToast('Chronicle', inscribeError ? 'Failed to inscribe.' : 'This deed has been inscribed in the chronicles.');
+}
+
+// ══════════════════════════════════════════════════════
+// SOUNDSCAPE
+// ══════════════════════════════════════════════════════
+let audioCtx = null;
+let soundActive = false;
+let soundNodes = [];
+
+function toggleSound() {
+  if (soundActive) stopSound();
+  else startSound();
+}
+
+function startSound() {
+  try {
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    soundNodes.forEach(n => { try { n.source?.stop(); n.lfo?.stop(); } catch {} });
+    soundNodes = [];
+    soundNodes.push(createFireNode());
+    soundNodes.push(createWindNode());
+    scheduleRavenCalls();
+    soundActive = true;
+    const btn = document.getElementById('sound-btn');
+    if (btn) { btn.textContent = '🔊'; btn.classList.add('on'); }
+  } catch(e) { console.error('Audio error:', e); }
+}
+
+function stopSound() {
+  soundNodes.forEach(n => {
+    try { n.source?.stop(); } catch {}
+    try { n.lfo?.stop(); } catch {}
+    try { n.gainNode?.disconnect(); } catch {}
+  });
+  soundNodes = [];
+  soundActive = false;
+  const btn = document.getElementById('sound-btn');
+  if (btn) { btn.textContent = '🔇'; btn.classList.remove('on'); }
+}
+
+function createBrownNoise(ctx, seconds) {
+  const sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, sr * seconds, sr);
+  const d = buf.getChannelData(0);
+  let last = 0;
+  for (let i = 0; i < d.length; i++) {
+    const w = Math.random() * 2 - 1;
+    d[i] = (last + 0.02 * w) / 1.02;
+    last = d[i];
+    d[i] *= 3.5;
+  }
+  return buf;
+}
+
+function createPinkNoise(ctx, seconds) {
+  const sr = ctx.sampleRate;
+  const buf = ctx.createBuffer(1, sr * seconds, sr);
+  const d = buf.getChannelData(0);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  for (let i = 0; i < d.length; i++) {
+    const w = Math.random() * 2 - 1;
+    b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+    b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+    b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+    d[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11;
+    b6 = w * 0.115926;
+  }
+  return buf;
+}
+
+function createFireNode() {
+  const ctx = audioCtx;
+  const src = ctx.createBufferSource();
+  src.buffer = createBrownNoise(ctx, 3);
+  src.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 350;
+  filter.Q.value = 0.4;
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0.06;
+  src.connect(filter); filter.connect(gainNode); gainNode.connect(ctx.destination);
+  src.start();
+  return { source: src, gainNode };
+}
+
+function createWindNode() {
+  const ctx = audioCtx;
+  const src = ctx.createBufferSource();
+  src.buffer = createPinkNoise(ctx, 4);
+  src.loop = true;
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'lowpass';
+  filter.frequency.value = 500;
+  const gainNode = ctx.createGain();
+  gainNode.gain.value = 0.035;
+  const lfo = ctx.createOscillator();
+  lfo.frequency.value = 0.08;
+  const lfoG = ctx.createGain();
+  lfoG.gain.value = 0.025;
+  lfo.connect(lfoG); lfoG.connect(gainNode.gain);
+  src.connect(filter); filter.connect(gainNode); gainNode.connect(ctx.destination);
+  src.start(); lfo.start();
+  return { source: src, lfo, gainNode };
+}
+
+function playRavenCall() {
+  if (!audioCtx || !soundActive) return;
+  try {
+    const ctx = audioCtx;
+    const times = [0, 0.18, 0.38];
+    times.forEach(t => {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(380, ctx.currentTime + t);
+      osc.frequency.exponentialRampToValueAtTime(180, ctx.currentTime + t + 0.15);
+      g.gain.setValueAtTime(0, ctx.currentTime + t);
+      g.gain.linearRampToValueAtTime(0.07, ctx.currentTime + t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + t + 0.18);
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.value = 800;
+      filter.Q.value = 2;
+      osc.connect(filter); filter.connect(g); g.connect(ctx.destination);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.2);
+    });
+  } catch {}
+}
+
+function scheduleRavenCalls() {
+  if (!soundActive) return;
+  const delay = 15000 + Math.random() * 30000;
+  setTimeout(() => { playRavenCall(); if (soundActive) scheduleRavenCalls(); }, delay);
+}
+
+
 </script>
+
+<!-- RAVENS MODAL -->
+<div class="modal-bg" id="ravens-modal">
+  <div class="modal-box" style="max-width:520px">
+    <button class="modal-close" onclick="closeRavens()">✕</button>
+    <div class="modal-name">Ravens</div>
+    <div class="modal-sub" id="ravens-char-name">—</div>
+    <div class="raven-tabs">
+      <button class="raven-tab on" onclick="ravenTab('inbox')">Inbox</button>
+      <button class="raven-tab" onclick="ravenTab('compose')">Send a Raven</button>
+    </div>
+    <!-- INBOX -->
+    <div id="raven-inbox-panel">
+      <div id="raven-inbox-list"></div>
+    </div>
+    <!-- READ -->
+    <div id="raven-read-panel" style="display:none">
+      <button class="raven-back" onclick="ravenTab('inbox')">← Back to Inbox</button>
+      <div class="raven-read-box">
+        <div class="raven-read-header">
+          <div class="raven-read-from" id="rr-from">—</div>
+          <div class="raven-read-sub" id="rr-subject">—</div>
+          <div class="raven-read-date" id="rr-date">—</div>
+        </div>
+        <div class="raven-read-body" id="rr-body">—</div>
+      </div>
+    </div>
+    <!-- COMPOSE -->
+    <div id="raven-compose-panel" style="display:none">
+      <div class="raven-compose-field">
+        <label class="raven-compose-label">To (character name)</label>
+        <input id="raven-to-input" class="raven-compose-input" placeholder="Search by character name..." oninput="searchCharsForRaven(this.value)" autocomplete="off"/>
+        <div id="raven-char-results" class="raven-char-results"></div>
+        <input id="raven-to-id" type="hidden"/>
+        <input id="raven-to-name" type="hidden"/>
+      </div>
+      <div class="raven-compose-field">
+        <label class="raven-compose-label">Subject</label>
+        <input id="raven-subject" class="raven-compose-input" placeholder="Brief matter of the message..."/>
+      </div>
+      <div class="raven-compose-field">
+        <label class="raven-compose-label">Message</label>
+        <textarea id="raven-body" class="raven-compose-ta" placeholder="Write your message in character. The recipient will see exactly what you write."></textarea>
+      </div>
+      <div style="overflow:hidden;margin-top:8px">
+        <button class="raven-send-btn" id="raven-send-btn" onclick="sendRaven()">Dispatch Raven</button>
+      </div>
+      <div style="clear:both"></div>
+      <div id="raven-compose-status" style="font-size:12px;font-style:italic;color:rgba(100,78,35,.5);margin-top:10px;text-align:right"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
