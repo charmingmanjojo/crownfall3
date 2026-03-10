@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Westeros Online</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet"/>
+
+<script>
+  // ── CONFIGURE THESE THREE LINES ──────────────────────
+  const PROXY_URL    = 'https://crownfall3.jaydensmith471526.workers.dev';
+  // ─────────────────────────────────────────────────────
+</script>
+
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#09070b;--gold:#c8a84b;--gold2:#e8c870;--dim:#6a5535;
+  --text:#b8a070;--border:rgba(180,140,60,0.15);--red:#a03020;--green:#5a8e42;
+}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fell English',Georgia,serif;overflow:hidden}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:rgba(180,140,60,0.12)}
+.page{display:none}.page.on{display:flex}
+
+/* ── SPLASH ── */
+#p-splash{height:100vh;flex-direction:column;align-items:center;justify-content:center;
+  background:radial-gradient(ellipse at 40% 35%,rgba(70,40,8,0.55) 0%,transparent 55%),var(--bg)}
+.splash-box{width:440px;text-align:center;padding:0 20px}
+.splash-sigil{font-size:32px;color:rgba(180,140,60,0.28);margin-bottom:22px;letter-spacing:8px}
+.splash-title{font-family:'Cinzel',serif;font-size:46px;color:var(--gold);letter-spacing:.18em;margin-bottom:4px;text-shadow:0 0 60px rgba(180,110,20,.35)}
+.splash-era{font-size:12px;font-style:italic;color:var(--dim);letter-spacing:.1em;margin-bottom:8px}
+.splash-hr{border:none;border-top:1px solid rgba(180,140,60,.12);margin:22px 0}
+.splash-desc{font-size:13px;color:rgba(140,110,55,.6);line-height:1.75;margin-bottom:32px;font-style:italic}
+.btn{width:100%;padding:13px;background:transparent;border:1px solid rgba(180,140,60,.35);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.25em;text-transform:uppercase;cursor:pointer;transition:all .22s}
+.btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}.btn:disabled{opacity:.2;cursor:not-allowed}
+.reset-lnk{background:transparent;border:none;color:rgba(80,62,28,.3);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;margin-top:20px;display:block}
+.reset-lnk:hover{color:var(--dim)}
+
+/* ── CREATE ── */
+#p-create{height:100vh;overflow-y:auto;flex-direction:column;
+  background:radial-gradient(ellipse at 30% 20%,rgba(55,30,6,.6) 0%,transparent 50%),var(--bg)}
+.cr-wrap{max-width:760px;margin:0 auto;padding:52px 28px 100px;width:100%}
+.cr-title{font-family:'Cinzel',serif;font-size:30px;color:var(--gold);margin-bottom:4px}
+.cr-sub{font-size:13px;font-style:italic;color:var(--dim);line-height:1.7;margin-bottom:44px}
+.sec{margin-bottom:34px}
+.sec-lbl{display:block;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;margin-bottom:11px}
+.ci{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:20px;padding:7px 0;outline:none;transition:border-color .2s}
+.ci:focus{border-bottom-color:var(--gold)}.ci::placeholder{color:rgba(80,62,28,.5)}.ci.sm{font-size:15px}
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.ta{width:100%;background:rgba(255,255,255,.018);border:1px solid rgba(180,140,60,.1);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;line-height:1.65;padding:10px 12px;outline:none;resize:vertical;min-height:70px;transition:border-color .2s}
+.ta:focus{border-color:rgba(180,140,60,.32)}.ta::placeholder{color:rgba(80,62,28,.5);font-style:italic}
+
+/* House grid */
+.house-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;margin-bottom:10px}
+.htile{border:1px solid rgba(100,78,35,.18);padding:12px 8px 10px;cursor:pointer;transition:all .16s;background:rgba(255,255,255,.015);text-align:center}
+.htile:hover{border-color:rgba(180,140,60,.28);background:rgba(180,140,60,.04)}.htile.on{border-color:rgba(180,140,60,.5);background:rgba(180,140,60,.08)}
+.hsigil{width:36px;height:36px;margin:0 auto 7px}
+.hname{font-family:'Cinzel',serif;font-size:10px;color:var(--text);margin-bottom:2px}
+.hwords{font-size:8px;font-style:italic;color:rgba(100,78,35,.6);line-height:1.2}
+.hdesc{font-size:12px;font-style:italic;color:rgba(120,95,45,.55);line-height:1.55;min-height:36px;margin-top:8px}
+.cr-sel{width:100%;background:rgba(255,255,255,.02);border:1px solid rgba(180,140,60,.18);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:9px 11px;outline:none;cursor:pointer}
+.cr-sel option{background:#120d06}
+
+/* Stats */
+.stat-rows{display:flex;flex-direction:column;gap:9px}
+.stat-row{display:grid;grid-template-columns:90px 1fr 68px;align-items:center;gap:12px}
+.sname{font-size:12px;color:var(--dim)}
+.sctrl{display:flex;align-items:center;gap:7px}
+.sbar{flex:1;height:4px;background:rgba(100,78,35,.15);border-radius:2px;overflow:hidden}
+.sfill{height:4px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px;transition:width .2s}
+.sadj{width:20px;height:20px;background:transparent;border:1px solid rgba(180,140,60,.2);color:var(--dim);cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:all .14s;flex-shrink:0}
+.sadj:hover:not(:disabled){border-color:var(--gold);color:var(--gold)}.sadj:disabled{opacity:.15;cursor:not-allowed}
+.sval{font-size:15px;color:var(--gold);text-align:center;min-width:18px}
+.shint{font-size:10px;font-style:italic;color:rgba(100,78,35,.5)}
+
+/* Traits */
+.trait-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.tc-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px}
+.tc-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase}
+.tc-count{font-size:10px;font-style:italic;color:rgba(100,78,35,.5)}
+.titem{display:flex;gap:9px;padding:8px 9px;border:1px solid rgba(100,78,35,.12);cursor:pointer;margin-bottom:4px;transition:all .16s;align-items:center}
+.titem:hover{border-color:rgba(180,140,60,.22);background:rgba(180,140,60,.03)}.titem.on{border-color:rgba(180,140,60,.42);background:rgba(180,140,60,.07)}.titem.neg.on{border-color:rgba(180,60,40,.3);background:rgba(180,60,40,.06)}.titem.disabled-look{opacity:.35;cursor:not-allowed}
+.tico{width:28px;height:28px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid rgba(180,140,60,.14);background:rgba(0,0,0,.25)}
+.titem.neg .tico{border-color:rgba(160,60,40,.18)}
+.tname{font-size:12px;color:var(--text);margin-bottom:2px}
+.tdesc{font-size:10px;font-style:italic;color:rgba(100,78,35,.6);line-height:1.3}
+
+/* ── GAME ── */
+#p-game{height:100vh;flex-direction:column;overflow:hidden}
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 18px;height:40px;border-bottom:1px solid var(--border);background:rgba(0,0,0,.5);flex-shrink:0}
+.tb-title{font-family:'Cinzel',serif;font-size:13px;color:var(--gold);letter-spacing:.2em}
+.tb-mid{display:flex;gap:12px;align-items:center}
+.hbadge{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;padding:2px 9px;border:1px solid;text-transform:uppercase}
+.hb-Hale{color:#6a9e50;border-color:rgba(100,158,80,.28)}.hb-Wounded{color:#b09030;border-color:rgba(180,140,60,.28)}.hb-Grievously{color:var(--red);border-color:rgba(160,50,32,.28)}.hb-Dead{color:#555;border-color:rgba(80,80,80,.22)}
+.tb-season{font-size:11px;font-style:italic;color:rgba(100,78,35,.5)}
+.tb-right{display:flex;gap:7px}
+.tbbtn{background:transparent;border:1px solid rgba(100,78,35,.18);color:rgba(100,78,35,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.14em;padding:4px 10px;cursor:pointer;transition:all .16s;text-transform:uppercase}
+.tbbtn:hover{border-color:rgba(180,140,60,.3);color:var(--dim)}.tbbtn.danger{color:rgba(140,60,40,.45)}.tbbtn.danger:hover{color:rgba(180,80,60,.6)}
+
+/* Three col */
+.game-cols{display:grid;grid-template-columns:248px 1fr 244px;flex:1;overflow:hidden;min-height:0}
+
+/* Left col */
+.lcol{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18)}
+.psec{padding:10px 13px;border-bottom:1px solid rgba(100,78,35,.09);flex-shrink:0}
+.plbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.26em;color:rgba(100,78,35,.45);text-transform:uppercase;display:block;margin-bottom:6px}
+.cname{font-family:'Cinzel',serif;font-size:15px;color:var(--gold);line-height:1.2}
+.csub{font-size:11px;font-style:italic;color:var(--dim);margin-top:2px;line-height:1.35}
+.cgold{font-size:11px;color:rgba(160,128,52,.5);margin-top:4px}
+.smrow{display:grid;grid-template-columns:62px 1fr 18px;align-items:center;gap:6px;margin-bottom:4px}
+.smrow:last-child{margin-bottom:0}
+.smn{font-size:10px;color:var(--dim)}.smt{height:3px;background:rgba(100,78,35,.14);border-radius:2px;overflow:hidden}
+.smf{height:3px;background:linear-gradient(90deg,var(--gold),var(--gold2));border-radius:2px}.smv{font-size:10px;color:var(--gold);text-align:right}
+.tpips{display:flex;flex-wrap:wrap;gap:3px}
+.tpip{font-size:9px;padding:2px 6px;border:1px solid rgba(180,140,60,.15);color:rgba(120,95,45,.6);display:flex;align-items:center;gap:3px}
+.tpip.neg{border-color:rgba(160,60,40,.16);color:rgba(140,70,50,.6)}
+.mapwrap{flex:1;min-height:0;padding:8px 10px;display:flex;flex-direction:column;gap:5px}
+.mapframe{flex:1;min-height:0;background:#050309;border:1px solid rgba(100,78,35,.14);overflow:hidden;cursor:pointer}
+.mapframe svg{width:100%;height:100%;display:block}
+.map-hint{font-size:9px;font-style:italic;color:rgba(100,78,35,.35);text-align:center}
+
+/* Center col */
+.ccol{display:flex;flex-direction:column;overflow:hidden}
+.story-scroll{flex:1;overflow-y:auto;padding:22px 26px}
+.sum-line{font-size:12px;font-style:italic;color:rgba(100,78,35,.55);margin-bottom:18px;padding-bottom:13px;border-bottom:1px solid rgba(100,78,35,.09)}
+.hist-blk{margin-bottom:24px;opacity:.38}
+.hist-clbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.17em;color:rgba(100,78,35,.5);display:block;margin-bottom:8px}
+.hist-clbl::before{content:"↳  "}
+.prose{font-size:16px;line-height:1.88;color:var(--text)}
+.prose p{margin-bottom:.95em}
+.prose p:first-child::first-letter{font-family:'Cinzel',serif;font-size:46px;float:left;line-height:.82;margin:5px 7px -3px 0;color:var(--gold)}
+.sdiv{border:none;border-top:1px solid rgba(100,78,35,.09);margin:20px 0}
+.dice-blk{padding:10px 13px;border:1px solid rgba(100,78,35,.18);background:rgba(0,0,0,.38);margin-bottom:13px}
+.dice-blk.win{border-color:rgba(80,140,55,.28)}.dice-blk.lose{border-color:rgba(160,50,32,.28)}
+.dlbl{font-size:9px;letter-spacing:.2em;color:rgba(180,140,60,.4);text-transform:uppercase;margin-bottom:6px}
+.drow{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.dface{width:27px;height:27px;border:1px solid rgba(180,140,60,.2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:bold;color:#c0a060}
+.dtotal{font-size:20px;font-weight:bold;margin-left:4px}.dlabel{font-size:12px;margin-left:5px}.dres{font-size:12px;font-style:italic;color:rgba(140,110,50,.7);margin-top:5px}
+.ldwrap{display:flex;align-items:center;gap:7px;padding:14px 0;color:rgba(100,78,35,.5);font-style:italic;font-size:14px}
+.ld{animation:pulse 1.4s ease-in-out infinite;opacity:0}.ld:nth-child(2){animation-delay:.22s}.ld:nth-child(3){animation-delay:.44s}
+@keyframes pulse{0%,80%,100%{opacity:0}40%{opacity:1}}
+.appear{animation:appear .45s ease forwards}
+@keyframes appear{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.start-wrap{padding:52px 20px;text-align:center}
+.start-btn{background:transparent;border:1px solid rgba(180,140,60,.32);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.22em;padding:14px 44px;cursor:pointer;transition:all .22s;text-transform:uppercase}
+.start-btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}
+
+/* Travel panel */
+.travel-overlay{display:none;position:absolute;inset:0;background:rgba(4,2,0,.94);z-index:200;align-items:center;justify-content:center}
+.travel-overlay.open{display:flex}
+.travel-box{max-width:520px;width:100%;padding:34px 28px;border:1px solid rgba(100,78,35,.2);background:rgba(8,5,2,.98);position:relative}
+.trav-title{font-family:'Cinzel',serif;font-size:18px;color:var(--gold);margin-bottom:4px}
+.trav-sub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:22px}
+.loc-grid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.loc-btn{background:transparent;border:1px solid rgba(100,78,35,.18);color:rgba(140,108,50,.7);font-family:'IM Fell English',serif;font-size:13px;padding:9px 12px;cursor:pointer;text-align:left;transition:all .18s;display:flex;align-items:center;gap:8px}
+.loc-btn:hover{border-color:rgba(180,140,60,.35);color:var(--text);background:rgba(180,140,60,.04)}.loc-btn.current{opacity:.35;cursor:not-allowed}
+.loc-danger{font-size:9px;margin-left:auto;padding:1px 5px;border:1px solid}
+.d1{color:rgba(90,142,66,.7);border-color:rgba(90,142,66,.25)}.d2{color:rgba(180,140,60,.7);border-color:rgba(180,140,60,.25)}.d3{color:rgba(190,100,30,.7);border-color:rgba(190,100,30,.25)}.d4{color:rgba(160,50,32,.7);border-color:rgba(160,50,32,.25)}
+.trav-close{position:absolute;top:14px;right:16px;background:transparent;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+
+/* Choices */
+.choices-panel{border-top:1px solid var(--border);padding:12px 18px 14px;flex-shrink:0;background:rgba(0,0,0,.3)}
+.ch-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.ch-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.24em;color:rgba(100,78,35,.5);text-transform:uppercase}
+.ch-actions{display:flex;gap:8px;align-items:center}
+.ctog{background:transparent;border:none;font-family:'IM Fell English',serif;font-size:11px;font-style:italic;color:rgba(100,78,35,.45);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.ctog:hover{color:var(--dim)}
+.travel-toggle{background:transparent;border:1px solid rgba(100,78,35,.2);color:rgba(100,78,35,.5);font-family:'Cinzel',serif;font-size:8px;letter-spacing:.18em;padding:3px 9px;cursor:pointer;text-transform:uppercase;transition:all .18s}
+.travel-toggle:hover{border-color:rgba(180,140,60,.3);color:var(--dim)}
+.chgrid{display:grid;grid-template-columns:1fr 1fr;gap:5px}
+.cbtn{background:transparent;border:1px solid rgba(180,140,60,.1);border-left:2px solid rgba(180,140,60,.15);color:rgba(140,108,50,.7);font-family:'IM Fell English',Georgia,serif;font-size:13px;font-style:italic;padding:9px 12px;cursor:pointer;text-align:left;line-height:1.38;transition:all .18s}
+.cbtn:hover:not(:disabled){border-left-color:var(--gold);color:var(--text);background:rgba(180,140,60,.04);padding-left:15px}.cbtn:disabled{opacity:.22;cursor:not-allowed}
+.custom-row{display:flex;gap:7px}
+.cta{flex:1;background:rgba(255,255,255,.02);border:1px solid rgba(180,140,60,.14);border-bottom-color:rgba(180,140,60,.4);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:8px 10px;outline:none;resize:none;transition:border-bottom-color .18s}
+.cta:focus{border-bottom-color:var(--gold)}
+.actbtn{background:transparent;border:1px solid rgba(180,140,60,.25);color:var(--gold);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:8px 14px;cursor:pointer;align-self:flex-end;transition:all .18s;flex-shrink:0;text-transform:uppercase}
+.actbtn:hover:not(:disabled){background:rgba(180,140,60,.07);border-color:var(--gold)}.actbtn:disabled{opacity:.2;cursor:not-allowed}
+
+/* Right col */
+.rcol{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;background:rgba(0,0,0,.18)}
+.evitem{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);padding:5px 0;border-bottom:1px solid rgba(100,78,35,.07);line-height:1.4}
+.evitem:last-child{border:none}.evitem.fresh{color:rgba(158,124,48,.82);animation:appear .4s ease}
+.npc-scroll{flex:1;overflow-y:auto;padding:0 13px 12px}
+.npc-card{padding:9px 0;border-bottom:1px solid rgba(100,78,35,.07)}.npc-card:last-child{border:none}
+.npc-name{font-size:13px;color:var(--gold);margin-bottom:2px}.npc-mood{font-size:10px;color:rgba(100,78,35,.5);margin-bottom:4px}
+.npc-mem{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);line-height:1.38}.npc-mem::before{content:"· "}
+.no-npcs{font-size:11px;font-style:italic;color:rgba(80,62,28,.35);padding-top:4px}
+
+/* Players at location */
+.here-section{padding:8px 13px;border-bottom:1px solid rgba(100,78,35,.09);flex-shrink:0}
+.here-player{font-size:11px;color:rgba(140,108,50,.7);padding:2px 0;display:flex;align-items:center;gap:5px}
+.here-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+
+/* Ticker */
+.ticker{height:30px;display:flex;align-items:center;gap:10px;padding:0 18px;border-top:1px solid rgba(100,78,35,.1);background:rgba(0,0,0,.38);flex-shrink:0}
+.tk-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;flex-shrink:0}
+.tk-txt{font-size:11px;font-style:italic;color:rgba(100,78,35,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* Death */
+#p-death{height:100vh;flex-direction:column;align-items:center;justify-content:center;background:rgba(3,1,0,.98)}
+.db{max-width:500px;padding:52px 28px;text-align:center;width:100%}
+.d-orn{font-size:22px;color:rgba(60,44,14,.4);letter-spacing:.35em;margin-bottom:24px}
+.d-cap{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.32em;color:rgba(70,52,18,.5);text-transform:uppercase;margin-bottom:12px}
+.d-name{font-family:'Cinzel',serif;font-size:28px;color:rgba(110,88,42,.62);margin-bottom:20px}
+.d-prose{font-size:14px;line-height:1.82;color:rgba(88,68,32,.62);font-style:italic;text-align:left;margin-bottom:26px}
+.d-prose p{margin-bottom:.88em}
+.d-epi{font-family:'Cinzel',serif;font-size:11px;color:rgba(70,52,18,.42);border:1px solid rgba(70,52,18,.13);padding:14px 18px;margin-bottom:34px;letter-spacing:.04em;line-height:1.5}
+.d-btn{background:transparent;border:1px solid rgba(88,68,28,.2);color:rgba(110,88,42,.52);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.2em;padding:10px 28px;cursor:pointer;transition:all .26s;text-transform:uppercase}
+.d-btn:hover{border-color:rgba(180,140,60,.35);color:var(--dim)}
+
+/* Modal */
+.mbg{display:none;position:fixed;inset:0;background:rgba(3,1,0,.92);z-index:500;align-items:center;justify-content:center;overflow-y:auto}
+.mbg.open{display:flex}
+.mbox{max-width:580px;width:100%;margin:20px;background:rgba(10,7,3,.98);border:1px solid rgba(100,78,35,.2);padding:34px 28px;position:relative}
+.mclose{position:absolute;top:14px;right:16px;background:transparent;border:none;color:var(--dim);font-size:18px;cursor:pointer}
+.mname{font-family:'Cinzel',serif;font-size:22px;color:var(--gold);margin-bottom:3px}
+.msub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:22px}
+.msec{margin-bottom:18px}
+.mlbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.25em;color:rgba(100,78,35,.5);text-transform:uppercase;margin-bottom:8px;display:block}
+.mtext{font-size:13px;font-style:italic;color:rgba(160,128,52,.7);line-height:1.65}
+.mstat-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:7px}
+.mstat{text-align:center;padding:10px 6px;border:1px solid rgba(100,78,35,.14)}
+.mstat-val{font-family:'Cinzel',serif;font-size:22px;color:var(--gold)}
+.mstat-name{font-size:9px;color:var(--dim);margin-top:3px}
+.mtraits{display:flex;flex-wrap:wrap;gap:5px}
+.mtrait{font-size:10px;padding:2px 8px;border:1px solid rgba(180,140,60,.18);color:var(--dim);display:flex;align-items:center;gap:4px}
+.mtrait.neg{border-color:rgba(160,60,40,.18);color:rgba(140,70,50,.7)}
+
+/* Toast */
+.toast{position:fixed;bottom:46px;right:16px;background:rgba(7,4,1,.97);border:1px solid rgba(180,140,60,.2);padding:9px 13px;max-width:240px;z-index:400;pointer-events:none;display:none}
+.toast-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.18em;color:rgba(180,140,60,.45);text-transform:uppercase;margin-bottom:3px}
+.toast-msg{font-size:11px;font-style:italic;color:rgba(110,86,40,.72);line-height:1.38}
+
+/* Multiplayer connection indicator */
+.mp-dot{width:6px;height:6px;border-radius:50%;background:rgba(100,78,35,.4);flex-shrink:0}
+.mp-dot.live{background:#5a8e42;box-shadow:0 0 4px rgba(90,142,66,.5)}
+</style>
+</head>
+<body>
+
+<!-- SPLASH -->
+<div id="p-splash" class="page on">
+  <div class="splash-box">
+    <div class="splash-sigil">⚔ ✦ ⚔</div>
+    <div class="splash-title">WESTEROS</div>
+    <div class="splash-era">250 AC &middot; The Reign of Jaehaerys I, the Conciliator</div>
+    <hr class="splash-hr"/>
+    <div class="splash-desc">
+      A Game of Thrones text RPG. Create a character and enter a living world populated by other players.<br><br>
+      You can travel between the great seats. Encounters find you on the road. Other players are out there. NPCs remember everything.
+    </div>
+    <button class="btn" onclick="goCreate()">Create Your Character</button>
+    <button class="reset-lnk" onclick="hardReset()">clear saved data</button>
+  </div>
+</div>
+
+<!-- CREATE -->
+<div id="p-create" class="page">
+  <div class="cr-wrap">
+    <div class="cr-title">Your Character</div>
+    <div class="cr-sub">You are not the hero of this story. You are a person in it.<br>The world existed before you. It will continue after.</div>
+
+    <div class="two-col">
+      <div class="sec">
+        <span class="sec-lbl">Name</span>
+        <input id="c-name" class="ci" placeholder="Full name" oninput="checkForm()"/>
+      </div>
+      <div class="two-col" style="gap:14px">
+        <div class="sec"><span class="sec-lbl">Age</span><input id="c-age" class="ci sm" value="20"/></div>
+        <div class="sec"><span class="sec-lbl">Gender</span><input id="c-gender" class="ci sm" placeholder="Optional"/></div>
+      </div>
+    </div>
+
+    <div class="sec">
+      <span class="sec-lbl">Great House</span>
+      <div class="house-grid" id="house-grid"></div>
+      <div class="hdesc" id="house-desc">Choose a house above.</div>
+    </div>
+
+    <div class="sec" id="rel-wrap" style="display:none">
+      <span class="sec-lbl">Your Position</span>
+      <select id="c-rel" class="cr-sel" onchange="checkForm()"><option value="">Select...</option></select>
+    </div>
+
+    <div class="sec"><span class="sec-lbl">Appearance</span><textarea id="c-appear" class="ta" rows="2" placeholder="How you look. What people notice. What they remember."></textarea></div>
+    <div class="sec"><span class="sec-lbl">Backstory</span><textarea id="c-back" class="ta" rows="3" placeholder="Who you were before this story. What you want. What you fear."></textarea></div>
+    <div class="sec"><span class="sec-lbl">Personality</span><textarea id="c-pers" class="ta" rows="2" placeholder="How you move through the world. What you conceal."></textarea></div>
+
+    <div class="sec">
+      <span class="sec-lbl">Attributes &mdash; <span id="pool-n" style="color:var(--gold);font-size:13px">15</span> points remaining</span>
+      <div class="stat-rows" id="stat-rows"></div>
+    </div>
+
+    <div class="sec">
+      <span class="sec-lbl">Traits &mdash; choose one virtue and one flaw</span>
+      <div class="trait-cols">
+        <div>
+          <div class="tc-head"><span class="tc-lbl">Virtue</span><span class="tc-count" id="vcount">0 / 1</span></div>
+          <div id="traits-pos"></div>
+        </div>
+        <div>
+          <div class="tc-head"><span class="tc-lbl">Flaw</span><span class="tc-count" id="ncount">0 / 1</span></div>
+          <div id="traits-neg"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn" id="btn-begin" disabled onclick="beginGame()">Enter the Realm &mdash; 250 AC</button>
+  </div>
+</div>
+
+<!-- GAME -->
+<div id="p-game" class="page" style="position:relative">
+  <div class="topbar">
+    <div style="display:flex;align-items:center;gap:8px">
+      <div class="mp-dot" id="mp-dot"></div>
+      <div class="tb-title">WESTEROS ONLINE</div>
+    </div>
+    <div class="tb-mid">
+      <span class="hbadge hb-Hale" id="tb-health">Hale</span>
+      <span class="tb-season" id="tb-season">Early Spring, 250 AC</span>
+    </div>
+    <div class="tb-right">
+      <button class="tbbtn" onclick="openSheet()">Character</button>
+      <button class="tbbtn danger" onclick="confirmReset()">New Game</button>
+    </div>
+  </div>
+
+  <div class="game-cols">
+    <!-- LEFT -->
+    <div class="lcol">
+      <div class="psec">
+        <div class="cname" id="g-name">—</div>
+        <div class="csub" id="g-sub">—</div>
+        <div class="cgold" id="g-gold">💰 100 dragons</div>
+      </div>
+      <div class="psec"><span class="plbl">Attributes</span><div id="g-stats"></div></div>
+      <div class="psec"><span class="plbl">Traits</span><div class="tpips" id="g-traits"></div></div>
+      <div class="mapwrap">
+        <span class="plbl">The Realm — click to travel</span>
+        <div class="mapframe" id="g-map" onclick="openTravel()"></div>
+        <div class="map-hint">Click map or use Travel button</div>
+      </div>
+    </div>
+
+    <!-- CENTER -->
+    <div class="ccol">
+      <div class="story-scroll" id="story-scroll">
+        <div id="story-start" class="start-wrap">
+          <button class="start-btn" onclick="startStory()">Begin Your Story</button>
+        </div>
+      </div>
+      <div class="choices-panel" id="choices-panel" style="display:none">
+        <div class="ch-header">
+          <span class="ch-lbl">What do you do?</span>
+          <div class="ch-actions">
+            <button class="travel-toggle" onclick="openTravel()">⚑ Travel</button>
+            <button class="ctog" id="ctog" onclick="flipCustom()">write your own action</button>
+          </div>
+        </div>
+        <div class="chgrid" id="chgrid"></div>
+        <div class="custom-row" id="custom-row" style="display:none">
+          <textarea id="cta" class="cta" rows="2" placeholder="Describe exactly what you do."
+            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCustom()}"></textarea>
+          <button class="actbtn" onclick="sendCustom()">Act</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="rcol">
+      <div class="psec" style="flex-shrink:0"><span class="plbl">World Events</span><div id="ev-list"></div></div>      </div>
+      <div class="psec" style="flex-shrink:0"><span class="plbl">Known Persons</span></div>
+      <div class="npc-scroll" id="npc-list"><div class="no-npcs">No one of note yet.</div></div>
+    </div>
+  </div>
+
+  <div class="ticker"><span class="tk-lbl">Realm</span><span class="tk-txt" id="tk-txt">All is quiet — for now.</span></div>
+
+  <!-- Travel Overlay -->
+  <div class="travel-overlay" id="travel-overlay">
+    <div class="travel-box">
+      <button class="trav-close" onclick="closeTravel()">✕</button>
+      <div class="trav-title">Travel</div>
+      <div class="trav-sub">Choose your destination. The road has dangers. Not all journeys end as planned.</div>
+      <div class="loc-grid" id="loc-grid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- DEATH -->
+<div id="p-death" class="page">
+  <div class="db">
+    <div class="d-orn">— ✦ —</div>
+    <div class="d-cap">Here ends the account of</div>
+    <div class="d-name" id="d-name">—</div>
+    <div class="d-prose" id="d-prose"></div>
+    <div class="d-epi" id="d-epi"></div>
+    <button class="d-btn" onclick="hardReset()">Begin Again</button>
+  </div>
+</div>
+
+<!-- CHAR SHEET -->
+<div class="mbg" id="sheet-modal">
+  <div class="mbox">
+    <button class="mclose" onclick="closeSheet()">✕</button>
+    <div class="mname" id="sh-name">—</div>
+    <div class="msub" id="sh-sub">—</div>
+    <div class="msec"><span class="mlbl">Attributes</span><div class="mstat-grid" id="sh-stats"></div></div>
+    <div class="msec"><span class="mlbl">Appearance</span><div class="mtext" id="sh-appear"></div></div>
+    <div class="msec"><span class="mlbl">Backstory</span><div class="mtext" id="sh-back"></div></div>
+    <div class="msec"><span class="mlbl">Traits</span><div class="mtraits" id="sh-traits"></div></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"><div class="toast-lbl" id="tlbl"></div><div class="toast-msg" id="tmsg"></div></div>
+
+<script>
+// ════════════════════════════════════════
+// HOUSE SIGILS (inline SVG)
+// ════════════════════════════════════════
+
+const SIGILS = {
+  targaryen: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 4 C14 8 10 6 8 10 C12 11 13 14 12 17 C9 15 6 16 5 19 C8 20 10 23 9 26 C12 24 15 25 16 28 C17 25 20 24 20 28 C21 25 24 24 27 26 C26 23 28 20 31 19 C30 16 27 15 24 17 C23 14 24 11 28 10 C26 6 22 8 18 4Z" fill="#c0392b" opacity=".8"/>
+    <circle cx="18" cy="18" r="3" fill="#e8c870"/>
+    <path d="M18 4 L18 8 M12 17 L15 18 M24 17 L21 18" stroke="#e8c870" stroke-width=".8" opacity=".6"/>
+  </svg>`,
+  stark: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 5 L22 12 L18 10 L14 12 Z" fill="#e8c870" opacity=".7"/>
+    <ellipse cx="18" cy="21" rx="10" ry="8" fill="#7f8c8d" opacity=".7"/>
+    <path d="M10 18 Q8 22 10 25 Q14 28 18 27 Q22 28 26 25 Q28 22 26 18" fill="#5d6d7e" opacity=".8"/>
+    <circle cx="14" cy="19" r="1.5" fill="#e8c870" opacity=".8"/>
+    <circle cx="22" cy="19" r="1.5" fill="#e8c870" opacity=".8"/>
+    <path d="M13 24 Q18 26 23 24" stroke="#e8c870" stroke-width=".7" opacity=".6"/>
+    <path d="M10 18 L8 15 L12 16" fill="#5d6d7e"/>
+    <path d="M26 18 L28 15 L24 16" fill="#5d6d7e"/>
+  </svg>`,
+  lannister: `<svg viewBox="0 0 36 36" fill="none">
+    <ellipse cx="18" cy="19" rx="12" ry="9" fill="#c8960c" opacity=".6"/>
+    <path d="M8 16 C10 12 14 10 18 10 C22 10 26 12 28 16" fill="#c8960c" opacity=".7"/>
+    <path d="M12 13 L8 10 L10 14" fill="#e8c870" opacity=".8"/>
+    <path d="M24 13 L28 10 L26 14" fill="#e8c870" opacity=".8"/>
+    <path d="M15 19 Q18 21 21 19 Q20 24 18 25 Q16 24 15 19Z" fill="#e8c870" opacity=".9"/>
+    <circle cx="14" cy="17" r="2" fill="#1a0e00" opacity=".8"/>
+    <circle cx="22" cy="17" r="2" fill="#1a0e00" opacity=".8"/>
+    <path d="M14 22 Q18 24 22 22" stroke="#1a0e00" stroke-width=".8" opacity=".6"/>
+  </svg>`,
+  baratheon: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 6 L14 10 L16 10 L14 15 L18 12 L22 15 L20 10 L22 10 Z" fill="#e8c870" opacity=".8"/>
+    <path d="M12 16 C12 11 24 11 24 16 L24 26 C24 28 12 28 12 26 Z" fill="#8e44ad" opacity=".65"/>
+    <path d="M8 18 L12 16 M28 18 L24 16" stroke="#e8c870" stroke-width="1.5" opacity=".7"/>
+    <path d="M8 18 C6 22 10 24 12 22" fill="#8e44ad" opacity=".5"/>
+    <path d="M28 18 C30 22 26 24 24 22" fill="#8e44ad" opacity=".5"/>
+    <rect x="15" y="20" width="6" height="5" fill="#e8c870" opacity=".5"/>
+  </svg>`,
+  tully: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M6 20 Q12 14 18 16 Q24 14 30 20 Q24 26 18 24 Q12 26 6 20Z" fill="#1a6891" opacity=".7"/>
+    <ellipse cx="18" cy="20" rx="7" ry="4" fill="#2980b9" opacity=".6"/>
+    <path d="M14 18 Q18 16 22 18" stroke="#e8c870" stroke-width=".8" opacity=".7"/>
+    <circle cx="18" cy="20" r="2" fill="#e8c870" opacity=".8"/>
+    <path d="M8 20 Q10 22 8 24" stroke="#e8c870" stroke-width=".7" opacity=".5"/>
+    <path d="M28 20 Q26 22 28 24" stroke="#e8c870" stroke-width=".7" opacity=".5"/>
+  </svg>`,
+  tyrell: `<svg viewBox="0 0 36 36" fill="none">
+    <circle cx="18" cy="18" r="4" fill="#e8c870" opacity=".9"/>
+    <path d="M18 8 Q22 12 18 14 Q14 12 18 8Z" fill="#27ae60" opacity=".8"/>
+    <path d="M28 18 Q24 22 22 18 Q24 14 28 18Z" fill="#27ae60" opacity=".8"/>
+    <path d="M18 28 Q14 24 18 22 Q22 24 18 28Z" fill="#27ae60" opacity=".8"/>
+    <path d="M8 18 Q12 14 14 18 Q12 22 8 18Z" fill="#27ae60" opacity=".8"/>
+    <path d="M23 13 Q26 10 24 14 Q22 15 23 13Z" fill="#27ae60" opacity=".7"/>
+    <path d="M23 23 Q26 26 24 22 Q22 21 23 23Z" fill="#27ae60" opacity=".7"/>
+    <path d="M13 23 Q10 26 12 22 Q14 21 13 23Z" fill="#27ae60" opacity=".7"/>
+    <path d="M13 13 Q10 10 12 14 Q14 15 13 13Z" fill="#27ae60" opacity=".7"/>
+  </svg>`,
+  martell: `<svg viewBox="0 0 36 36" fill="none">
+    <circle cx="18" cy="17" r="9" fill="#e67e22" opacity=".5"/>
+    <path d="M18 8 L19.5 13 L25 13 L20.5 16.5 L22 22 L18 19 L14 22 L15.5 16.5 L11 13 L16.5 13 Z" fill="#e8c870" opacity=".85"/>
+    <line x1="18" y1="26" x2="18" y2="31" stroke="#e8c870" stroke-width="1.5" opacity=".8"/>
+    <line x1="14" y1="29" x2="22" y2="29" stroke="#e8c870" stroke-width="1.5" opacity=".8"/>
+  </svg>`,
+  arryn: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 5 L22 14 L30 11 L25 18 L30 24 L22 22 L20 30 L18 24 L16 30 L14 22 L6 24 L11 18 L6 11 L14 14 Z" fill="#2980b9" opacity=".4"/>
+    <path d="M18 8 L20 14 L26 12 L22 17 L26 22 L20 20 L18 27 L16 20 L10 22 L14 17 L10 12 L16 14 Z" fill="#2980b9" opacity=".6"/>
+    <circle cx="18" cy="10" r="2.5" fill="#e8c870" opacity=".8"/>
+    <path d="M14 12 L18 10 L22 12" stroke="#e8c870" stroke-width=".7" opacity=".6"/>
+  </svg>`,
+  greyjoy: `<svg viewBox="0 0 36 36" fill="none">
+    <ellipse cx="18" cy="20" rx="5" ry="7" fill="#2c3e50" opacity=".8"/>
+    <path d="M13 17 L6 14 Q8 20 13 19" fill="#2c3e50" opacity=".7"/>
+    <path d="M23 17 L30 14 Q28 20 23 19" fill="#2c3e50" opacity=".7"/>
+    <path d="M13 20 L6 22 Q8 27 13 24" fill="#2c3e50" opacity=".7"/>
+    <path d="M23 20 L30 22 Q28 27 23 24" fill="#2c3e50" opacity=".7"/>
+    <path d="M15 27 L12 32" stroke="#2c3e50" stroke-width="1.5" opacity=".7"/>
+    <path d="M18 28 L18 32" stroke="#2c3e50" stroke-width="1.5" opacity=".7"/>
+    <path d="M21 27 L24 32" stroke="#2c3e50" stroke-width="1.5" opacity=".7"/>
+    <circle cx="18" cy="18" r="3" fill="#e8c870" opacity=".4"/>
+    <circle cx="18" cy="18" r="1.5" fill="#e8c870" opacity=".7"/>
+  </svg>`,
+  none: `<svg viewBox="0 0 36 36" fill="none">
+    <path d="M18 5 L28 10 L28 26 L18 31 L8 26 L8 10 Z" stroke="rgba(160,128,52,.4)" stroke-width="1.5" fill="none"/>
+    <line x1="12" y1="13" x2="24" y2="23" stroke="rgba(160,128,52,.5)" stroke-width="1.5"/>
+    <line x1="24" y1="13" x2="12" y2="23" stroke="rgba(160,128,52,.5)" stroke-width="1.5"/>
+  </svg>`,
+};
+
+// ════════════════════════════════════════
+// TRAIT ICONS (CK3-inspired)
+// ════════════════════════════════════════
+
+const TICONS = {
+  just: '⚖', brave: '🛡', shrewd: '👁', charming: '✦',
+  scholar: '📖', strategist: '♟', patient: '⧗', compassionate: '✋',
+  wrathful: '⚡', greedy: '◈', paranoid: '⊙', craven: '↩',
+  ambitious: '♕', deceitful: '⬡', lustful: '✿', arbitrary: '⁂',
+};
+
+// ════════════════════════════════════════
+// DATA
+// ════════════════════════════════════════
+
+const HOUSES = {
+  targaryen: {name:'Targaryen',full:'House Targaryen',words:'Fire and Blood',color:'#c0392b',seat:'kings_landing',desc:'The dragon lords of old Valyria. Royal blood runs in your veins. The Iron Throne is your inheritance — or your cage.',bonus:{learning:1},positions:['Son of the King','Daughter of the King','Prince (Cousin)','Princess (Cousin)','Bastard of Dragonstone','Legitimised Bastard']},
+  stark:{name:'Stark',full:'House Stark',words:'Winter Is Coming',color:'#7f8c8d',seat:'winterfell',desc:'The Kings of Winter. Old gods, old blood, old honour. The North remembers — and so do you.',bonus:{martial:1},positions:['Son of the Lord','Daughter of the Lord','Ward of Winterfell','Bastard Snow','Cousin of Winterfell','Knight of the North']},
+  lannister:{name:'Lannister',full:'House Lannister',words:'Hear Me Roar',color:'#c8960c',seat:'casterly_rock',desc:'The wealthiest house in Westeros. Gold buys armies and loyalty. It does not buy what your family most wants.',bonus:{stewardship:1},positions:['Son of the Lord','Daughter of the Lord','Cousin of the Rock','Bastard Hill','Lannister Ward']},
+  baratheon:{name:'Baratheon',full:'House Baratheon',words:'Ours is the Fury',color:'#8e44ad',seat:'storms_end',desc:'Born of Targaryen blood and Durrandon fury. What happens when ambition meets a thunderstorm.',bonus:{martial:1},positions:['Son of the Lord','Daughter of the Lord',"Cousin of Storm's End",'Bastard Storm','Ward of the Stormlands']},
+  tully:{name:'Tully',full:'House Tully',words:'Family, Duty, Honour',color:'#1a6891',seat:'riverrun',desc:'The heart of Westeros. Everyone passes through the Riverlands. Everyone leaves something behind.',bonus:{diplomacy:1},positions:['Son of the Lord','Daughter of the Lord','Cousin of Riverrun','Bastard Rivers','Ward of the Trident']},
+  tyrell:{name:'Tyrell',full:'House Tyrell',words:'Growing Strong',color:'#27ae60',seat:'highgarden',desc:'The breadbasket of Westeros. Old roses, old money, and the intelligence of people who have never needed to fight.',bonus:{diplomacy:1},positions:['Son of the Lord','Daughter of the Lord','Cousin of Highgarden','Bastard Flowers','Ward of the Reach']},
+  martell:{name:'Martell',full:'House Martell',words:'Unbowed, Unbent, Unbroken',color:'#e67e22',seat:'sunspear',desc:'The sand and sun of Dorne. They play the long game. They are still playing it.',bonus:{intrigue:1},positions:['Son of the Prince','Daughter of the Prince','Bastard Sand','Cousin of Sunspear','Ward of Dorne']},
+  arryn:{name:'Arryn',full:'House Arryn',words:'As High as Honour',color:'#2980b9',seat:'the_eyrie',desc:'The sky and stone of the Vale. Old pride, and the arrogance of people who live above the clouds.',bonus:{learning:1},positions:['Son of the Lord','Daughter of the Lord','Ward of the Eyrie','Bastard Stone','Cousin of the Vale']},
+  greyjoy:{name:'Greyjoy',full:'House Greyjoy',words:'We Do Not Sow',color:'#2c3e50',seat:'pyke',desc:'The ironborn do not kneel. They take. The Iron Price is the only price worth paying.',bonus:{martial:1},positions:['Son of the Lord','Daughter of the Lord','Bastard Pyke','Cousin of Pyke','Reaved Ward']},
+  none:{name:'No House',full:'No Great House',words:'—',color:'#5d4037',seat:'kings_landing',desc:'No great name. No great inheritance. You have only yourself — which may be enough, or may not.',bonus:{},positions:["Hedge Knight","Minor Lord's Heir","Wandering Septon","Craftsman's Child","Sellsword","Bastard of Unknown Blood"]},
+};
+
+const STATS_DEF = [
+  {key:'martial',    label:'Martial',    icon:'⚔',hint:'Combat, armies'},
+  {key:'diplomacy',  label:'Diplomacy',  icon:'🕊',hint:'Persuasion, politics'},
+  {key:'intrigue',   label:'Intrigue',   icon:'🗝',hint:'Deception, plots'},
+  {key:'stewardship',label:'Stewardship',icon:'📜',hint:'Coin, logistics'},
+  {key:'learning',   label:'Learning',   icon:'📖',hint:'Knowledge, lore'},
+];
+
+const TRAITS_POS = [
+  {id:'just',         name:'Just',         desc:'Honourable NPCs trust you instantly.'},
+  {id:'brave',        name:'Brave',        desc:'+2 combat. Cannot easily flee.'},
+  {id:'shrewd',       name:'Shrewd',       desc:'GM gives you extra context clues.'},
+  {id:'charming',     name:'Charming',     desc:'+1 all social rolls.'},
+  {id:'scholar',      name:'Scholar',      desc:'+2 learning. People seek your counsel.'},
+  {id:'strategist',   name:'Strategist',   desc:'Battle planning at advantage.'},
+  {id:'patient',      name:'Patient',      desc:'Long-game options open to you.'},
+  {id:'compassionate',name:'Compassionate',desc:'Smallfolk adore you. Lords see weakness.'},
+];
+
+const TRAITS_NEG = [
+  {id:'wrathful', name:'Wrathful', desc:'Anger checks in tense scenes.'},
+  {id:'greedy',   name:'Greedy',   desc:'Gold temptation checks. NPCs exploit it.'},
+  {id:'paranoid', name:'Paranoid', desc:'You see plots. Some of them are real.'},
+  {id:'craven',   name:'Craven',   desc:'-2 combat. You can flee. You want to.'},
+  {id:'ambitious',name:'Ambitious',desc:'Ambition drives you into the wrong rooms.'},
+  {id:'deceitful',name:'Deceitful',desc:'+2 intrigue, -1 diplomacy. You lie well.'},
+  {id:'lustful',  name:'Lustful',  desc:'Temptation checks. Blackmail possible.'},
+  {id:'arbitrary',name:'Arbitrary',desc:'Unpredictable. Nobody fully trusts you.'},
+];
+
+const NEG_IDS = new Set(TRAITS_NEG.map(t=>t.id));
+
+const LOCS = [
+  {id:'kings_landing', name:"King's Landing", x:340,y:378,danger:2},
+  {id:'winterfell',    name:'Winterfell',      x:308,y:118,danger:1},
+  {id:'casterly_rock', name:'Casterly Rock',   x:168,y:308,danger:1},
+  {id:'highgarden',    name:'Highgarden',      x:218,y:428,danger:1},
+  {id:'storms_end',    name:"Storm's End",     x:388,y:468,danger:2},
+  {id:'riverrun',      name:'Riverrun',        x:248,y:268,danger:2},
+  {id:'dragonstone',   name:'Dragonstone',     x:438,y:348,danger:2},
+  {id:'the_wall',      name:'The Wall',        x:278,y:58, danger:4},
+  {id:'oldtown',       name:'Oldtown',         x:178,y:488,danger:1},
+  {id:'the_eyrie',     name:'The Eyrie',       x:418,y:208,danger:2},
+  {id:'sunspear',      name:'Sunspear',        x:378,y:538,danger:2},
+  {id:'pyke',          name:'Pyke',            x:98, y:238,danger:3},
+  {id:'harrenhal',     name:'Harrenhal',       x:298,y:298,danger:3},
+];
+
+const DFLT_EVENTS = [
+  "Ravens report a comet above Oldtown.",
+  "The King has summoned lords to court.",
+  "A sickness moves through the Riverlands.",
+  "Ser Duncan the Tall rides north.",
+  "House Peake has been attainted by royal decree.",
+];
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+
+let S = {
+  char:null, msgs:[], hist:[], scene:null, choices:[],
+  npcs:{}, events:[...DFLT_EVENTS], gold:100, busy:false,
+  customMode:false, houseKey:null,
+  stats:{martial:3,diplomacy:3,intrigue:3,stewardship:3,learning:3},
+  virtue:null, flaw:null,
+  playerId: null,
+};
+
+
+// ════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════
+
+window.addEventListener('load', async () => {
+  // generate/load player id
+  if (!S.playerId) S.playerId = localStorage.getItem('wos_pid') || ('p_'+Date.now().toString(36));
+  localStorage.setItem('wos_pid', S.playerId);
+
+  // load saved state
+  try {
+    const raw = localStorage.getItem('wos4');
+    if (raw) {
+      const d = JSON.parse(raw);
+      Object.assign(S, {char:d.char,msgs:d.msgs||[],hist:d.hist||[],npcs:d.npcs||{},events:d.events||[...DFLT_EVENTS],gold:d.gold||100});
+    }
+  } catch { localStorage.removeItem('wos4'); }
+
+
+  if (S.char?.dead) { showDeath(S.char.deathNarrative, S.char.deathSummary); return; }
+  if (S.char) { mountGame(); if (S.msgs.length) restoreScene(); else go('game'); subscribeMultiplayer(); return; }
+
+  go('splash');
+  setInterval(tickTicker, 6500);
+});
+
+function save() {
+  try { localStorage.setItem('wos4', JSON.stringify({char:S.char,msgs:S.msgs,hist:S.hist,npcs:S.npcs,events:S.events,gold:S.gold})); } catch {}
+}
+
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+
+function go(id) { document.querySelectorAll('.page').forEach(p=>p.classList.remove('on')); document.getElementById('p-'+id).classList.add('on'); }
+function goCreate() { buildCreation(); go('create'); }
+function hardReset() { if(!confirm('Clear everything and start a new character?')) return; localStorage.removeItem('wos4'); location.reload(); }
+function confirmReset() { if(confirm('Abandon this character?')) hardReset(); }
+
+// ════════════════════════════════════════
+// CREATION
+// ════════════════════════════════════════
+
+function buildCreation() {
+  S.houseKey=null; S.stats={martial:3,diplomacy:3,intrigue:3,stewardship:3,learning:3}; S.virtue=null; S.flaw=null;
+
+  const hg = document.getElementById('house-grid');
+  hg.innerHTML = '';
+  Object.entries(HOUSES).forEach(([key,h]) => {
+    const d = document.createElement('div');
+    d.className='htile'; d.id='htile-'+key;
+    d.innerHTML = `<div class="hsigil">${SIGILS[key]||''}</div><div class="hname">${h.name}</div><div class="hwords">${h.words}</div>`;
+    d.onclick = () => selectHouse(key);
+    hg.appendChild(d);
+  });
+
+  buildStatRows();
+  buildTraitList('traits-pos', TRAITS_POS, false);
+  buildTraitList('traits-neg', TRAITS_NEG, true);
+  document.getElementById('c-name').oninput = checkForm;
+  document.getElementById('c-rel').onchange = checkForm;
+}
+
+function selectHouse(key) {
+  S.houseKey=key;
+  document.querySelectorAll('.htile').forEach(t=>t.classList.remove('on'));
+  document.getElementById('htile-'+key).classList.add('on');
+  const h = HOUSES[key];
+  document.getElementById('house-desc').textContent = h.desc;
+  const rel = document.getElementById('c-rel');
+  rel.innerHTML = '<option value="">Select...</option>';
+  h.positions.forEach(p=>{ const o=document.createElement('option'); o.value=o.textContent=p; rel.appendChild(o); });
+  document.getElementById('rel-wrap').style.display='';
+  buildStatRows(); checkForm();
+}
+
+function pool() { return 15 - (Object.values(S.stats).reduce((a,b)=>a+b,0) - 15); }
+
+function buildStatRows() {
+  const bonus = S.houseKey ? (HOUSES[S.houseKey].bonus||{}) : {};
+  const p = pool();
+  document.getElementById('pool-n').textContent = p;
+  const wrap = document.getElementById('stat-rows');
+  wrap.innerHTML = '';
+  STATS_DEF.forEach(s => {
+    const v=S.stats[s.key], b=bonus[s.key]||0;
+    const row=document.createElement('div'); row.className='stat-row';
+    row.innerHTML=`<span class="sname">${s.icon} ${s.label}</span>
+      <div class="sctrl">
+        <button class="sadj" onclick="adjStat('${s.key}',-1)" ${v<=1?'disabled':''}>−</button>
+        <div class="sbar"><div class="sfill" style="width:${((v+b)/12)*100}%"></div></div>
+        <button class="sadj" onclick="adjStat('${s.key}',1)" ${p<=0&&v<10?'disabled':''}>+</button>
+        <span class="sval">${v+b}</span>
+      </div>
+      <span class="shint">${s.hint}</span>`;
+    wrap.appendChild(row);
+  });
+}
+
+function adjStat(key,d) {
+  if(d>0&&pool()<=0) return;
+  const nv=S.stats[key]+d;
+  if(nv<1||nv>10) return;
+  S.stats[key]=nv; buildStatRows();
+}
+
+function buildTraitList(id, list, isNeg) {
+  const wrap=document.getElementById(id); wrap.innerHTML='';
+  list.forEach(t => {
+    const d=document.createElement('div');
+    d.className='titem'+(isNeg?' neg':''); d.id='titem-'+t.id;
+    d.innerHTML=`<div class="tico">${TICONS[t.id]||'◆'}</div><div><div class="tname">${t.name}</div><div class="tdesc">${t.desc}</div></div>`;
+    d.onclick=()=>selectTrait(t.id, isNeg);
+    wrap.appendChild(d);
+  });
+}
+
+function selectTrait(id, isNeg) {
+  if (isNeg) {
+    // deselect if already selected
+    if (S.flaw === id) {
+      S.flaw = null;
+      document.getElementById('titem-'+id)?.classList.remove('on');
+    } else {
+      // deselect previous
+      if (S.flaw) document.getElementById('titem-'+S.flaw)?.classList.remove('on');
+      S.flaw = id;
+      document.getElementById('titem-'+id)?.classList.add('on');
+    }
+    document.getElementById('ncount').textContent = (S.flaw?1:0)+' / 1';
+  } else {
+    if (S.virtue === id) {
+      S.virtue = null;
+      document.getElementById('titem-'+id)?.classList.remove('on');
+    } else {
+      if (S.virtue) document.getElementById('titem-'+S.virtue)?.classList.remove('on');
+      S.virtue = id;
+      document.getElementById('titem-'+id)?.classList.add('on');
+    }
+    document.getElementById('vcount').textContent = (S.virtue?1:0)+' / 1';
+  }
+}
+
+function checkForm() {
+  document.getElementById('btn-begin').disabled = !(
+    document.getElementById('c-name').value.trim() && S.houseKey && document.getElementById('c-rel').value
+  );
+}
+
+function beginGame() {
+  const h=HOUSES[S.houseKey], bonus=h.bonus||{};
+  const traits=[];
+  if (S.virtue) traits.push(S.virtue);
+  if (S.flaw)   traits.push(S.flaw);
+
+  S.char={
+    name:document.getElementById('c-name').value.trim(),
+    age:parseInt(document.getElementById('c-age').value)||20,
+    gender:document.getElementById('c-gender').value.trim(),
+    houseKey:S.houseKey, houseFull:h.full,
+    relation:document.getElementById('c-rel').value,
+    appear:document.getElementById('c-appear').value.trim(),
+    backstory:document.getElementById('c-back').value.trim(),
+    personality:document.getElementById('c-pers').value.trim(),
+    stats:{
+      martial:    S.stats.martial    +(bonus.martial    ||0),
+      diplomacy:  S.stats.diplomacy  +(bonus.diplomacy  ||0),
+      intrigue:   S.stats.intrigue   +(bonus.intrigue   ||0),
+      stewardship:S.stats.stewardship+(bonus.stewardship||0),
+      learning:   S.stats.learning   +(bonus.learning   ||0),
+    },
+    traits, health:'Hale', location:h.seat, dead:false,
+  };
+  S.msgs=[]; S.hist=[]; S.npcs={}; S.gold=100; S.events=[...DFLT_EVENTS];
+  save();
+  mountGame();
+  go('game');
+}
+
+// ════════════════════════════════════════
+// GAME MOUNT
+// ════════════════════════════════════════
+
+function mountGame() {
+  const c=S.char; if(!c) return;
+  setHealth(c.health);
+  document.getElementById('tb-season').textContent=c.season||'Early Spring, 250 AC';
+  document.getElementById('g-name').textContent=c.name;
+  document.getElementById('g-sub').textContent=c.houseFull+(c.relation?' · '+c.relation:'');
+  document.getElementById('g-gold').textContent='💰 '+S.gold+' dragons';
+
+  const gs=document.getElementById('g-stats'); gs.innerHTML='';
+  STATS_DEF.forEach(s=>{
+    const v=c.stats[s.key];
+    gs.innerHTML+=`<div class="smrow"><span class="smn">${s.icon} ${s.label}</span><div class="smt"><div class="smf" style="width:${(v/10)*100}%"></div></div><span class="smv">${v}</span></div>`;
+  });
+
+  const gt=document.getElementById('g-traits'); gt.innerHTML='';
+  (c.traits||[]).forEach(id=>{
+    const sp=document.createElement('span');
+    sp.className='tpip'+(NEG_IDS.has(id)?' neg':'');
+    sp.innerHTML=`<span>${TICONS[id]||''}</span>${tname(id)}`;
+    gt.appendChild(sp);
+  });
+
+  renderMap(); renderEvents(); renderNPCs();
+}
+
+function tname(id) {
+  return [...TRAITS_POS,...TRAITS_NEG].find(t=>t.id===id)?.name || id.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
+}
+
+function setHealth(h) {
+  const el=document.getElementById('tb-health');
+  el.textContent=h; el.className='hbadge hb-'+(h||'Hale').replace(/\s/g,'');
+}
+
+function renderMap() {
+  const lid=S.char?.location||'kings_landing';
+  const others=Object.values(otherPlayers);
+
+  document.getElementById('g-map').innerHTML=`<svg viewBox="0 0 600 580">
+    <defs><filter id="gw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+    <rect width="600" height="580" fill="#050309"/>
+    ${[...Array(13)].map((_,i)=>`<path d="M${i*48} 0 Q${i*48+18} 290 ${i*48} 580" stroke="rgba(10,24,60,0.28)" stroke-width="0.5" fill="none"/>`).join('')}
+    <path d="M140,30 L200,20 L280,15 L350,25 L410,40 L450,70 L480,110 L490,150 L470,190 L490,220 L500,260 L480,300 L500,340 L510,380 L490,420 L460,460 L420,500 L380,530 L330,545 L280,540 L240,520 L200,500 L160,470 L130,440 L110,400 L100,360 L90,320 L95,280 L80,240 L85,200 L100,160 L110,120 L120,80 Z" fill="#160f08" stroke="rgba(160,120,48,0.16)" stroke-width="1.5"/>
+    <path d="M255,215 Q242,268 218,318 Q200,352 190,398" stroke="rgba(40,90,160,0.2)" stroke-width="1.5" fill="none"/>
+    <path d="M118,113 L422,93" stroke="rgba(170,190,215,0.38)" stroke-width="1.8" stroke-dasharray="7,4"/>
+    <text x="270" y="85" fill="rgba(155,175,200,0.26)" font-size="7.5" font-family="serif" text-anchor="middle">THE WALL</text>
+    ${LOCS.map(l=>{
+      const me=l.id===lid;
+      const here=others.filter(p=>p.location===l.id&&p.health!=='Dead');
+      const othersHtml=here.map((p,i)=>`<circle cx="${l.x+(i+1)*8}" cy="${l.y-8}" r="3" fill="${p.house_color||'#5d4037'}" stroke="rgba(0,0,0,.5)" stroke-width="0.5" opacity=".85"/>`).join('');
+      return `<g>
+        ${me?`<circle cx="${l.x}" cy="${l.y}" r="12" fill="none" stroke="rgba(200,168,75,0.28)" stroke-width="1"><animate attributeName="r" values="8;15;8" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0.1;0.7" dur="2.3s" repeatCount="indefinite"/></circle>`:''}
+        <circle cx="${l.x}" cy="${l.y}" r="${me?5:3.5}" fill="${me?'#c8a84b':'rgba(140,105,40,0.6)'}" stroke="${me?'#e8c870':'rgba(85,62,15,0.8)'}" stroke-width="1" ${me?'filter="url(#gw)"':''}/>
+        ${othersHtml}
+        <text x="${l.x}" y="${l.y+14}" fill="rgba(140,105,40,0.48)" font-size="7" font-family="IM Fell English,serif" text-anchor="middle">${l.name}</text>
+      </g>`;
+    }).join('')}
+    <text x="10" y="572" fill="rgba(80,60,22,0.24)" font-size="7" font-family="serif">WESTEROS · 250 AC</text>
+  </svg>`;
+}
+
+function renderEvents() {
+  const el=document.getElementById('ev-list'); el.innerHTML='';
+  S.events.slice(0,6).forEach((e,i)=>{
+    const d=document.createElement('div'); d.className='evitem'+(i===0?' fresh':'');
+    d.textContent=typeof e==='string'?e:(e.title||''); el.appendChild(d);
+  });
+}
+
+function renderNPCs() {
+  const el=document.getElementById('npc-list');
+  const entries=Object.entries(S.npcs);
+  if(!entries.length){el.innerHTML='<div class="no-npcs">No one of note yet.</div>';return;}
+  el.innerHTML='';
+  entries.forEach(([name,mems])=>{
+    const score=mems.reduce((s,m)=>s+(m.d||0),0);
+    const mood=score>=3?'🟢 Friendly':score<=-3?'🔴 Hostile':score<0?'🟡 Suspicious':'⚪ Neutral';
+    const div=document.createElement('div'); div.className='npc-card';
+    div.innerHTML=`<div class="npc-name">${name}</div><div class="npc-mood">${mood}</div>${mems.slice(-3).map(m=>`<div class="npc-mem">${m.t}</div>`).join('')}`;
+    el.appendChild(div);
+  });
+}
+
+let tickI=0;
+function tickTicker() {
+  if(!S.events.length) return;
+  const e=S.events[tickI++%S.events.length];
+  document.getElementById('tk-txt').textContent=typeof e==='string'?e:(e.title||'');
+}
+
+// ════════════════════════════════════════
+// TRAVEL
+// ════════════════════════════════════════
+
+function openTravel() {
+  if(S.busy) return;
+  const grid=document.getElementById('loc-grid'); grid.innerHTML='';
+  const curLoc=LOCS.find(l=>l.id===S.char?.location);
+  LOCS.forEach(l=>{
+    const isCur=l.id===S.char?.location;
+    const here=Object.values(otherPlayers).filter(p=>p.location===l.id&&p.health!=='Dead');
+    const btn=document.createElement('button');
+    btn.className='loc-btn'+(isCur?' current':'');
+    btn.disabled=isCur;
+    const dclass=['d1','d1','d2','d3','d4'][Math.min(l.danger,4)];
+    const dlbl=['','Safe','Caution','Danger','Perilous'][Math.min(l.danger,4)];
+    btn.innerHTML=`${l.name}${here.length?`<span style="font-size:9px;opacity:.6;margin-left:3px">(${here.length})</span>`:''}
+      <span class="loc-danger ${dclass}">${dlbl}</span>`;
+    btn.onclick=()=>{ closeTravel(); travelTo(l); };
+    grid.appendChild(btn);
+  });
+  document.getElementById('travel-overlay').classList.add('open');
+}
+
+function closeTravel() { document.getElementById('travel-overlay').classList.remove('open'); }
+
+async function travelTo(dest) {
+  const from=LOCS.find(l=>l.id===S.char?.location);
+  const prompt=`The character travels from ${from?.name||'their current location'} to ${dest.name}. Narrate the journey. Consider: distance, season (${S.char.season||'Early Spring'}), danger level of the route (${dest.danger}/4 — 1 safe, 4 perilous), and the character's stats. Generate at least one encounter on the road — this could be weather (storm, snow, fog), bandits, a wandering knight, refugees, merchants, wildlife, or a mysterious stranger. The encounter should have real stakes. When they arrive, briefly establish the new location. The character's location in <status> should be ${dest.name}.`;
+  await act(prompt, true);
+}
+
+// ════════════════════════════════════════
+// STORY ENGINE
+// ════════════════════════════════════════
+
+async function startStory() {
+  document.getElementById('story-start').style.display='none';
+  await act('Begin the story. Open mid-scene — a specific place, a problem already developing, at least one named NPC who matters immediately. Do not open in safety.');
+}
+
+async function act(text, isTravel=false) {
+  if(S.busy||!text.trim()) return;
+  S.busy=true; hideChoices();
+
+  if(S.scene){ S.hist.push({narrative:S.scene.narrative,choice:isTravel?'[Travel]':text,rolls:S.scene.rolls||[]}); if(S.hist.length>28) S.hist.shift(); }
+
+  const fullMsgs=[...S.msgs,{role:'user',content:text}];
+  renderHistory(); appendLoading();
+
+  let raw;
+  try { raw=await callProxy(fullMsgs); }
+  catch(e){ removeLoading(); appendError(e.message); S.busy=false; return; }
+
+  S.msgs=[...fullMsgs,{role:'assistant',content:raw}];
+  if(S.msgs.length>40) S.msgs=S.msgs.slice(-40);
+
+  const parsed=parseResp(raw);
+  S.scene=parsed; S.choices=parsed.choices||[];
+
+  if(parsed.status){
+    if(parsed.status.health)    { S.char.health=parsed.status.health; setHealth(parsed.status.health); }
+    if(parsed.status.season)    { S.char.season=parsed.status.season; document.getElementById('tb-season').textContent=parsed.status.season; }
+    if(parsed.status.goldChange){ S.gold=Math.max(0,S.gold+parsed.status.goldChange); document.getElementById('g-gold').textContent='💰 '+S.gold+' dragons'; }
+    if(parsed.status.location)  {
+      const f=LOCS.find(l=>l.name.toLowerCase().includes(parsed.status.location.toLowerCase())||parsed.status.location.toLowerCase().includes(l.name.toLowerCase()));
+      if(f){ S.char.location=f.id; renderMap(); renderHereSection(); pushPresence(); }
+    }
+  }
+
+  (parsed.memories||[]).forEach(m=>{
+    if(!S.npcs[m.npc]) S.npcs[m.npc]=[];
+    S.npcs[m.npc].push({t:m.memory,d:m.disposition||0});
+    if(S.npcs[m.npc].length>7) S.npcs[m.npc].shift();
+    showToast(m.npc, m.memory);
+  });
+  if(parsed.memories?.length) renderNPCs();
+
+  if(parsed.worldEvent){
+    const title=parsed.worldEvent.title||parsed.worldEvent.description||'';
+    S.events.unshift(title);
+    if(S.events.length>18) S.events.pop();
+    renderEvents();
+    pushWorldEvent(title, S.char.name);
+  }
+
+  save(); removeLoading();
+
+  if(parsed.status?.isDead){
+    S.char.dead=true; S.char.deathNarrative=parsed.narrative; S.char.deathSummary=parsed.status.summary;
+    save();
+    pushWorldEvent(`${S.char.name} has died.`, S.char.name);
+    setTimeout(()=>showDeath(parsed.narrative,parsed.status.summary),600);
+    S.busy=false; return;
+  }
+
+  appendScene(parsed); showChoices(S.choices); S.busy=false; scrollBot();
+}
+
+// ─── DOM ───
+
+function scr() { return document.getElementById('story-scroll'); }
+
+function renderHistory() {
+  const el=scr(); el.innerHTML='';
+  if(S.scene?.status?.summary){ const s=document.createElement('div'); s.className='sum-line'; s.textContent=S.scene.status.summary; el.appendChild(s); }
+  S.hist.forEach(h=>{
+    const d=document.createElement('div'); d.className='hist-blk';
+    d.innerHTML=`<span class="hist-clbl">${esc(h.choice)}</span>${(h.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(h.narrative)}</div><hr class="sdiv"/>`;
+    el.appendChild(d);
+  });
+}
+
+function appendScene(p) {
+  const d=document.createElement('div'); d.className='appear';
+  d.innerHTML=`${(p.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(p.narrative)}</div>`;
+  scr().appendChild(d);
+}
+
+function appendLoading() {
+  const d=document.createElement('div'); d.className='ldwrap'; d.id='ldel';
+  d.innerHTML='<span>The maester writes</span><span class="ld">.</span><span class="ld">.</span><span class="ld">.</span>';
+  scr().appendChild(d); scrollBot();
+}
+
+function removeLoading() { document.getElementById('ldel')?.remove(); }
+
+function appendError(msg) {
+  const d=document.createElement('div'); d.style.cssText='padding:14px 0;color:rgba(160,50,32,.65);font-style:italic;font-size:13px';
+  d.textContent='The raven did not return. ('+msg+')'; scr().appendChild(d);
+}
+
+function scrollBot() { setTimeout(()=>{ const el=scr(); el.scrollTop=el.scrollHeight; },80); }
+
+function proseHTML(t) {
+  if(!t) return '';
+  return t.split(/\n\n+/).filter(Boolean).map(p=>`<p>${esc(p.trim())}</p>`).join('');
+}
+
+function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function diceHTML(r) {
+  const total=(r.rolls||[]).reduce((a,b)=>a+b,0)+(r.bonus||0), win=total>=r.difficulty;
+  return `<div class="dice-blk ${win?'win':'lose'}">
+    <div class="dlbl">${r.stat} Check — DC ${r.difficulty}</div>
+    <div class="drow">
+      ${(r.rolls||[]).map(n=>`<div class="dface">${n}</div>`).join('')}
+      ${r.bonus?`<span style="color:rgba(180,140,60,.4);font-size:13px">${r.bonus>0?'+':''}${r.bonus}</span>`:''}
+      <span style="color:rgba(180,140,60,.35);margin:0 3px">=</span>
+      <span class="dtotal" style="color:${win?'#6a9e50':'#a03020'}">${total}</span>
+      <span class="dlabel" style="color:${win?'rgba(100,158,80,.7)':'rgba(160,50,32,.7)'}">${win?'✓ Success':'✗ Failure'}</span>
+    </div>
+    ${r.result?`<div class="dres">${esc(r.result)}</div>`:''}
+  </div>`;
+}
+
+// ─── choices ───
+
+function showChoices(choices) {
+  const panel=document.getElementById('choices-panel'), grid=document.getElementById('chgrid');
+  panel.style.display=''; grid.innerHTML=''; S.customMode=false;
+  document.getElementById('custom-row').style.display='none';
+  document.getElementById('ctog').textContent='write your own action';
+  grid.style.display='grid';
+  choices.forEach(c=>{ const btn=document.createElement('button'); btn.className='cbtn'; btn.textContent=c; btn.onclick=()=>act(c); grid.appendChild(btn); });
+}
+
+function hideChoices() { document.getElementById('choices-panel').style.display='none'; }
+
+function flipCustom() {
+  S.customMode=!S.customMode;
+  document.getElementById('custom-row').style.display=S.customMode?'flex':'none';
+  document.getElementById('chgrid').style.display=S.customMode?'none':'grid';
+  document.getElementById('ctog').textContent=S.customMode?'use generated choices':'write your own action';
+  if(S.customMode) document.getElementById('cta').focus();
+}
+
+function sendCustom() {
+  const v=document.getElementById('cta').value.trim();
+  if(!v||S.busy) return;
+  document.getElementById('cta').value=''; act(v);
+}
+
+function restoreScene() {
+  const last=[...S.msgs].reverse().find(m=>m.role==='assistant');
+  if(!last){go('game');return;}
+  const parsed=parseResp(last.content);
+  S.scene=parsed; S.choices=parsed.choices||[];
+  mountGame(); go('game');
+  setTimeout(()=>{ renderHistory(); appendScene(parsed); if(!S.char.dead)showChoices(S.choices); scrollBot(); },60);
+}
+
+// ════════════════════════════════════════
+// DEATH / SHEET / TOAST
+// ════════════════════════════════════════
+
+function showDeath(narrative, summary) {
+  document.getElementById('d-name').textContent=S.char?.name||'—';
+  document.getElementById('d-prose').innerHTML=proseHTML(narrative||'The candle guttered and went out.');
+  document.getElementById('d-epi').textContent=summary||(S.char?.name||'They')+' is gone.';
+  go('death');
+}
+
+function openSheet() {
+  const c=S.char; if(!c) return;
+  document.getElementById('sh-name').textContent=c.name;
+  document.getElementById('sh-sub').textContent=c.houseFull+' · '+c.relation+' · Age '+c.age+(c.gender?' · '+c.gender:'');
+  document.getElementById('sh-stats').innerHTML=STATS_DEF.map(s=>`<div class="mstat"><div class="mstat-val">${c.stats[s.key]}</div><div class="mstat-name">${s.icon} ${s.label}</div></div>`).join('');
+  document.getElementById('sh-appear').textContent=c.appear||'Not described.';
+  document.getElementById('sh-back').textContent=c.backstory||'Unknown.';
+  document.getElementById('sh-traits').innerHTML=(c.traits||[]).map(id=>`<span class="mtrait ${NEG_IDS.has(id)?'neg':''}">${TICONS[id]||''} ${tname(id)}</span>`).join('');
+  document.getElementById('sheet-modal').classList.add('open');
+}
+
+function closeSheet() { document.getElementById('sheet-modal').classList.remove('open'); }
+
+let toastT;
+function showToast(npc, memory) {
+  document.getElementById('tlbl').textContent=npc+' will remember this';
+  document.getElementById('tmsg').textContent=memory;
+  const t=document.getElementById('toast'); t.style.display='block';
+  clearTimeout(toastT); toastT=setTimeout(()=>t.style.display='none',5000);
+}
+
+// ════════════════════════════════════════
+// CLAUDE API
+// ════════════════════════════════════════
+
+function buildSystemPrompt() {
+  const c=S.char;
+  const memBlock=Object.keys(S.npcs).length
+    ?'\nNPC MEMORIES:\n'+Object.entries(S.npcs).map(([n,mems])=>`- ${n}: ${mems.slice(-3).map(m=>m.t).join(' | ')}`).join('\n'):'';
+
+  const othersHere=Object.values(otherPlayers)
+    .filter(p=>p.location===c.location&&p.health!=='Dead')
+    .map(p=>`${p.name} (${p.house||'unknown house'}, ${p.health})`)
+    .join(', ');
+
+  return `You are the Game Master of a multiplayer Game of Thrones RPG set in 250 AC, the reign of Jaehaerys I Targaryen.
+
+CHARACTER:
+Name: ${c.name} | Age: ${c.age}${c.gender?' | '+c.gender:''} | House: ${c.houseFull} | Position: ${c.relation}
+Appearance: ${c.appear||'Not described'} | Backstory: ${c.backstory||'Unknown'} | Personality: ${c.personality||'Unknown'}
+Traits: ${(c.traits||[]).map(tname).join(', ')||'None'}
+Martial:${c.stats.martial} Diplomacy:${c.stats.diplomacy} Intrigue:${c.stats.intrigue} Stewardship:${c.stats.stewardship} Learning:${c.stats.learning}
+Health: ${c.health} | Location: ${LOCS.find(l=>l.id===c.location)?.name||c.location} | Gold: ${S.gold} dragons
+${othersHere?`\nOTHER PLAYERS CURRENTLY HERE: ${othersHere}\n(They may be encountered, allied with, or come into conflict with. Acknowledge their presence if dramatically appropriate.)`:''}
+${memBlock}
+
+GM RULES:
+1. Write GRRM style — third-person past tense, maester's voice. Specific. Sensory. Name the smell, the stone, the exact words spoken.
+2. Characters CAN and WILL die. Do not protect them. Write deaths honestly.
+3. All consequences are permanent.
+4. Named NPCs remember everything and act on it.
+5. Traits are mechanical: Wrathful = anger checks, Brave = cannot flee, Deceitful = hidden options open.
+6. Stats shape outcomes. Roll dice for uncertain moments.
+7. 3-4 choices per turn. At least one looks safe but isn't.
+8. The world moves without the character. Background events happen.
+9. Custom player actions resolve honestly, even fatally.
+10. Political moves matter more than combat.
+11. RANDOM WORLD EVENTS: Periodically (roughly every 3-5 turns), introduce an unprompted world event — a messenger arrives, weather turns, a stranger appears, an animal crosses the path, a distant fire is spotted, a rumour reaches them. These make the world feel alive.
+12. TRAVEL: When the player travels, narrate the road with at least one encounter. Encounters can be: bandits (roll combat), weather (roll Survival=Learning+Martial/2), a wandering knight, merchants, refugees, smallfolk with news, or a suspicious stranger. The outcome of the encounter should matter.
+13. OTHER PLAYERS: If other players are present, they exist as NPCs you control. They can be encountered, spoken to, and can affect events. Do not make them act against their likely character without cause.
+
+INLINE TAGS — embed in narrative prose where they occur:
+{"npc":"Name","memory":"what they remember","disposition":1}  (-3 hostile to +3 friendly)
+{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
+{"worldEvent":{"title":"Short title","description":"What happened"}}
+
+RESPONSE FORMAT:
+<narrative>2-4 paragraphs with inline tags.</narrative>
+<choices>["Choice one","Choice two","Choice three"]</choices>
+<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence of where things stand.","goldChange":0}</status>
+
+ON DEATH:
+<narrative>Death scene. Specific. Honest.</narrative>
+<choices>[]</choices>
+<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How they died and what it meant."}</status>`;
+}
+
+async function callProxy(msgs) {
+  const res=await fetch(PROXY_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:buildSystemPrompt(),messages:msgs.slice(-20)}),
+  });
+  if(!res.ok){ const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'Proxy error '+res.status); }
+  const data=await res.json();
+  return data.content[0].text;
+}
+
+function parseResp(text) {
+  const nRaw=text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim()||text;
+  const cRaw=text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim()||'[]';
+  const sRaw=text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim()||'{}';
+  const memories=[],rolls=[];let worldEvent=null;
+  const narrative=nRaw.replace(/\{[^{}]+\}/g,m=>{
+    try{const o=JSON.parse(m);if(o.npc&&o.memory){memories.push(o);return '';}if(o.stat&&o.rolls){rolls.push(o);return '';}if(o.worldEvent){worldEvent=o.worldEvent;return '';}}catch{}return m;
+  }).trim();
+  let choices=[],status={};
+  try{choices=JSON.parse(cRaw);}catch{}try{status=JSON.parse(sRaw);}catch{}
+  return{narrative,choices,status,memories,rolls,worldEvent};
+}
+</script>
+</body>
+</html>
