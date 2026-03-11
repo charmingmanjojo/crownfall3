@@ -96,17 +96,23 @@ async function handleAct(request, env) {
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
   const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
+  const [dynamicPart, staticPart] = buildSystemParts(char, realmSeason, guestChar);
+
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': env.ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
-      system: buildSystemPrompt(char, realmSeason, guestChar),
+      system: [
+        { type: 'text', text: dynamicPart },
+        { type: 'text', text: staticPart, cache_control: { type: 'ephemeral' } },
+      ],
       messages: msgs.slice(-20),
     }),
   });
@@ -131,21 +137,17 @@ async function handleAct(request, env) {
 
   // ── Persist to DB ──
   const newMsgs = [...msgs, { role: 'assistant', content: raw }];
-
-  // Keep only last 20 messages. Each assistant message can be 1-2KB of JSON.
-  // 40 messages was hitting Supabase row size limits and causing silent save failures.
-  while (newMsgs.length > 20) newMsgs.shift();
+  if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
 
   const hist = [...(char.hist || [])];
   if (hist.length > 28) hist.shift();
 
-  let saveOk = true;
   if (sharedScene) {
+    // Shared scene: write msgs to scene table, state changes to character
     await updateSharedScene(sceneId, { msgs: newMsgs }, env);
     await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
   } else {
-    const saveRes = await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
-    saveOk = saveRes.ok;
+    await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
@@ -175,7 +177,6 @@ async function handleAct(request, env) {
 
   // ── Return scene + validated state to client ──
   return json({
-    ...(saveOk === false ? { saveWarning: 'Your progress may not have saved. Try again.' } : {}),
     narrative:  parsed.narrative,
     choices:    parsed.choices,
     status:     parsed.status,
@@ -904,6 +905,10 @@ function scanAction(raw) {
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
+  return buildSystemParts(c, realmSeason, guestChar).join('\n\n');
+}
+
+function buildSystemParts(c, realmSeason, guestChar) {
   const memBlock = c.npcs && Object.keys(c.npcs).length
     ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
         .map(([n, mems]) => {
@@ -981,9 +986,9 @@ Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}
 ${memBlock}${repBlock}${guestBlock}
-${ageGuard}
+${ageGuard}`;
 
-SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
+  const staticBlock = `SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
 The response to a character claiming something wrong depends entirely on who is responding.
 
 HIGH STATUS (lords, maesters, senior knights, the Hand):
@@ -1355,6 +1360,8 @@ ON CHARACTER DEATH:
 <narrative>Death scene. Specific. Consequential. Honest.</narrative>
 <choices>[]</choices>
 <status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`;
+
+  return [dynamicBlock, staticBlock];
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1477,15 +1484,7 @@ async function updateSharedScene(id, fields, env) {
 }
 
 async function updateCharacter(id, fields, env) {
-  // Aggressively trim msgs to prevent row size issues.
-  // Each msg can be ~1-2KB. Keep last 20 to stay well under Supabase limits.
-  if (fields.msgs && Array.isArray(fields.msgs)) {
-    // Strip the raw AI text from assistant messages — only keep parsed content
-    // and trim to last 20 messages
-    fields.msgs = fields.msgs.slice(-20);
-  }
-
-  const res = await fetch(
+  return fetch(
     `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`,
     {
       method: 'PATCH',
@@ -1498,36 +1497,6 @@ async function updateCharacter(id, fields, env) {
       body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
     }
   );
-
-  // Log save failures — these were previously silently swallowed
-  if (!res.ok) {
-    const errText = await res.text().catch(() => 'unknown');
-    console.error(`updateCharacter failed for ${id}: ${res.status} — ${errText}`);
-
-    // If the full save failed, try a minimal save with just the critical fields
-    // (no msgs/hist) so at least health/gold/location/conditions survive
-    if (fields.msgs || fields.hist) {
-      const { msgs, hist, npcs, events, ...minimal } = fields;
-      const fallbackRes = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': env.SUPABASE_SERVICE_KEY,
-            'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-            'Content-Type': 'application/json',
-            'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify({ ...minimal, updated_at: new Date().toISOString() }),
-        }
-      );
-      if (!fallbackRes.ok) {
-        console.error(`Fallback save also failed for ${id}: ${fallbackRes.status}`);
-      }
-    }
-  }
-
-  return res;
 }
 
 // ══════════════════════════════════════════════════════════════
