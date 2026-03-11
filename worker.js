@@ -311,7 +311,7 @@ function estimateTravelCost(from, to) {
 async function handleSuccession(deadCharId, deadChar, env) {
   try {
     const posRes = await fetch(
-      ,
+      `${env.SUPABASE_URL}/rest/v1/house_positions?holder_id=eq.${deadCharId}`,
       { headers: sbHeaders(env) }
     );
     const positions = await posRes.json();
@@ -319,7 +319,7 @@ async function handleSuccession(deadCharId, deadChar, env) {
 
     for (const pos of positions) {
       // Vacate the position
-      await fetch(, {
+      await fetch(`${env.SUPABASE_URL}/rest/v1/house_positions?id=eq.${pos.id}`, {
         method: 'PATCH',
         headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
         body: JSON.stringify({ holder_id: null }),
@@ -327,7 +327,7 @@ async function handleSuccession(deadCharId, deadChar, env) {
 
       // Find next in succession — lowest rank above the vacated one, same house
       const nextRes = await fetch(
-        ,
+        `${env.SUPABASE_URL}/rest/v1/house_positions?house_key=eq.${pos.house_key}&rank=gt.${pos.rank}&is_public=eq.true&order=rank.asc&limit=1`,
         { headers: sbHeaders(env) }
       );
       const nextRows = await nextRes.json();
@@ -339,7 +339,7 @@ async function handleSuccession(deadCharId, deadChar, env) {
         const tooYoung = heir?.age && parseInt(heir.age) < 16;
 
         // Move heir up to the vacated position
-        await fetch(, {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/characters?id=eq.${nextPos.holder_id}`, {
           method: 'PATCH',
           headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -348,29 +348,30 @@ async function handleSuccession(deadCharId, deadChar, env) {
             updated_at:      new Date().toISOString(),
           }),
         });
-        await fetch(, {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/house_positions?id=eq.${pos.id}`, {
           method: 'PATCH',
           headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
           body: JSON.stringify({ holder_id: nextPos.holder_id }),
         });
         // Free the heir's old slot
-        await fetch(, {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/house_positions?id=eq.${nextPos.id}`, {
           method: 'PATCH',
           headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
           body: JSON.stringify({ holder_id: null, is_public: true }),
         });
 
+        const heirName = heir ? heir.name : 'An heir';
         return {
           worldEvent: {
-            title: ,
+            title: heirName + ' inherits ' + pos.title,
             description: tooYoung
-              ? 
-              : ,
+              ? deadChar.name + ' is dead. ' + heirName + ' has inherited ' + pos.title + ' but is only ' + (heir ? heir.age : '?') + ' years old. A regent must be named.'
+              : deadChar.name + ' of ' + (deadChar.house_full || 'their house') + ' is dead. ' + heirName + ' has assumed ' + pos.title + '.',
           },
         };
       } else {
         // No holder in next slot — open the vacated position publicly
-        await fetch(, {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/house_positions?id=eq.${pos.id}`, {
           method: 'PATCH',
           headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
           body: JSON.stringify({ is_public: true }),
@@ -378,8 +379,8 @@ async function handleSuccession(deadCharId, deadChar, env) {
 
         return {
           worldEvent: {
-            title: ,
-            description: ,
+            title: pos.title + ' stands vacant',
+            description: deadChar.name + ' of ' + (deadChar.house_full || 'their house') + ' is dead. ' + pos.title + ' has no holder. The succession is uncertain.',
           },
         };
       }
