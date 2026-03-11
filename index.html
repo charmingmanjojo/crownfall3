@@ -1268,6 +1268,42 @@ const DEFAULT_EVENTS = [
 ];
 
 // ══════════════════════════════════════════════════════
+// LOCATION HELPERS — must be global, used by scene invite + who-is-here
+// ══════════════════════════════════════════════════════
+function resolveLocClient(raw) {
+  if (!raw) return '';
+  const lower = raw.toLowerCase().trim();
+  const locs = [
+    { id:'kings_landing', keywords:['king','landing','red keep','flea bottom','sept of baelor','dragonpit','iron throne','goldcloak','blackwater'] },
+    { id:'dragonstone',   keywords:['dragonstone'] },
+    { id:'winterfell',   keywords:['winterfell'] },
+    { id:'casterly_rock', keywords:['casterly','lannisport'] },
+    { id:'storms_end',   keywords:["storm's end",'storms end','stormlands'] },
+    { id:'riverrun',     keywords:['riverrun','riverlands'] },
+    { id:'highgarden',   keywords:['highgarden','oldtown'] },
+    { id:'the_eyrie',    keywords:['eyrie','the vale','gulltown'] },
+    { id:'sunspear',     keywords:['sunspear','dorne','water gardens'] },
+    { id:'pyke',         keywords:['pyke','iron islands','lordsport'] },
+    { id:'harrenhal',    keywords:['harrenhal'] },
+    { id:'summerhall',   keywords:['summerhall'] },
+    { id:'white_harbor', keywords:['white harbor','white harbour'] },
+    { id:'braavos',      keywords:['braavos'] },
+    { id:'pentos',       keywords:['pentos'] },
+  ];
+  if (locs.find(l => l.id === lower)) return lower;
+  for (const loc of locs) {
+    if (loc.keywords.some(k => lower.includes(k))) return loc.id;
+  }
+  return lower.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+}
+
+function locationsMatch(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  return resolveLocClient(a) === resolveLocClient(b);
+}
+
+// ══════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════
 let S = {
@@ -1931,8 +1967,9 @@ function renderMap() {
   // Other chars at each location
   const charsByLoc = {};
   allCharsOnMap.forEach(c => {
-    if (!charsByLoc[c.location]) charsByLoc[c.location] = [];
-    charsByLoc[c.location].push(c);
+    const mapLoc = resolveLocClient(c.location) || c.location;
+    if (!charsByLoc[mapLoc]) charsByLoc[mapLoc] = [];
+    charsByLoc[mapLoc].push(c);
   });
 
   document.getElementById('g-map').innerHTML = `<svg viewBox="0 0 600 580">
@@ -2595,7 +2632,7 @@ async function confirmSceneInvite() {
   document.getElementById('scene-invite-confirm-btn').disabled = false;
   closeSceneInviteModal();
 
-  if (error || !data) { console.error('Scene insert error:', error); showToast('Scene', 'Failed to send invitation: ' + (error?.message || 'unknown error')); return; }
+  if (error || !data) { showToast('Scene', 'Failed to send invitation.'); return; }
 
   S.sharedSceneId = data.id;
   showToast('Scene', 'Invitation sent to ' + S.invitedCharName + '. Waiting for them to accept...');
@@ -2705,7 +2742,7 @@ async function acceptSceneInvite() {
 let scenePollingInterval = null;
 function startScenePolling() {
   if (scenePollingInterval) clearInterval(scenePollingInterval);
-  pollSceneInvites(); // check immediately on mount
+  pollSceneInvites();
   scenePollingInterval = setInterval(pollSceneInvites, 5000);
 }
 
@@ -2786,7 +2823,7 @@ async function refreshPresence() {
 function renderWhoIsHere() {
   const el = document.getElementById('who-here-list');
   if (!el || !S.char) return;
-  const here = allCharsOnMap.filter(c => c.location === S.char.location);
+  const here = allCharsOnMap.filter(c => locationsMatch(c.location, S.char.location));
   if (!here.length) {
     el.innerHTML = '<div class="no-npcs" style="padding:5px 12px">No others nearby.</div>';
     return;
