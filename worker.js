@@ -201,6 +201,7 @@ async function handleAct(request, env) {
       stats:           updates.stats,
       growth:          updates.growth,
       conditions:      updates.conditions,
+      reputation:      updates.reputation,
     },
   });
 }
@@ -353,17 +354,45 @@ function applyStateChanges(char, parsed) {
     }
   });
 
-  // NPC memories
+  // NPC memories — with deduplication, relationship typing, and season tracking
+  const VALID_RELATIONSHIPS = new Set([
+    'friend','rival','enemy','mentor','student','romantic_interest',
+    'unrequited','lover','family','patron','ward','ally','suspicious',
+    'respected','feared','indebted','creditor','complicated',
+  ]);
   const npcs = { ...(char.npcs || {}) };
   (parsed.memories || []).forEach(m => {
     if (!m.npc || typeof m.npc !== 'string') return;
     const key = m.npc.substring(0, 60);
     if (!npcs[key]) npcs[key] = [];
-    npcs[key].push({
-      t: String(m.memory || '').substring(0, MAX_NPC_MEMORY_LEN),
+
+    const newText = String(m.memory || '').substring(0, MAX_NPC_MEMORY_LEN);
+
+    // Deduplication: skip if last entry is >75% similar (prevents repeated identical memories)
+    if (npcs[key].length > 0) {
+      const last = npcs[key][npcs[key].length - 1].t || '';
+      const cmp = Math.min(80, newText.length, last.length);
+      let matches = 0;
+      for (let i = 0; i < cmp; i++) { if (newText[i] === last[i]) matches++; }
+      if (cmp > 0 && matches / cmp > 0.75) return; // too similar — skip
+    }
+
+    const entry = {
+      t: newText,
       d: clampDisposition(m.disposition),
-    });
-    if (npcs[key].length > 7) npcs[key].shift();
+      s: season, // season when memory was formed
+    };
+    // Relationship type — validated against allowlist
+    if (m.relationship && VALID_RELATIONSHIPS.has(m.relationship)) {
+      entry.r = m.relationship;
+    }
+    // If a relationship type is provided, backfill any prior entries that lack one
+    if (entry.r) {
+      npcs[key] = npcs[key].map(e => e.r ? e : { ...e, r: entry.r });
+    }
+
+    npcs[key].push(entry);
+    if (npcs[key].length > 12) npcs[key].shift(); // keep last 12 memories per NPC
   });
 
   // World events
@@ -438,9 +467,27 @@ function applyStateChanges(char, parsed) {
     }
   }
 
+  // Reputation — realm-wide and regional standing
+  const reputation = [...(char.reputation || [])];
+  (parsed.reputationEvents || []).forEach(r => {
+    if (!r.label || typeof r.label !== 'string') return;
+    const score = Math.max(-5, Math.min(5, Math.round(Number(r.score) || 0)));
+    if (score === 0) return; // no-op
+    const region = typeof r.region === 'string' ? r.region.substring(0, 60) : 'The Realm';
+    reputation.push({
+      label:  r.label.substring(0, 120),   // what happened / what people say
+      score,                                 // -5 to +5
+      region,                                // where this rep applies
+      s: season,                             // when it happened
+      type: ['honour','valour','cruelty','treachery','generosity','cunning','piety','infamy']
+              .includes(r.type) ? r.type : 'honour',
+    });
+    if (reputation.length > 20) reputation.shift();
+  });
+
   return {
     health, gold, income_per_turn, lands, debts,
-    location, season, dead: isDead, npcs, events, stats, growth, conditions,
+    location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -860,9 +907,22 @@ function scanAction(raw) {
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
   const memBlock = c.npcs && Object.keys(c.npcs).length
-    ? '\nNPC MEMORIES:\n' + Object.entries(c.npcs)
-        .map(([n, mems]) => `- ${n}: ${mems.slice(-3).map(m => m.t).join(' | ')}`)
+    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
+        .map(([n, mems]) => {
+          const rel = mems.slice().reverse().find(m => m.r)?.r || 'acquaintance';
+          const score = mems.reduce((a, m) => a + (m.d || 0), 0);
+          const mood = score >= 3 ? 'friendly' : score <= -3 ? 'hostile' : score < 0 ? 'suspicious' : 'neutral';
+          const recent = mems.slice(-4).map(m => m.t).join(' | ');
+          return `- ${n} [${rel}, ${mood}]: ${recent}`;
+        })
         .join('\n')
+    : '';
+
+  // Reputation block for system prompt
+  const repBlock = (c.reputation && c.reputation.length)
+    ? '\nREPUTATION:\n' + c.reputation.slice(-8).map(r =>
+        `- ${r.label} (${r.type||'honour'}, ${r.score > 0 ? '+' : ''}${r.score}, ${r.region})`
+      ).join('\n')
     : '';
 
   const guestBlock = guestChar ? `
@@ -873,6 +933,11 @@ Traits: ${(guestChar.traits || []).join(', ') || 'None'}
 This is a REAL player character. They will act independently. Acknowledge both characters in the scene. Do not speak for them — only for NPCs.` : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
+  // Compute overall reputation score for display in prompt
+  const totalRepScore = (c.reputation || []).reduce((a, r) => a + (r.score || 0), 0);
+  const repSummary = totalRepScore >= 10 ? 'Celebrated' : totalRepScore >= 5 ? 'Respected' 
+    : totalRepScore >= 2 ? 'Known' : totalRepScore <= -10 ? 'Infamous' : totalRepScore <= -5 ? 'Notorious'
+    : totalRepScore <= -2 ? 'Mistrusted' : 'Unknown';
 
   const lands = (c.lands || []);
   const debts = (c.debts || []);
@@ -915,8 +980,9 @@ Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy ||
 Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
 Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
+Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}
-${memBlock}${guestBlock}
+${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
@@ -1183,7 +1249,7 @@ THE TEST: Before resolving any outcome that benefits the player character, ask:
 The player character is a random bystander in most situations. Treat them as one.
 
 INLINE TAGS — embed directly inside narrative prose where they naturally occur:
-{"npc":"Name","memory":"what they remember","disposition":1}
+{"npc":"Name","memory":"what happened — specific, new information only","disposition":1,"relationship":"friend","season":"Early Spring, 250 AC"}
 {"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
 {"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
 {"statGrowth":"martial","amount":1,"reason":"Brief reason — only on genuinely exceptional moments"}
@@ -1192,6 +1258,32 @@ CONDITIONS TAGS — use these to track persistent health and life states:
 {"conditionGained":{"id":"autumn_fever","label":"Autumn Fever","type":"illness","severity":2,"note":"Contracted at the feast in the great hall."}}
 {"conditionChanged":{"id":"autumn_fever","severityDelta":-1,"note":"The maester's treatment has eased the fever."}}
 {"conditionResolved":"autumn_fever"}
+
+REPUTATION TAG — use when a character does something the realm would notice:
+{"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
+{"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
+
+REPUTATION RULES:
+- score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
+- Only fire reputationEvent when something genuinely notable happens — not for routine actions.
+- region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
+- type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
+- Reputation accumulates across scenes. A character known for cruelty will find doors closing.
+  A character with high honour may receive unexpected aid from strangers. Make it matter.
+- NPCs in the relevant region should react to reputation if it's significant enough for them
+  to have heard. A knight with valour +8 will be recognised. A traitor with treachery -6
+  will find guards' hands near their swords.
+
+NPC MEMORY RULES — read carefully:
+- Fire the npc tag once per scene per NPC, only when something meaningful happened.
+- The memory text must be SPECIFIC and NEW — not a summary of what already existed.
+  "Shared a cup of wine and discussed the Blackfyre threat" not "Met again at the feast."
+- relationship: the nature of this connection. Use the most accurate term:
+  friend | rival | enemy | mentor | student | romantic_interest | unrequited | lover |
+  family | patron | ward | ally | suspicious | respected | feared | indebted | creditor | complicated
+- disposition: change from this specific interaction. +1 warmed, -1 cooled, 0 unchanged.
+  Not an absolute score — just what this scene did to the relationship.
+- NEVER fire the same memory twice. If nothing new happened with an NPC, do not tag them.
 
 CONDITION IDs you may use (use the exact string):
 ILLNESS: autumn_fever, consumption, grey_plague, flux, pox, shivers, wound_fever, childbed_fever, infected_wound, milk_of_poppy_sickness
@@ -1303,6 +1395,7 @@ function parseResponse(text) {
   let worldEvent = null;
   const growthEvents = [];
   const conditionsGained = [], conditionChanged = [], conditionsResolved = [];
+  const reputationEvents = [];
 
   const spans = extractJsonSpans(nRaw);
   const toRemove = [];
@@ -1316,6 +1409,7 @@ function parseResponse(text) {
       else if (o.conditionGained) { conditionsGained.push(o.conditionGained); toRemove.push(span); }
       else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
       else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
+      else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
@@ -1333,7 +1427,7 @@ function parseResponse(text) {
     .map(c => c.substring(0, 120));
 
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
