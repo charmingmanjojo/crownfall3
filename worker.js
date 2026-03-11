@@ -96,23 +96,17 @@ async function handleAct(request, env) {
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
   const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
-  const [dynamicPart, staticPart] = buildSystemParts(char, realmSeason, guestChar);
-
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': env.ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
-      system: [
-        { type: 'text', text: dynamicPart },
-        { type: 'text', text: staticPart, cache_control: { type: 'ephemeral' } },
-      ],
+      system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: msgs.slice(-20),
     }),
   });
@@ -516,8 +510,15 @@ const CANONICAL_LOCS = [
   { id:'harrenhal',    keywords:['harrenhal'] },
   { id:'summerhall',   keywords:['summerhall'] },
   { id:'white_harbor', keywords:['white harbor','white harbour'] },
-  { id:'braavos',      keywords:['braavos'] },
+  { id:'braavos',      keywords:['braavos','iron bank','sea of myrth'] },
   { id:'pentos',       keywords:['pentos'] },
+  { id:'volantis',     keywords:['volantis'] },
+  { id:'myr',          keywords:['myr','myrish'] },
+  { id:'lys',          keywords:['lys','lyseni'] },
+  { id:'tyrosh',       keywords:['tyrosh'] },
+  { id:'norvos',       keywords:['norvos'] },
+  { id:'qohor',        keywords:['qohor'] },
+  { id:'the_stepstones', keywords:['stepstones'] },
 ];
 
 function resolveLocation(raw) {
@@ -533,7 +534,14 @@ function resolveLocation(raw) {
   return lower.replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').substring(0, 40);
 }
 
+// Essos locations — travel to/from costs extra
+const ESSOS_LOCS = new Set(['braavos','pentos','volantis','myr','lys','tyrosh','norvos','qohor','the_stepstones']);
+
 function estimateTravelCost(from, to) {
+  const fromEssos = ESSOS_LOCS.has(from);
+  const toEssos   = ESSOS_LOCS.has(to);
+  if (fromEssos !== toEssos) return 150; // crossing the Narrow Sea
+  if (fromEssos && toEssos) return 40;   // within Essos
   if (!from || !to || from === to) return 0;
   const fromL = from.toLowerCase();
   const toL   = to.toLowerCase();
@@ -905,10 +913,6 @@ function scanAction(raw) {
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
-  return buildSystemParts(c, realmSeason, guestChar).join('\n\n');
-}
-
-function buildSystemParts(c, realmSeason, guestChar) {
   const memBlock = c.npcs && Object.keys(c.npcs).length
     ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
         .map(([n, mems]) => {
@@ -966,8 +970,10 @@ REALM CONTEXT:
 Aegon V is the reformist king — a man who grew up travelling Westeros as a hedge knight's squire and saw the smallfolk suffer firsthand. He has spent his reign trying to break the power of the great lords, curb serfdom, and raise the smallfolk up. The lords hate him for it. His Small Council is fractious. His own children defy him. The realm is stable on the surface and rotting underneath.
 The dragons are gone. The last died over 150 years ago in the Dance of Dragons. There are rumours Aegon V is obsessed with hatching new ones — experiments at Summerhall, the royal pleasure castle. Nothing has come of it yet.
 Dorne was only formally united with the realm 36 years ago (214 AC) through marriage. The ink is barely dry. Old resentments persist.
-The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows.
+The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows. The Golden Company in Essos is their army in exile. Every exiled lord in Pentos or Myr is a potential coin to spend.
 This is a world on the edge of something. No one knows what yet.
+
+ESSOS: Characters may be from or travel to the Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis. The Stepstones lie between. Each city has its own culture, laws, and dangers. Braavos has the Iron Bank and the Faceless Men. Pentos has magisters and Blackfyre money. Volantis has the largest slave population in the world and a growing red priest movement. Travel between Westeros and Essos takes a full season and costs significant gold. Characters in Essos are beyond the reach of Westerosi law but not beyond the reach of its enemies.
 
 Current realm date: ${seasonLine}
 
@@ -986,9 +992,9 @@ Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}
 ${memBlock}${repBlock}${guestBlock}
-${ageGuard}`;
+${ageGuard}
 
-  const staticBlock = `SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
+SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
 The response to a character claiming something wrong depends entirely on who is responding.
 
 HIGH STATUS (lords, maesters, senior knights, the Hand):
@@ -1269,6 +1275,14 @@ REPUTATION TAG — use when a character does something the realm would notice:
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
 - Only fire reputationEvent when something genuinely notable happens — not for routine actions.
+- TRAIT MECHANICS: 
+  drunkard — character drinks heavily. Bad decisions follow. Do NOT deduct gold automatically — the cost comes through story consequences (poor deals, lost items, embarrassing behaviour). Occasionally a drunkard overhears something useful precisely because people forget they are there.
+  gambler — the character cannot resist a wager. Occasionally trigger random goldChange of +20 to +80 or -15 to -60 when gambling opportunities arise naturally in scene.
+  paranoid — the character sees plots everywhere. Some are real. Play NPCs as slightly more evasive around them, feeding the paranoia.
+  ambitious — push this character toward power even when the player does not. Open doors. Show them what they could have.
+  eidetic_memory — this character remembers everything said to them. Reference past events, past insults, past promises with precision.
+  water_dancer — Braavosi blade style. Describe their combat as fast, minimal, precise — not heroic or brutal. They move like water.
+  braavosi_born — character knows the Iron Bank protocols, can navigate Braavos without a guide, speaks some Braavosi.
 - region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
 - type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
 - Reputation accumulates across scenes. A character known for cruelty will find doors closing.
@@ -1360,8 +1374,6 @@ ON CHARACTER DEATH:
 <narrative>Death scene. Specific. Consequential. Honest.</narrative>
 <choices>[]</choices>
 <status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`;
-
-  return [dynamicBlock, staticBlock];
 }
 
 // ══════════════════════════════════════════════════════════════
