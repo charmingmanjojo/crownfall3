@@ -1931,8 +1931,10 @@ function renderMap() {
   // Other chars at each location
   const charsByLoc = {};
   allCharsOnMap.forEach(c => {
-    if (!charsByLoc[c.location]) charsByLoc[c.location] = [];
-    charsByLoc[c.location].push(c);
+    // Normalise to canonical loc id for map grouping
+    const mapLoc = LOCS.find(l => locationsMatch(l.id, c.location))?.id || c.location;
+    if (!charsByLoc[mapLoc]) charsByLoc[mapLoc] = [];
+    charsByLoc[mapLoc].push(c);
   });
 
   document.getElementById('g-map').innerHTML = `<svg viewBox="0 0 600 580">
@@ -2782,10 +2784,21 @@ async function refreshPresence() {
   renderMap();
 }
 
+function locationsMatch(a, b) {
+  if (!a || !b) return false;
+  if (a === b) return true;
+  // Normalise both to lowercase with underscores and compare
+  const norm = s => s.toLowerCase().trim().replace(/[^a-z0-9]/g, '_');
+  if (norm(a) === norm(b)) return true;
+  // One contains the other (handles "king's landing" vs "kings_landing")
+  const clean = s => s.toLowerCase().replace(/[^a-z]/g, '');
+  return clean(a).includes(clean(b)) || clean(b).includes(clean(a));
+}
+
 function renderWhoIsHere() {
   const el = document.getElementById('who-here-list');
   if (!el || !S.char) return;
-  const here = allCharsOnMap.filter(c => c.location === S.char.location);
+  const here = allCharsOnMap.filter(c => locationsMatch(c.location, S.char.location));
   if (!here.length) {
     el.innerHTML = '<div class="no-npcs" style="padding:5px 12px">No others nearby.</div>';
     return;
