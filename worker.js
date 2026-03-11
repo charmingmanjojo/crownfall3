@@ -1,12 +1,4 @@
-// ═══════════════════════════════════════════════════════════
-// CROWNFALL — Cloudflare Worker  (server-authoritative build)
-//
-// Environment variables (Cloudflare dashboard):
-//   ANTHROPIC_KEY         → sk-ant-... key            (Secret)
-//   ADMIN_KEY             → any password               (Secret)
-//   SUPABASE_URL          → https://yourproject.supabase.co
-//   SUPABASE_SERVICE_KEY  → service_role key           (Secret)
-// ═══════════════════════════════════════════════════════════
+
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -368,14 +360,17 @@ function applyStateChanges(char, parsed) {
 
     const newText = String(m.memory || '').substring(0, MAX_NPC_MEMORY_LEN);
 
-    // Deduplication: skip if last entry is >75% similar (prevents repeated identical memories)
-    if (npcs[key].length > 0) {
-      const last = npcs[key][npcs[key].length - 1].t || '';
-      const cmp = Math.min(80, newText.length, last.length);
-      let matches = 0;
-      for (let i = 0; i < cmp; i++) { if (newText[i] === last[i]) matches++; }
-      if (cmp > 0 && matches / cmp > 0.75) return; // too similar — skip
-    }
+    // Deduplication: skip if any existing entry shares >60% of its words with the new one.
+    // This catches the AI re-summarising the same facts with minor additions at the end.
+    const newWords = new Set(newText.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean));
+    const isDuplicate = npcs[key].some(existing => {
+      const exWords = existing.t.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(Boolean);
+      if (!exWords.length || !newWords.size) return false;
+      const shared = exWords.filter(w => newWords.has(w)).length;
+      const overlap = shared / Math.max(exWords.length, newWords.size);
+      return overlap > 0.60;
+    });
+    if (isDuplicate) return;
 
     const entry = {
       t: newText,
