@@ -1357,10 +1357,14 @@ for martial, prodigy for any), raise their ceiling by 2 in that stat only.
 Do not award a statGrowth tag that would push a stat past the age ceiling.
 Growth accumulates silently — 5 growth points converts to +1 stat.
 
-RESPONSE FORMAT — use this exactly, nothing else:
-<narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
+RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
+
+<narrative>2-4 paragraphs of prose only. NO <choices> or <status> or any XML inside here.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
 <status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
+
+ABSOLUTE RULE: Close </narrative> BEFORE writing <choices>. Close </choices> BEFORE writing <status>.
+Your response must start with <narrative> and end with </status>. Zero text outside those tags.
 
 FINANCIAL STATUS FIELDS (include all, only populate when relevant):
 - goldChange: integer, positive = gain, negative = spend. Use this EVERY turn for realistic expenses.
@@ -1432,7 +1436,15 @@ function parseResponse(text) {
   toRemove.sort((a, b) => b.start - a.start);
   let narrative = nRaw;
   for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
-  narrative = narrative.trim();
+
+  // Hard strip — remove any XML bleed no matter where it came from
+  narrative = narrative
+    .replace(/<status>[\s\S]*?<\/status>/gi, '')
+    .replace(/<choices>[\s\S]*?<\/choices>/gi, '')
+    .replace(/<\/?narrative>/gi, '')
+    .replace(/<\/?choices>/gi, '')
+    .replace(/<\/?status>/gi, '')
+    .trim();
 
   let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
