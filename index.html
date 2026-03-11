@@ -405,6 +405,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 @keyframes snowfall{0%{transform:translateY(-10px) rotate(0deg);opacity:.6}100%{transform:translateY(105%) rotate(360deg);opacity:0}}
 .map-wrap{position:relative}
 
+/* ── DRAGON DREAM ── */
+.dream-block{background:rgba(20,8,40,.7);border-left:2px solid rgba(140,80,200,.4);padding:12px 16px;margin:14px 0;font-size:14px;font-style:italic;color:rgba(180,150,230,.75);line-height:1.8;letter-spacing:.01em}
+.dream-label{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.3em;color:rgba(140,80,200,.4);text-transform:uppercase;margin-bottom:8px}
+
 /* ── INSCRIBE ── */
 .inscribe-btn{background:transparent;border:none;color:rgba(100,140,200,.35);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:6px 0 0 24px}
 .inscribe-btn:hover{color:var(--dim)}
@@ -2331,10 +2335,42 @@ async function act(text) {
     return;
   }
 
+  // ── Dragon dream — rendered before choices, after narrative ──
+  if (resp.dragonDream) {
+    appendDragonDream(resp.dragonDream);
+    // Apply mental condition if new
+    if (resp.dragonDream.newCondition) {
+      const existing = S.char.conditions || [];
+      if (!existing.some(c => c.id === resp.dragonDream.newCondition.id)) {
+        S.char.conditions = [...existing, resp.dragonDream.newCondition];
+        renderConditions();
+        showToast('𖤐 Vision', 'The dream came again. It left a mark.');
+      } else {
+        // Worsen existing burden
+        const idx = S.char.conditions.findIndex(c => c.id === 'dragon_dream_burden');
+        if (idx > -1 && S.char.conditions[idx].severity < 4) {
+          S.char.conditions[idx].severity += 1;
+          renderConditions();
+          showToast('𖤐 Vision', 'The visions grow louder. Sleep offers no refuge.');
+        }
+      }
+    }
+  }
+
   appendScene(parsed);
   showChoices(currentChoices);
   S.busy = false;
   scrollBottom();
+}
+
+function appendDragonDream(dream) {
+  const scroll = document.getElementById('story-scroll');
+  if (!scroll) return;
+  const d = document.createElement('div');
+  d.className = 'dream-block';
+  d.innerHTML = `<div class="dream-label">𖤐 &nbsp; A Dream of Fire and Blood &nbsp; 𖤐</div>${dream.text}`;
+  scroll.appendChild(d);
+  scroll.scrollTop = scroll.scrollHeight;
 }
 
 function ss() { return document.getElementById('story-scroll'); }
