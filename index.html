@@ -253,13 +253,50 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .event-item.fresh{color:rgba(158,124,48,.8);animation:appear .4s ease}
 .event-item:last-child{border:none}
 .npc-scroll{flex:1;overflow-y:auto;padding:0 12px 10px}
-.npc-card{padding:9px 0;border-bottom:1px solid rgba(60,90,150,.1)}
+.npc-card{padding:9px 0;border-bottom:1px solid rgba(60,90,150,.1);cursor:pointer;transition:background .15s;margin:0 -12px;padding-left:12px;padding-right:12px}
 .npc-card:last-child{border:none}
-.npc-name{font-size:13px;color:var(--gold);margin-bottom:2px}
+.npc-card:hover{background:rgba(180,140,60,.04)}
+.npc-card-top{display:flex;align-items:flex-start;gap:6px}
+.npc-name{font-size:13px;color:var(--gold);margin-bottom:2px;flex:1}
+.npc-rel-badge{font-size:8px;font-family:'Cinzel',serif;letter-spacing:.1em;padding:1px 5px;border:1px solid rgba(100,140,200,.2);color:rgba(100,140,200,.55);flex-shrink:0;margin-top:2px;text-transform:uppercase}
+.npc-rel-badge.romantic{border-color:rgba(180,80,120,.3);color:rgba(200,100,140,.6)}
+.npc-rel-badge.hostile{border-color:rgba(160,50,32,.3);color:rgba(180,80,60,.6)}
+.npc-rel-badge.mentor,.npc-rel-badge.patron{border-color:rgba(180,140,60,.3);color:rgba(180,140,60,.55)}
 .npc-mood{font-size:10px;color:rgba(100,140,200,.55);margin-bottom:3px}
-.npc-mem{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);line-height:1.38}
+.npc-mem{font-size:11px;font-style:italic;color:rgba(100,78,35,.55);line-height:1.38;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .npc-mem::before{content:"· "}
+.npc-hint{font-size:9px;font-style:italic;color:rgba(80,100,140,.35);margin-top:2px}
 .no-npcs{font-size:11px;font-style:italic;color:rgba(80,62,28,.35);padding-top:4px}
+/* ── NPC Detail Modal ── */
+.npc-modal-box{max-width:560px}
+.npc-modal-header{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(100,78,35,.12)}
+.npc-modal-name{font-family:'Cinzel',serif;font-size:20px;color:var(--gold);margin-bottom:4px}
+.npc-modal-meta{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.npc-modal-rel{font-size:11px;font-style:italic;color:rgba(140,180,220,.6)}
+.npc-modal-disposition{font-size:12px}
+.npc-modal-memories{display:flex;flex-direction:column;gap:0;max-height:400px;overflow-y:auto}
+.npc-mem-entry{padding:10px 0;border-bottom:1px solid rgba(60,90,150,.1)}
+.npc-mem-entry:last-child{border:none}
+.npc-mem-season{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.15em;color:rgba(100,140,200,.4);text-transform:uppercase;margin-bottom:4px}
+.npc-mem-text{font-size:13px;font-style:italic;color:rgba(160,200,240,.7);line-height:1.6}
+.npc-mem-delta{font-size:10px;margin-top:3px}
+.npc-mem-delta.pos{color:rgba(100,180,80,.6)}
+.npc-mem-delta.neg{color:rgba(180,80,60,.6)}
+/* ── Reputation Panel ── */
+#rep-panel{padding:8px 12px 6px;border-bottom:1px solid rgba(60,90,150,.1)}
+.rep-summary-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.rep-title-badge{font-family:'Cinzel',serif;font-size:10px;letter-spacing:.14em;color:var(--gold)}
+.rep-score{font-size:10px;font-style:italic;color:var(--dim)}
+.rep-bar-wrap{height:3px;background:rgba(60,90,150,.15);border-radius:2px;overflow:hidden;margin-bottom:8px;position:relative}
+.rep-bar-center{position:absolute;left:50%;top:0;bottom:0;width:1px;background:rgba(100,140,200,.2)}
+.rep-bar-fill{height:3px;border-radius:2px;position:absolute;top:0;transition:all .4s}
+.rep-bar-pos{background:linear-gradient(90deg,rgba(100,180,80,.4),rgba(100,180,80,.8));left:50%}
+.rep-bar-neg{background:linear-gradient(90deg,rgba(180,80,60,.8),rgba(180,80,60,.4));right:50%}
+.rep-entry{font-size:10px;font-style:italic;color:rgba(100,140,200,.45);padding:2px 0;border-bottom:1px solid rgba(60,90,150,.06);line-height:1.4}
+.rep-entry:last-child{border:none}
+.rep-entry-score{font-style:normal;margin-left:4px}
+.rep-entry-score.pos{color:rgba(100,180,80,.7)}
+.rep-entry-score.neg{color:rgba(180,80,60,.7)}
 .ticker{height:30px;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid rgba(100,78,35,.1);background:rgba(0,0,0,.38);flex-shrink:0}
 .ticker-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;flex-shrink:0}
 .ticker-txt{font-size:11px;font-style:italic;color:rgba(100,78,35,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -615,6 +652,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         <span class="plbl">Afflictions</span>
         <div id="conditions-list"></div>
       </div>
+      <div id="rep-panel" style="display:none">
+        <span class="plbl">Reputation</span>
+        <div class="rep-summary-row">
+          <span class="rep-title-badge" id="rep-title">Unknown</span>
+          <span class="rep-score" id="rep-score"></span>
+        </div>
+        <div class="rep-bar-wrap">
+          <div class="rep-bar-center"></div>
+          <div class="rep-bar-fill rep-bar-pos" id="rep-bar-pos" style="width:0%"></div>
+          <div class="rep-bar-fill rep-bar-neg" id="rep-bar-neg" style="width:0%"></div>
+        </div>
+        <div id="rep-entries"></div>
+      </div>
       <div class="map-wrap">
         <span class="plbl">The Realm</span>
         <div style="position:relative;flex:1;min-height:0">
@@ -700,6 +750,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     <div class="modal-text" id="sh-back"></div>
     <span class="modal-lbl">Traits</span>
     <div class="modal-traits" id="sh-traits"></div>
+  </div>
+</div>
+
+<!-- NPC DETAIL MODAL -->
+<div class="modal-bg" id="npc-modal">
+  <div class="modal-box npc-modal-box">
+    <button class="modal-close" onclick="closeNpcModal()">✕</button>
+    <div class="npc-modal-header">
+      <div class="npc-modal-name" id="npc-modal-name">—</div>
+      <div class="npc-modal-meta">
+        <span class="npc-modal-rel" id="npc-modal-rel"></span>
+        <span class="npc-modal-disposition" id="npc-modal-disp"></span>
+      </div>
+    </div>
+    <div class="npc-modal-memories" id="npc-modal-memories"></div>
   </div>
 </div>
 
@@ -1471,6 +1536,7 @@ async function loadChar(id) {
     events: data.events || [...DEFAULT_EVENTS],
     gold: data.gold || 100,
     conditions: data.conditions || [],
+    reputation: data.reputation || [],
   };
 
   if (data.dead) {
@@ -1891,6 +1957,7 @@ function mountGame() {
   renderEvents();
   renderNPCs();
   renderConditions();
+  renderReputation();
   fetchRealmClock();
   fetchRealmEvents();
   subscribeRealmEvents();
@@ -2024,12 +2091,92 @@ function renderNPCs() {
   entries.forEach(([name, mems]) => {
     const score = mems.reduce((s,m)=>s+(m.d||0),0);
     const mood = score>=3?'🟢 Friendly':score<=-3?'🔴 Hostile':score<0?'🟡 Suspicious':'⚪ Neutral';
+    // Get most recent relationship type
+    const rel = [...mems].reverse().find(m=>m.r)?.r || null;
+    const relLabel = rel ? rel.replace(/_/g,' ') : null;
+    const isRomantic = rel && (rel==='romantic_interest'||rel==='unrequited'||rel==='lover');
+    const isHostile  = rel && (rel==='enemy'||rel==='feared');
+    const isMentor   = rel && (rel==='mentor'||rel==='patron');
+    const relClass   = isRomantic?'romantic':isHostile?'hostile':isMentor?'mentor':'';
+    // Most recent memory for preview
+    const lastMem = mems.length ? mems[mems.length-1].t : '';
     const div = document.createElement('div');
     div.className = 'npc-card';
-    div.innerHTML = `<div class="npc-name">${esc(name)}</div><div class="npc-mood">${mood}</div>
-      ${mems.slice(-3).map(m=>`<div class="npc-mem">${esc(m.t)}</div>`).join('')}`;
+    div.onclick = () => openNpcModal(name);
+    div.innerHTML = `
+      <div class="npc-card-top">
+        <div class="npc-name">${esc(name)}</div>
+        ${relLabel ? `<span class="npc-rel-badge ${relClass}">${esc(relLabel)}</span>` : ''}
+      </div>
+      <div class="npc-mood">${mood}</div>
+      ${lastMem ? `<div class="npc-mem">${esc(lastMem)}</div>` : ''}
+      <div class="npc-hint">Click to view history</div>`;
     el.appendChild(div);
   });
+}
+
+function openNpcModal(name) {
+  const mems = S.char?.npcs?.[name];
+  if (!mems) return;
+  const score = mems.reduce((s,m)=>s+(m.d||0),0);
+  const mood = score>=3?'🟢 Friendly':score<=-3?'🔴 Hostile':score<0?'🟡 Suspicious':'⚪ Neutral';
+  const rel = [...mems].reverse().find(m=>m.r)?.r || null;
+
+  document.getElementById('npc-modal-name').textContent = name;
+  document.getElementById('npc-modal-rel').textContent = rel ? rel.replace(/_/g,' ') : 'Acquaintance';
+  document.getElementById('npc-modal-disp').textContent = mood;
+
+  const memEl = document.getElementById('npc-modal-memories');
+  if (!mems.length) {
+    memEl.innerHTML = '<div style="font-style:italic;color:rgba(100,140,200,.4);padding:12px 0">No memories recorded yet.</div>';
+  } else {
+    memEl.innerHTML = [...mems].reverse().map(m => {
+      const delta = m.d > 0 ? `<div class="npc-mem-delta pos">▲ Warmed (+${m.d})</div>`
+                 : m.d < 0 ? `<div class="npc-mem-delta neg">▼ Cooled (${m.d})</div>` : '';
+      const season = m.s ? `<div class="npc-mem-season">${esc(m.s)}</div>` : '';
+      return `<div class="npc-mem-entry">
+        ${season}
+        <div class="npc-mem-text">${esc(m.t)}</div>
+        ${delta}
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('npc-modal').classList.add('open');
+}
+
+function closeNpcModal() {
+  document.getElementById('npc-modal').classList.remove('open');
+}
+
+function renderReputation() {
+  const panel = document.getElementById('rep-panel');
+  const rep = S.char?.reputation || [];
+  if (!rep.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  const total = rep.reduce((a,r) => a + (r.score||0), 0);
+  const title = total >= 10 ? 'Celebrated' : total >= 5 ? 'Respected'
+    : total >= 2 ? 'Known' : total <= -10 ? 'Infamous' : total <= -5 ? 'Notorious'
+    : total <= -2 ? 'Mistrusted' : 'Unknown';
+
+  document.getElementById('rep-title').textContent = title;
+  document.getElementById('rep-score').textContent = (total > 0 ? '+' : '') + total + ' realm standing';
+
+  // Bar: ±20 is max visual range
+  const pct = Math.min(50, Math.abs(total) * 2.5);
+  document.getElementById('rep-bar-pos').style.width = total > 0 ? pct + '%' : '0%';
+  document.getElementById('rep-bar-neg').style.width = total < 0 ? pct + '%' : '0%';
+
+  // Last 4 entries
+  const el = document.getElementById('rep-entries');
+  el.innerHTML = [...rep].reverse().slice(0,4).map(r => {
+    const cls = r.score > 0 ? 'pos' : 'neg';
+    const sign = r.score > 0 ? '+' : '';
+    return `<div class="rep-entry">${esc(r.label)}
+      <span class="rep-entry-score ${cls}">${sign}${r.score}</span>
+      <span style="color:rgba(80,62,28,.35);font-size:9px"> · ${esc(r.region||'')}</span>
+    </div>`;
+  }).join('');
 }
 
 function renderConditions() {
@@ -2143,6 +2290,16 @@ async function act(text) {
       mountStatDisplay();
     }
     if (cs.growth) { S.char.growth = cs.growth; }
+    if (cs.reputation) {
+      const prevRepCount = (S.char.reputation || []).length;
+      S.char.reputation = cs.reputation;
+      renderReputation();
+      // Toast only genuinely new reputation entries
+      cs.reputation.slice(prevRepCount).forEach(r => {
+        const icon = r.score >= 2 ? '⚜' : r.score <= -2 ? '☠' : r.score > 0 ? '▲' : '▼';
+        showToast(icon + ' Reputation', r.label + (r.region ? ' · ' + r.region : ''));
+      });
+    }
     if (cs.conditions) {
       const prev = S.char.conditions || [];
       S.char.conditions = cs.conditions;
@@ -2163,8 +2320,7 @@ async function act(text) {
     }
   }
 
-  // Show NPC memory toasts
-  (parsed.memories || []).forEach(m => { if (m.npc && m.memory) showToast(m.npc, m.memory); });
+  // NPC memories are shown via the Known Persons panel (click for full history)
 
   removeLoading();
 
