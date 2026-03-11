@@ -1796,15 +1796,7 @@ function mountGame() {
   document.getElementById('g-gold').textContent = '💰 ' + (c.gold||100) + ' dragons';
   updateGoldDisplay(c.gold || 100, 0);
   renderFinances();
-
-  const gs = document.getElementById('g-stats');
-  gs.innerHTML = '';
-  STATS_DEF.forEach(s => {
-    const v = (c.stats||{})[s.key] || 0;
-    gs.innerHTML += `<div class="stat-mini"><span class="sml-name">${s.icon} ${s.label}</span>
-      <div class="sml-track"><div class="sml-fill" style="width:${(v/8)*100}%"></div></div>
-      <span class="sml-val">${v}</span></div>`;
-  });
+  mountStatDisplay();
 
   const gt = document.getElementById('g-traits');
   gt.innerHTML = '';
@@ -1851,6 +1843,19 @@ const SEASON_COLORS = {
   autumn: { land:'#1e0e05', water:'rgba(25,55,110,0.18)', wall:'rgba(160,180,200,0.3)', sky:'rgba(140,160,185,0.22)',bg:'#070304' },
   winter: { land:'#0d0e16', water:'rgba(55,85,165,0.25)', wall:'rgba(190,210,240,0.55)',sky:'rgba(170,195,230,0.38)',bg:'#050508' },
 };
+
+function mountStatDisplay() {
+  const c = S.char; if (!c) return;
+  const gs = document.getElementById('g-stats');
+  if (!gs) return;
+  gs.innerHTML = '';
+  STATS_DEF.forEach(s => {
+    const v = (c.stats||{})[s.key] || 0;
+    gs.innerHTML += `<div class="stat-mini"><span class="sml-name">${s.icon} ${s.label}</span>
+      <div class="sml-track"><div class="sml-fill" style="width:${(v/8)*100}%"></div></div>
+      <span class="sml-val">${v}</span></div>`;
+  });
+}
 
 function renderMap() {
   const lid = S.char?.location || 'kings_landing';
