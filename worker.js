@@ -151,13 +151,16 @@ async function handleAct(request, env) {
     memories:   parsed.memories,
     worldEvent: parsed.worldEvent,
     charState: {
-      health:   updates.health,
-      gold:     updates.gold,
-      location: updates.location,
-      season:   updates.season,
-      dead:     updates.dead || false,
-      npcs:     updates.npcs,
-      events:   updates.events,
+      health:          updates.health,
+      gold:            updates.gold,
+      income_per_turn: updates.income_per_turn,
+      lands:           updates.lands,
+      debts:           updates.debts,
+      location:        updates.location,
+      season:          updates.season,
+      dead:            updates.dead || false,
+      npcs:            updates.npcs,
+      events:          updates.events,
     },
   });
 }
@@ -169,38 +172,74 @@ async function handleAct(request, env) {
 // inflate stats — all of that is enforced here.
 // ══════════════════════════════════════════════════════════════
 const VALID_HEALTH        = new Set(['Hale', 'Wounded', 'Grievously Wounded', 'Dead']);
-const MAX_GOLD_CHANGE     = 500;   // max gold swing per turn
+const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
 const MAX_NPC_MEMORY_LEN  = 200;
 const MAX_EVENT_TITLE_LEN = 120;
 
 function applyStateChanges(char, parsed) {
   const s = parsed.status || {};
 
-  // Health — only accept known values; dead is permanent
+  // Health
   const rawHealth = s.health;
   let health = VALID_HEALTH.has(rawHealth) ? rawHealth : char.health;
   if (char.health === 'Dead') health = 'Dead';
 
-  // Gold — clamp change, floor at 0
+  // Gold — apply direct goldChange
   let gold = char.gold ?? 100;
   if (typeof s.goldChange === 'number' && Number.isFinite(s.goldChange)) {
     const clamped = Math.max(-MAX_GOLD_CHANGE, Math.min(MAX_GOLD_CHANGE, Math.round(s.goldChange)));
     gold = Math.max(0, gold + clamped);
   }
 
-  // Location — accept AI string for display; client resolves to map tile id
+  // Income per turn — can increase/decrease from events (land grants, razing, etc.)
+  let income_per_turn = char.income_per_turn ?? 0;
+  if (typeof s.incomeChange === 'number' && Number.isFinite(s.incomeChange)) {
+    income_per_turn = Math.max(0, income_per_turn + Math.round(s.incomeChange));
+  }
+
+  // Apply seasonal income (every time season changes)
+  const season = typeof s.season === 'string' ? s.season.substring(0, 80) : char.season;
+  if (season !== char.season && income_per_turn > 0) {
+    gold = Math.max(0, gold + income_per_turn);
+  }
+
+  // Lands — AI can grant or strip via landEvent
+  const lands = [...(char.lands || [])];
+  if (s.landGained && typeof s.landGained === 'string') {
+    const entry = s.landGained.substring(0, 100);
+    if (!lands.includes(entry)) lands.push(entry);
+  }
+  if (s.landLost && typeof s.landLost === 'string') {
+    const idx = lands.findIndex(l => l.toLowerCase().includes(s.landLost.toLowerCase()));
+    if (idx > -1) lands.splice(idx, 1);
+  }
+
+  // Debts — AI can add debt via newDebt
+  const debts = [...(char.debts || [])];
+  if (s.newDebt && s.newDebt.creditor && s.newDebt.amount) {
+    debts.push({
+      creditor: String(s.newDebt.creditor).substring(0, 80),
+      amount:   Math.max(0, Math.round(s.newDebt.amount)),
+      reason:   String(s.newDebt.reason || '').substring(0, 120),
+      turn:     Date.now(),
+    });
+  }
+  // Debt repayment: goldChange negative + debtId
+  if (s.debtRepaid && debts.length) {
+    const idx = debts.findIndex(d => d.creditor === s.debtRepaid);
+    if (idx > -1) debts.splice(idx, 1);
+  }
+
+  // Location
   const location = typeof s.location === 'string' ? s.location.substring(0, 80) : char.location;
 
-  // Season — flavour text, sanitise length
-  const season = typeof s.season === 'string' ? s.season.substring(0, 80) : char.season;
-
-  // Death — one-way gate
+  // Death
   const isDead = s.isDead === true ? true : (char.dead || false);
 
-  // Stats — NEVER change base stats from AI output; set at creation only
+  // Stats — never change from AI
   const stats = char.stats;
 
-  // NPC memories — merge and cap
+  // NPC memories
   const npcs = { ...(char.npcs || {}) };
   (parsed.memories || []).forEach(m => {
     if (!m.npc || typeof m.npc !== 'string') return;
@@ -213,19 +252,16 @@ function applyStateChanges(char, parsed) {
     if (npcs[key].length > 7) npcs[key].shift();
   });
 
-  // World events — prepend and cap
+  // World events
   const events = [...(char.events || [])];
   if (parsed.worldEvent) {
-    const title = String(parsed.worldEvent.title || parsed.worldEvent.description || '')
-      .substring(0, MAX_EVENT_TITLE_LEN);
-    if (title) {
-      events.unshift(title);
-      if (events.length > 18) events.pop();
-    }
+    const title = String(parsed.worldEvent.title || parsed.worldEvent.description || '').substring(0, MAX_EVENT_TITLE_LEN);
+    if (title) { events.unshift(title); if (events.length > 18) events.pop(); }
   }
 
   return {
-    health, gold, location, season, dead: isDead, npcs, events, stats,
+    health, gold, income_per_turn, lands, debts,
+    location, season, dead: isDead, npcs, events, stats,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -404,6 +440,16 @@ This is a REAL player character. They will act independently. Acknowledge both c
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
 
+  // Financial block
+  const lands = (c.lands || []);
+  const debts = (c.debts || []);
+  const financeBlock = `
+FINANCES:
+Income per season: ${c.income_per_turn || 0} gold dragons
+Current gold: ${c.gold || 100} dragons
+Holdings: ${lands.length ? lands.join(', ') : 'None'}
+Debts: ${debts.length ? debts.map(d => `${d.amount}gd owed to ${d.creditor} (${d.reason})`).join('; ') : 'None'}`;
+
   return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
 
 REALM CONTEXT:
@@ -413,7 +459,7 @@ Dorne was only formally united with the realm 36 years ago (214 AC) through marr
 The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows.
 This is a world on the edge of something. No one knows what yet.
 
-Current realm date: \${seasonLine}
+Current realm date: ${seasonLine}
 
 CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
@@ -424,7 +470,8 @@ Backstory: ${c.backstory || 'Unknown'}
 Personality: ${c.personality || 'Unknown'}
 Traits: ${(c.traits || []).join(', ') || 'None'}
 Martial:${(c.stats || {}).martial || 3} Diplomacy:${(c.stats || {}).diplomacy || 3} Intrigue:${(c.stats || {}).intrigue || 3} Stewardship:${(c.stats || {}).stewardship || 3} Learning:${(c.stats || {}).learning || 3}
-Health: ${c.health} | Gold: ${c.gold || 100} dragons
+Health: ${c.health}
+${financeBlock}
 ${memBlock}${guestBlock}
 
 RULES:
@@ -438,26 +485,61 @@ RULES:
 8. The world moves without the character. Events happen offstage. Time passes.
 9. Custom player actions get resolved honestly — even if the result is fatal.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
+11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
+12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
 
 INLINE TAGS — embed directly inside narrative prose where they naturally occur:
-{"npc":"Name","memory":"what they remember about this interaction","disposition":1}
-{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome text"}
-{"worldEvent":{"title":"Short title","description":"What happened in the wider world"}}
+{"npc":"Name","memory":"what they remember","disposition":1}
+{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
+{"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
 
 RESPONSE FORMAT — use this exactly, nothing else:
 <narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
-<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence of current situation.","goldChange":0}</status>
+<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
+
+FINANCIAL STATUS FIELDS (include all, only populate when relevant):
+- goldChange: integer, positive = gain, negative = spend. Use this EVERY turn for realistic expenses.
+- incomeChange: integer, changes permanent income_per_turn (land grants +25 to +200, destruction -25 to -100)
+- landGained: string name of new holding (e.g. "The Mill at Ashford")
+- landLost: string name of lost holding
+- newDebt: {"creditor":"Iron Bank","amount":500,"reason":"Emergency loan for mercenaries"}
+- debtRepaid: string name of creditor debt is cleared to
 
 ON CHARACTER DEATH:
 <narrative>Death scene. Specific. Consequential. Honest.</narrative>
 <choices>[]</choices>
-<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0}</status>`;
+<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`;
 }
 
 // ══════════════════════════════════════════════════════════════
 // RESPONSE PARSER
+
 // ══════════════════════════════════════════════════════════════
+// Extracts all JSON objects from text including nested ones (handles worldEvent: {title, description})
+function extractJsonSpans(text) {
+  const spans = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '{') {
+      let depth = 0, start = i, inStr = false, esc = false;
+      while (i < text.length) {
+        const c = text[i];
+        if (esc)              { esc = false; }
+        else if (c==='\\' && inStr) { esc = true; }
+        else if (c==='"')     { inStr = !inStr; }
+        else if (!inStr) {
+          if (c==='{')      depth++;
+          else if (c==='}') { depth--; if (depth===0) { spans.push({ str: text.slice(start, i+1), start, end: i+1 }); break; } }
+        }
+        i++;
+      }
+    }
+    i++;
+  }
+  return spans;
+}
+
 function parseResponse(text) {
   const nRaw = text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim() || text;
   const cRaw = text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim() || '[]';
@@ -465,15 +547,20 @@ function parseResponse(text) {
   const memories = [], rolls = [];
   let worldEvent = null;
 
-  const narrative = nRaw.replace(/\{[^{}]+\}/g, match => {
+  const spans = extractJsonSpans(nRaw);
+  const toRemove = [];
+  for (const span of spans) {
     try {
-      const o = JSON.parse(match);
-      if (o.npc && o.memory) { memories.push(o); return ''; }
-      if (o.stat && o.rolls) { rolls.push(o);    return ''; }
-      if (o.worldEvent)      { worldEvent = o.worldEvent; return ''; }
+      const o = JSON.parse(span.str);
+      if (o.npc && o.memory) { memories.push(o); toRemove.push(span); }
+      else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
+      else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
     } catch {}
-    return match;
-  }).trim();
+  }
+  toRemove.sort((a, b) => b.start - a.start);
+  let narrative = nRaw;
+  for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
+  narrative = narrative.trim();
 
   let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
