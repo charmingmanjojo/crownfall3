@@ -399,7 +399,7 @@ async function handleSuccession(deadCharId, deadChar, env) {
 function sbHeaders(env) {
   return {
     'apikey':        env.SUPABASE_SERVICE_KEY,
-    'Authorization': ,
+    'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
   };
 }
 
