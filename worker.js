@@ -312,15 +312,18 @@ function applyStateChanges(char, parsed) {
     if (idx > -1) debts.splice(idx, 1);
   }
 
-  // Location — travel costs gold, validate the character can afford it
+  // Location — resolve to canonical ID, then apply travel cost
   let location = char.location;
-  if (typeof s.location === 'string' && s.location !== char.location) {
-    const travelCost = estimateTravelCost(char.location, s.location);
-    if (gold >= travelCost) {
-      location = s.location.substring(0, 80);
-      if (travelCost > 0) gold = Math.max(0, gold - travelCost);
-    } else {
-      location = char.location; // can't afford it — stay put
+  if (typeof s.location === 'string') {
+    const resolved = resolveLocation(s.location);
+    if (resolved && resolved !== char.location) {
+      const travelCost = estimateTravelCost(char.location, resolved);
+      if (gold >= travelCost) {
+        location = resolved;
+        if (travelCost > 0) gold = Math.max(0, gold - travelCost);
+      } else {
+        location = char.location; // can't afford it — stay put
+      }
     }
   }
 
@@ -451,6 +454,47 @@ function clampDisposition(d) {
 // ══════════════════════════════════════════════════════════════
 // TRAVEL COST ESTIMATOR
 // ══════════════════════════════════════════════════════════════
+// Canonical location IDs — must match what the client uses
+const CANONICAL_LOCS = [
+  {id:'kings_landing',  names:["king's landing","kingslanding","the red keep","the city","king's gate","the docks","flea bottom","the great sept","the iron throne"]},
+  {id:'dragonstone',    names:["dragonstone","dragonstone castle"]},
+  {id:'winterfell',     names:["winterfell","the north","castle winterfell"]},
+  {id:'casterly_rock',  names:["casterly rock","lannisport","the westerlands"]},
+  {id:'storms_end',     names:["storm's end","storms end","the stormlands"]},
+  {id:'riverrun',       names:["riverrun","the riverlands","the trident"]},
+  {id:'highgarden',     names:["highgarden","the reach"]},
+  {id:'the_eyrie',      names:["the eyrie","the vale","gulltown","the mountain clans"]},
+  {id:'sunspear',       names:["sunspear","dorne","the water gardens","the red mountains"]},
+  {id:'pyke',           names:["pyke","the iron islands","lordsport","old wyk","great wyk"]},
+  {id:'harrenhal',      names:["harrenhal","harren's hall"]},
+  {id:'the_twins',      names:["the twins","the crossing"]},
+  {id:'oldtown',        names:["oldtown","the citadel","the starry sept"]},
+  {id:'white_harbor',   names:["white harbor","white harbour"]},
+  {id:'braavos',        names:["braavos","the free city of braavos"]},
+  {id:'pentos',         names:["pentos"]},
+  {id:'summerhall',     names:["summerhall","the royal pleasure castle"]},
+];
+
+// Resolve an AI-returned location string to a canonical ID.
+// Returns the canonical ID if found, otherwise returns the original string lowercased.
+function resolveLocation(raw) {
+  if (!raw || typeof raw !== 'string') return null;
+  const lower = raw.toLowerCase().trim();
+  // Exact ID match first
+  const exactId = CANONICAL_LOCS.find(l => l.id === lower);
+  if (exactId) return exactId.id;
+  // Name match
+  for (const loc of CANONICAL_LOCS) {
+    if (loc.names.some(n => lower.includes(n) || n.includes(lower))) return loc.id;
+  }
+  // Partial ID match (e.g. "kings" -> kings_landing)
+  for (const loc of CANONICAL_LOCS) {
+    if (loc.id.includes(lower.replace(/[^a-z]/g, '_')) || lower.replace(/\s+/g,'_').includes(loc.id.split('_')[0])) return loc.id;
+  }
+  // Unknown — return cleaned version of the raw string so at least it's consistent
+  return lower.replace(/\s+/g, '_').substring(0, 40);
+}
+
 function estimateTravelCost(from, to) {
   if (!from || !to || from === to) return 0;
   const fromL = from.toLowerCase();
