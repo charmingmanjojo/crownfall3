@@ -364,6 +364,33 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .scene-banner-leave:hover{background:rgba(180,140,60,.08)}
 .scene-invite-modal{max-width:400px}
 .scene-pending-banner{background:rgba(180,140,60,.06);border:1px solid rgba(180,140,60,.2);padding:8px 12px;margin:8px 0;font-size:12px;font-style:italic;color:rgba(200,168,75,.7);text-align:center}
+/* ── TUTORIAL ── */
+.tutorial-bg{position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:800;display:flex;align-items:center;justify-content:center;padding:20px}
+.tutorial-box{background:#07090f;border:1px solid rgba(180,140,60,.28);max-width:600px;width:100%;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.tutorial-top{padding:22px 24px 0;flex-shrink:0}
+.tutorial-title{font-family:'Cinzel',serif;font-size:22px;color:var(--gold);letter-spacing:.16em;margin-bottom:3px}
+.tutorial-orn{font-size:11px;color:rgba(140,105,40,.35);letter-spacing:.3em;margin-bottom:18px}
+.tutorial-tabs{display:flex;border-bottom:1px solid rgba(60,90,150,.18);gap:0}
+.tut-tab{background:transparent;border:none;border-bottom:2px solid transparent;padding:8px 16px;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.18em;color:rgba(100,140,200,.5);cursor:pointer;text-transform:uppercase;transition:all .18s;margin-bottom:-1px}
+.tut-tab.on{color:var(--gold);border-bottom-color:var(--gold)}
+.tutorial-body{padding:22px 24px;overflow-y:auto;flex:1}
+.tut-panel{display:none}
+.tut-panel.on{display:block}
+.tut-section{margin-bottom:22px}
+.tut-head{font-family:'Cinzel',serif;font-size:11px;letter-spacing:.2em;color:var(--gold);text-transform:uppercase;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.tut-head::after{content:'';flex:1;height:1px;background:rgba(180,140,60,.12)}
+.tut-p{font-size:13px;line-height:1.78;color:rgba(180,210,240,.7);margin-bottom:8px}
+.tut-p em{color:var(--gold);font-style:normal}
+.tut-tip{background:rgba(180,140,60,.05);border-left:2px solid rgba(180,140,60,.3);padding:8px 12px;font-size:12px;font-style:italic;color:rgba(180,210,240,.55);margin-top:6px;line-height:1.6}
+.tutorial-footer{padding:14px 24px;border-top:1px solid rgba(60,90,150,.15);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.tut-skip{background:transparent;border:none;font-family:'IM Fell English',serif;font-size:11px;font-style:italic;color:rgba(100,140,200,.4);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.tut-skip:hover{color:var(--dim)}
+.tut-nav{display:flex;gap:8px;align-items:center}
+.tut-dot{width:6px;height:6px;border-radius:50%;background:rgba(100,140,200,.2);transition:background .18s;cursor:pointer}
+.tut-dot.on{background:var(--gold)}
+.tut-next{background:transparent;border:1px solid rgba(180,140,60,.35);color:var(--gold);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.2em;padding:8px 20px;cursor:pointer;transition:all .2s;text-transform:uppercase}
+.tut-next:hover{background:rgba(180,140,60,.07)}
+
 /* ── FINANCES ── */
 .char-income{font-size:10px;color:rgba(120,180,80,.45);margin-top:1px;font-style:italic}
 .fin-holding{font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid rgba(100,78,35,.07);display:flex;align-items:center;gap:5px}
@@ -537,6 +564,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <span id="tb-scene-indicator" style="display:none;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;color:var(--gold);border:1px solid rgba(180,140,60,.3);padding:2px 8px">⚔ SHARED SCENE</span>
     </div>
     <div class="tb-right">
+          <button class="tb-btn" onclick="openTutorial()" title="How to play">?</button>
       <button class="sound-btn" id="sound-btn" onclick="toggleSound()" title="Ambient Sound">🔇</button>
       <div class="raven-btn-wrap">
         <button class="tb-btn" onclick="openRavens()">Ravens</button>
@@ -1776,6 +1804,8 @@ function mountGame() {
   renderNPCs();
   fetchRealmClock();
   startScenePolling();
+  // Show tutorial on first-ever game entry
+  if (!S.char?.msgs?.length) maybeShowTutorial();
 }
 
 function traitLabel(id) {
@@ -2025,7 +2055,20 @@ function scrollBottom() { setTimeout(() => { const el=ss(); el.scrollTop=el.scro
 
 function proseHTML(t) {
   if (!t) return '';
-  return t.split(/\n\n+/).filter(Boolean).map(p => `<p>${esc(p.trim())}</p>`).join('');
+  return t.split(/\n\n+/).filter(Boolean).map(p => {
+    let s = esc(p.trim());
+    // Italic: *text* → <em>text</em>  (AI wraps NPC speech in asterisks)
+    s = s.replace(/\*([^*\n]+)\*/g, '<em>$1</em>');
+    // Em dashes: -- → —
+    s = s.replace(/--/g, '\u2014');
+    // Smart double quotes
+    s = s.replace(/(^|[\s\u2014(\[>])(&quot;|")/g, '$1\u201c');
+    s = s.replace(/(&quot;|")/g, '\u201d');
+    // Smart single quotes / apostrophes
+    s = s.replace(/(^|[\s\u2014(\[>])'/g, '$1\u2018');
+    s = s.replace(/'/g, '\u2019');
+    return `<p>${s}</p>`;
+  }).join('');
 }
 
 function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
@@ -2473,6 +2516,49 @@ async function acceptSceneInvite() {
 // Start polling for invites when in game
 function startScenePolling() {
   setInterval(pollSceneInvites, 15000);
+}
+
+// ══════════════════════════════════════════════════════
+// TUTORIAL
+// ══════════════════════════════════════════════════════
+let tutPage = 0;
+const TUT_PAGES = 5;
+
+function openTutorial() {
+  document.getElementById('tutorial-modal').style.display = 'flex';
+  tutTab(0);
+}
+
+function closeTutorial() {
+  document.getElementById('tutorial-modal').style.display = 'none';
+  try { localStorage.setItem('crownfall_tut_seen', '1'); } catch(e) {}
+}
+
+function tutTab(n) {
+  tutPage = n;
+  for (let i = 0; i < TUT_PAGES; i++) {
+    document.getElementById('tut-' + i)?.classList.toggle('on', i === n);
+    document.querySelector(`.tut-tab:nth-child(${i+1})`)?.classList.toggle('on', i === n);
+    document.getElementById('tdot-' + i)?.classList.toggle('on', i === n);
+  }
+  const btn = document.getElementById('tut-next-btn');
+  if (btn) btn.textContent = n === TUT_PAGES - 1 ? 'Enter the Realm' : 'Next \u2192';
+}
+
+function tutNext() {
+  if (tutPage < TUT_PAGES - 1) {
+    tutTab(tutPage + 1);
+  } else {
+    closeTutorial();
+  }
+}
+
+function maybeShowTutorial() {
+  try {
+    if (!localStorage.getItem('crownfall_tut_seen')) openTutorial();
+  } catch(e) {
+    openTutorial(); // if localStorage unavailable, always show
+  }
 }
 
 
@@ -2992,6 +3078,132 @@ function renderFinances() {
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="page-btn" onclick="closeSceneInviteModal()">Cancel</button>
       <button class="begin-btn" id="scene-invite-confirm-btn" style="width:auto;padding:10px 24px" onclick="confirmSceneInvite()">Send Invitation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     TUTORIAL MODAL
+════════════════════════════════════════════ -->
+<div class="tutorial-bg" id="tutorial-modal" style="display:none">
+  <div class="tutorial-box">
+    <div class="tutorial-top">
+      <div class="tutorial-title">THE REALM AWAITS</div>
+      <div class="tutorial-orn">— ✦ — A Brief Counsel for the Newly Arrived — ✦ —</div>
+      <div class="tutorial-tabs">
+        <button class="tut-tab on" onclick="tutTab(0)">The Basics</button>
+        <button class="tut-tab" onclick="tutTab(1)">Travel</button>
+        <button class="tut-tab" onclick="tutTab(2)">Shared Scenes</button>
+        <button class="tut-tab" onclick="tutTab(3)">Ravens</button>
+        <button class="tut-tab" onclick="tutTab(4)">The Chronicle</button>
+      </div>
+    </div>
+
+    <div class="tutorial-body">
+
+      <!-- PAGE 0: THE BASICS -->
+      <div class="tut-panel on" id="tut-0">
+        <div class="tut-section">
+          <div class="tut-head">How the Realm Works</div>
+          <div class="tut-p">Crownfall is a shared roleplay set in <em>250 AC</em> during the reign of Aegon V Targaryen. You play an original character — a lord, a knight, a merchant, a bastard — navigating politics, war, and intrigue in a world that does not care whether you survive.</div>
+          <div class="tut-p">The AI acts as your Game Master. It writes the world around you, controls every NPC, and resolves the consequences of your choices. <em>It will not protect you.</em> Characters can and do die.</div>
+          <div class="tut-tip">The realm is shared. Other players exist in the same world. Their actions have consequences you may feel — and yours have consequences they may feel.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Making Choices</div>
+          <div class="tut-p">After each scene you will see <em>3–4 generated choices</em>. At least one that looks safe is not. You can also write your own action — tap <em>"write your own action"</em> beneath the choices to type anything.</div>
+          <div class="tut-tip">The AI resolves custom actions honestly, even if the result is fatal. Think before you act.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Gold & Stats</div>
+          <div class="tut-p">Your stats — <em>Martial, Diplomacy, Intrigue, Stewardship, Learning</em> — shape every outcome. The AI rolls dice for uncertain moments. High stats tip the odds; low stats do not make things impossible, just more dangerous.</div>
+          <div class="tut-p"><em>Gold is real.</em> Feasts, bribes, travel, and mercenaries all cost money. If you run out, you go into debt. Debts have consequences.</div>
+        </div>
+      </div>
+
+      <!-- PAGE 1: TRAVEL -->
+      <div class="tut-panel" id="tut-1">
+        <div class="tut-section">
+          <div class="tut-head">Moving Through the Realm</div>
+          <div class="tut-p">Travel happens <em>through your actions</em> — simply tell the GM you wish to travel somewhere and it will play out as a scene. You do not click a button or select a destination.</div>
+          <div class="tut-p">For example: <em>"I make arrangements to depart for King's Landing at dawn"</em> or <em>"I ride hard for Winterfell, resting only when the horse demands it."</em></div>
+          <div class="tut-tip">The GM will handle the journey as a scene — road conditions, weather, who you meet on the way. It will not simply skip you to the destination.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Travel Costs</div>
+          <div class="tut-p">Moving between locations <em>costs gold</em> automatically when your location changes. Rough costs:</div>
+          <div class="tut-p">• Within a city or castle — <em>free</em><br>• Within a region — <em>5–15 gold dragons</em><br>• Across regions — <em>20–60 gold dragons</em><br>• Sea voyage — <em>30–80 gold dragons</em>, with storm risk</div>
+          <div class="tut-tip">Winter travel costs the same in gold but carries far greater danger in the narrative. A knight who cannot afford the road simply cannot leave.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Your Location on the Map</div>
+          <div class="tut-p">The map on the left panel shows <em>your current position</em> as a glowing gold dot. Small house sigils mark where other players currently are. If sigils cluster around your dot, you share a location with other characters.</div>
+        </div>
+      </div>
+
+      <!-- PAGE 2: SHARED SCENES -->
+      <div class="tut-panel" id="tut-2">
+        <div class="tut-section">
+          <div class="tut-head">Playing with Other Characters</div>
+          <div class="tut-p">When another player's character is at <em>the same location as you</em>, you can invite them into a shared scene. Both characters are then present in the same narrative — the GM sees you both and writes for both.</div>
+          <div class="tut-tip">You cannot invite someone who is in a different location. They must travel to you — or you to them — first. This is intentional.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">How to Start a Shared Scene</div>
+          <div class="tut-p"><em>1.</em> Look at the <em>"Who Is Here"</em> panel on the right side of the game screen. It lists every living character currently at your location.</div>
+          <div class="tut-p"><em>2.</em> Click the <em>⚔ invite</em> button next to their name.</div>
+          <div class="tut-p"><em>3.</em> Confirm the invitation. They will receive a notification and can accept or decline.</div>
+          <div class="tut-p"><em>4.</em> Once they accept, a banner appears in both your scenes. Either of you can act. The GM writes for both characters.</div>
+          <div class="tut-tip">Either player can leave a shared scene at any time using the <em>"Leave Scene"</em> button in the banner. The scene ends for both of you.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">What the GM Sees</div>
+          <div class="tut-p">In a shared scene the GM knows both characters' names, houses, health, and traits. It will write NPCs who react to <em>both</em> of you. It will not speak for your partner — only for NPCs.</div>
+        </div>
+      </div>
+
+      <!-- PAGE 3: RAVENS -->
+      <div class="tut-panel" id="tut-3">
+        <div class="tut-section">
+          <div class="tut-head">Sending Messages Across the Realm</div>
+          <div class="tut-p">Ravens allow you to send <em>in-character messages</em> to any other living character, regardless of where they are. A message you send as your character — not as a player — as though you had written a letter and sent it by bird.</div>
+          <div class="tut-p">To send a raven, click the <em>Ravens</em> button in the top bar of the game screen. Search for the recipient by character name, write your message, and dispatch it.</div>
+          <div class="tut-tip">Ravens are the correct in-world mechanism for sharing information. If you want another character to know something — a warning, an alliance offer, a threat — a raven is how you tell them.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">What Ravens Are Not</div>
+          <div class="tut-p">Ravens are <em>not</em> seen by the GM and do not affect your story directly. They are player-to-player communication. What your character does with the information in a raven — that plays out in your own scenes.</div>
+          <div class="tut-tip">Write ravens in character. "Lord Stark — I write to warn you of movements in the Riverlands..." not "hey can you come to King's Landing".</div>
+        </div>
+      </div>
+
+      <!-- PAGE 4: THE CHRONICLE -->
+      <div class="tut-panel" id="tut-4">
+        <div class="tut-section">
+          <div class="tut-head">Inscribing Your Deeds</div>
+          <div class="tut-p">After any scene, you will see a small link beneath the narrative — <em>✦ Inscribe this deed in the chronicles</em>. Clicking it saves an excerpt of that scene to the public chronicle, readable by all players.</div>
+          <div class="tut-p">The chronicle is a living record of what has happened in the realm. Great deeds, deaths, betrayals, alliances — anything worth remembering can be inscribed.</div>
+          <div class="tut-tip">You choose what to inscribe and what to keep private. Not every scene needs to be public. A conspiracy that goes into the chronicle is a conspiracy someone might read.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Reading the Chronicle</div>
+          <div class="tut-p">The Great Chronicle is accessible from the main page. It shows all inscribed deeds, filterable by house and location. It is the closest thing the realm has to shared history.</div>
+          <div class="tut-p">What you read there <em>your character can know</em> — formally inscribed deeds are public record. Rumours and private events that were never inscribed are not.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="tutorial-footer">
+      <button class="tut-skip" onclick="closeTutorial()">I know what I'm doing</button>
+      <div class="tut-nav">
+        <div class="tut-dot on" id="tdot-0" onclick="tutTab(0)"></div>
+        <div class="tut-dot" id="tdot-1" onclick="tutTab(1)"></div>
+        <div class="tut-dot" id="tdot-2" onclick="tutTab(2)"></div>
+        <div class="tut-dot" id="tdot-3" onclick="tutTab(3)"></div>
+        <div class="tut-dot" id="tdot-4" onclick="tutTab(4)"></div>
+        <button class="tut-next" id="tut-next-btn" onclick="tutNext()">Next →</button>
+      </div>
     </div>
   </div>
 </div>
