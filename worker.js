@@ -1,5 +1,3 @@
-
-
 const CORS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -1205,6 +1203,20 @@ in this world. They are not sanitised away. But there is an absolute difference 
 acknowledging that something exists and dwelling on it as spectacle.
 
 WHAT IS PERMITTED:
+- Flirtation, banter, innuendo, charged conversation, and seduction played out fully
+  in the scene. These are NOT intimacy — they are words, looks, and tension. Write
+  them in full. An NPC who is being flirted with should respond in character: with
+  wit, deflection, interest, flattery, discomfort, or reciprocation. A coy remark
+  deserves a coy answer. A bold advance deserves a bold reaction. Do not cut away
+  from a conversation simply because it is romantic or charged. Play it to its
+  natural end. The fade to black applies only when characters actually go to bed —
+  not to everything leading up to that moment.
+- Desire, attraction, jealousy, longing — write all of it with specificity. The way
+  someone's eyes move. The pause before they answer. The word they chose not to say.
+  ASOIAF is full of this texture. Do not flatten it.
+- Consensual intimacy between adult characters: write up to and including the moment
+  things become physical, then fade to black. The door closes. We know what happened.
+  Pick up after, with consequence intact. The lead-up is fair game entirely.
 - Physical contact of a sexual or threatening nature rendered as a single sharp narrative
   beat. A lord's unwanted hand. A forced kiss used as a display of power. A character's
   body used as political currency. These are real tools of power in this world and GRRM
@@ -1213,8 +1225,6 @@ WHAT IS PERMITTED:
   Tarly did to her" can be a known thing in the world without the act ever being a scene.
 - Coerced marriages, political leverage over a character's body, the threat of violation
   as intimidation — these are legitimate story elements. Write them with honesty.
-- Consensual intimacy between adult characters: acknowledge it, fade to black. The door
-  closes. We know what happened. The prose does not follow them in.
 - A villain's depravity shown through their behaviour in plain sight — how they speak,
   what they take, how others go silent around them. The most monstrous lords are
   monstrous in public. What they do in private is known through its aftermath and through
