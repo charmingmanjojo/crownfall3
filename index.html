@@ -528,7 +528,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     </div>
 
     <div class="section">
-      <span class="sec-lbl">Attributes &mdash; <span id="pool-lbl" style="color:var(--gold);font-size:13px">15</span> points remaining</span>
+      <span class="sec-lbl">Attributes &mdash; <span id="pool-lbl" style="color:var(--gold);font-size:13px">7</span> points remaining</span>
       <div class="stat-rows" id="stat-rows"></div>
     </div>
 
@@ -1254,7 +1254,7 @@ let S = {
   // creation state
   houseKey: null,
   startLoc: 'kings_landing',
-  cStats: {martial:3,diplomacy:3,intrigue:3,stewardship:3,learning:3},
+  cStats: {martial:2,diplomacy:2,intrigue:2,stewardship:2,learning:2},
   cTraits: new Set(),
 };
 
@@ -1444,7 +1444,7 @@ function confirmNewChar() {
 function buildCreation() {
   S.houseKey = null;
   S.startLoc = 'kings_landing';
-  S.cStats = {martial:3,diplomacy:3,intrigue:3,stewardship:3,learning:3};
+  S.cStats = {martial:2,diplomacy:2,intrigue:2,stewardship:2,learning:2};
   S.cTraits = new Set();
 
   buildHouseGrid('');
@@ -1529,7 +1529,7 @@ function selectLoc(id) {
 }
 
 function pool() {
-  return 15 - (Object.values(S.cStats).reduce((a,b)=>a+b,0) - 15);
+  return 7 - (Object.values(S.cStats).reduce((a,b)=>a+b,0) - 10);
 }
 
 function buildStatRows() {
@@ -1545,7 +1545,7 @@ function buildStatRows() {
     row.innerHTML = `<span class="stat-name">${s.icon} ${s.label}</span>
       <div class="stat-controls">
         <button class="stat-adj" onclick="adjStat('${s.key}',-1)" ${v<=1?'disabled':''}>−</button>
-        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${((v+b)/12)*100}%"></div></div>
+        <div class="stat-bar-bg"><div class="stat-bar-fill" style="width:${((v+b)/8)*100}%"></div></div>
         <button class="stat-adj" onclick="adjStat('${s.key}',1)" ${p<=0?'disabled':''}>+</button>
         <span class="stat-val">${v+b}</span>
       </div>
@@ -1557,7 +1557,7 @@ function buildStatRows() {
 function adjStat(key, d) {
   if (d > 0 && pool() <= 0) return;
   const nv = S.cStats[key] + d;
-  if (nv < 1 || nv > 10) return;
+  if (nv < 1 || nv > 7) return;
   S.cStats[key] = nv;
   buildStatRows();
 }
@@ -1786,7 +1786,7 @@ function mountGame() {
   STATS_DEF.forEach(s => {
     const v = (c.stats||{})[s.key] || 0;
     gs.innerHTML += `<div class="stat-mini"><span class="sml-name">${s.icon} ${s.label}</span>
-      <div class="sml-track"><div class="sml-fill" style="width:${(v/10)*100}%"></div></div>
+      <div class="sml-track"><div class="sml-fill" style="width:${(v/8)*100}%"></div></div>
       <span class="sml-val">${v}</span></div>`;
   });
 
@@ -1988,6 +1988,19 @@ async function act(text) {
     }
     if (cs.npcs)   { S.char.npcs   = cs.npcs;   renderNPCs(); }
     if (cs.events) { S.char.events = cs.events;  renderEvents(); }
+    if (cs.stats)  {
+      const prev = S.char.stats || {};
+      S.char.stats = cs.stats;
+      // Check for any stat that increased — show a toast
+      Object.entries(cs.stats).forEach(([k, v]) => {
+        if (v > (prev[k] || 0)) {
+          const label = k.charAt(0).toUpperCase() + k.slice(1);
+          showToast('Growth', label + ' increased to ' + v);
+        }
+      });
+      mountStatDisplay();
+    }
+    if (cs.growth) { S.char.growth = cs.growth; }
   }
 
   // Show NPC memory toasts
