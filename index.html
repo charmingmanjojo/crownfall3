@@ -2440,6 +2440,8 @@ async function act(text) {
   }
 
   // Worker returns a parsed scene object directly (not raw text)
+  // Strip any XML bleed from narrative before it touches anything
+  resp.narrative = stripXML(resp.narrative || '');
   const parsed = resp;
   currentScene  = parsed;
   currentChoices = parsed.choices || [];
@@ -2570,6 +2572,18 @@ function appendError(msg) {
 }
 
 function scrollBottom() { setTimeout(() => { const el=ss(); el.scrollTop=el.scrollHeight; }, 80); }
+
+function stripXML(t) {
+  if (!t) return '';
+  return t
+    .replace(/<status>[\s\S]*?<\/status>/gi, '')
+    .replace(/<choices>[\s\S]*?<\/choices>/gi, '')
+    .replace(/<narrative>[\s\S]*?<\/narrative>/gi, '')
+    .replace(/<\/?status>/gi, '')
+    .replace(/<\/?choices>/gi, '')
+    .replace(/<\/?narrative>/gi, '')
+    .trim();
+}
 
 function proseHTML(t) {
   if (!t) return '';
