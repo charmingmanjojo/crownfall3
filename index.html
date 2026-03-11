@@ -1983,6 +1983,14 @@ async function act(text) {
   try { resp = await callAct(text, S.sharedSceneId); }
   catch(e) { removeLoading(); appendError(e.message); S.busy = false; return; }
 
+  // Worker may return 200 with { error: '...' } in edge cases — treat as failure
+  if (resp.error || !resp.narrative) {
+    removeLoading();
+    appendError(resp.error || 'The maester returned an empty scroll.');
+    S.busy = false;
+    return;
+  }
+
   // Worker returns a parsed scene object directly (not raw text)
   const parsed = resp;
   currentScene  = parsed;
@@ -2271,16 +2279,27 @@ ON CHARACTER DEATH:
 }
 
 async function callAct(action, sceneId) {
-  const res = await fetch(PROXY_URL + '/act', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      userId:      S.user.id,
-      characterId: S.charId,
-      action,
-      sceneId: sceneId || null,
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 45000); // 45s max
+  let res;
+  try {
+    res = await fetch(PROXY_URL + '/act', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        userId:      S.user.id,
+        characterId: S.charId,
+        action,
+        sceneId: sceneId || null,
+      }),
+      signal: controller.signal,
+    });
+  } catch(e) {
+    clearTimeout(timeout);
+    if (e.name === 'AbortError') throw new Error('The raven timed out. Try again.');
+    throw e;
+  }
+  clearTimeout(timeout);
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
     throw new Error(e.error || 'Proxy error ' + res.status);
