@@ -1596,9 +1596,7 @@ function validateCharacterBio(text) {
 // DELETE CHARACTER
 // ══════════════════════════════════════════════════════
 async function confirmDeleteChar(charId, charName) {
-  if (!confirm('Remove ' + charName + ' from the realm?
-
-This cannot be undone. Their deeds in the chronicle will remain.')) return;
+  if (!confirm('Remove ' + charName + ' from the realm?\n\nThis cannot be undone. Their deeds in the chronicle will remain.')) return;
   const { error } = await sb.from('characters').delete().eq('id', charId).eq('user_id', S.user.id);
   if (error) { showToast('Error', 'Could not remove character.'); return; }
   showToast('Realm', charName + ' has been struck from the rolls.');
@@ -1718,11 +1716,7 @@ async function beginGame() {
     (document.getElementById('c-back').value || '')
   );
   if (bannedTerms.length) {
-    alert('Your character description contains impossible claims for 250 AC:
-
-' + bannedTerms.join(', ') + '
-
-Please revise your backstory or appearance.');
+    alert('Your character description contains impossible claims for 250 AC:\n\n' + bannedTerms.join(', ') + '\n\nPlease revise your backstory or appearance.');
     return;
   }
 
