@@ -1315,6 +1315,9 @@ async function submitAuth() {
 async function signOut() {
   await sb.auth.signOut();
   S.user = null; S.char = null; S.charId = null;
+  S.sharedSceneId = null; S.sceneActive = false; S.busy = false;
+  currentScene = null; currentChoices = [];
+  hideChoices();
   go('auth');
 }
 
@@ -1374,6 +1377,14 @@ async function loadChar(id) {
 
   if (error || !data) { alert('Failed to load character.'); return; }
 
+  // ── Reset all scene state before loading a new character ──
+  currentScene = null;
+  currentChoices = [];
+  S.busy = false;
+  S.sharedSceneId = null;
+  S.sceneActive = false;
+  hideChoices();
+
   S.charId = id;
   S.char = {
     ...data,
@@ -1430,6 +1441,8 @@ function go(id) {
 function goCreate() { buildCreation(); go('create'); }
 
 function goChars() {
+  currentScene = null; currentChoices = [];
+  S.busy = false; hideChoices();
   if (S.user) loadCharList();
   else go('auth');
 }
@@ -1761,6 +1774,9 @@ async function beginGame() {
 
   S.charId = data.id;
   S.char = { ...charData, id: data.id };
+  currentScene = null;
+  currentChoices = [];
+  S.busy = false;
   mountGame();
   go('game');
 }
@@ -2148,7 +2164,7 @@ function restoreScene() {
   if (!last) { go('game'); return; }
   const parsed = parseResp(last.content);
   currentScene = parsed; currentChoices = parsed.choices || [];
-  mountGame(); go('game');
+  go('game');
   setTimeout(() => {
     renderHistory(); appendScene(parsed);
     if (!S.char.dead) showChoices(currentChoices);
@@ -2356,6 +2372,8 @@ window.addEventListener('load', async () => {
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
     S.user = null; S.char = null; S.charId = null;
+    S.sharedSceneId = null; S.sceneActive = false; S.busy = false;
+    currentScene = null; currentChoices = [];
     go('auth');
   }
 });
