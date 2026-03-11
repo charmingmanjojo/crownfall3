@@ -136,12 +136,22 @@ async function handleAct(request, env) {
   const hist = [...(char.hist || [])];
   if (hist.length > 28) hist.shift();
 
-  if (sharedScene) {
-    // Shared scene: write msgs to scene table, state changes to character
-    await updateSharedScene(sceneId, { msgs: newMsgs }, env);
-    await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
-  } else {
-    await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
+  try {
+    if (sharedScene) {
+      await updateSharedScene(sceneId, { msgs: newMsgs }, env);
+      await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
+    } else {
+      await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
+    }
+  } catch (saveErr) {
+    // The AI ran fine but the save failed — return the scene WITH a warning flag
+    // The client will show a toast and can retry
+    return json({
+      ...parsed,
+      charState: updates,
+      saveError: true,
+      saveErrorMsg: saveErr.message || 'Save failed',
+    });
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
@@ -1507,20 +1517,59 @@ async function updateSharedScene(id, fields, env) {
   );
 }
 
-async function updateCharacter(id, fields, env) {
-  return fetch(
-    `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`,
-    {
-      method: 'PATCH',
-      headers: {
-        'apikey': env.SUPABASE_SERVICE_KEY,
-        'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=minimal',
-      },
-      body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
+async function updateCharacter(id, fields, env, retries = 3) {
+  const body = JSON.stringify({ ...fields, updated_at: new Date().toISOString() });
+  const url  = `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`;
+  const hdrs = {
+    'apikey': env.SUPABASE_SERVICE_KEY,
+    'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal',
+  };
+  for (let attempt = 0; attempt < retries; attempt++) {
+    try {
+      const res = await fetch(url, { method: 'PATCH', headers: hdrs, body });
+      if (res.ok) return res;
+      // 4xx = bad request, no point retrying
+      if (res.status >= 400 && res.status < 500) {
+        const err = await res.text().catch(() => res.status);
+        throw new Error(`DB error ${res.status}: ${err}`);
+      }
+      // 5xx — wait and retry
+      if (attempt < retries - 1) await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
+    } catch (e) {
+      if (attempt === retries - 1) throw e;
+      await new Promise(r => setTimeout(r, 500 * (attempt + 1)));
     }
+  }
+  throw new Error('updateCharacter: all retries exhausted');
+}
+
+// ══════════════════════════════════════════════════════════════
+// SAVE CHAR — retry endpoint for failed saves
+// ══════════════════════════════════════════════════════════════
+async function handleSaveChar(body, env) {
+  const { characterId, fields, userToken } = body;
+  if (!characterId || !fields) return json({ error: 'Missing fields' }, 400);
+  // Verify ownership
+  const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
+    headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${userToken}` }
+  }).catch(() => null);
+  if (!userRes?.ok) return json({ error: 'Unauthorized' }, 401);
+  const user = await userRes.json();
+  // Confirm character belongs to this user
+  const charRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(characterId)}&select=user_id`,
+    { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
   );
+  const chars = await charRes.json();
+  if (!chars?.[0] || chars[0].user_id !== user.id) return json({ error: 'Forbidden' }, 403);
+  try {
+    await updateCharacter(characterId, fields, env);
+    return json({ ok: true });
+  } catch (e) {
+    return json({ error: e.message }, 500);
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
