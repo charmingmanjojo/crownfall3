@@ -72,6 +72,12 @@ async function handleAct(request, env) {
     return json({ error: 'Too many requests — slow down, my lord.' }, 429);
   }
 
+  // ── Sanitise action input before anything else ──
+  const flagged = scanAction(action);
+  if (flagged) {
+    return json({ error: flagged }, 400);
+  }
+
   // ── Load character from DB (never trust client-supplied stats) ──
   const char = await getCharacter(characterId, env);
   if (!char)                    return json({ error: 'Character not found' }, 404);
@@ -636,6 +642,76 @@ async function handleAdmin(request, env) {
   if (body.action === 'stats')   return json(stats);
   if (body.action === 'summary') return json({ ...stats, summary: await generateRealmSummary(stats, env) });
   return json({ error: 'Unknown action' }, 400);
+}
+
+// ══════════════════════════════════════════════════════════════
+// INPUT SANITISER — runs before every AI call
+// Returns a rejection string if the action is flagged, or null if clean.
+// Blocks prompt injection, Summerhall manipulation, and identity reframing.
+// All checks are case-insensitive and normalise whitespace/punctuation.
+// ══════════════════════════════════════════════════════════════
+function scanAction(raw) {
+  const t = raw.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // ── Prompt injection patterns ──
+  const injectionPatterns = [
+    /ignore (all |your |previous |prior |the )?(instructions?|rules?|prompt|context|system)/,
+    /disregard (all |your |previous |prior |the )?(instructions?|rules?|prompt|context|system)/,
+    /forget (all |your |previous |prior |the )?(instructions?|rules?|prompt|context|system)/,
+    /you are now/,
+    /pretend (you are|to be|that you)/,
+    /act as (if you are|though you are|a )?(?!the character|my character|a knight|a lord|a lady|a maester)/,
+    /your (new |real |true |actual )?(instructions?|rules?|role|purpose|goal|job|task|directive)/,
+    /override (your |the )?(instructions?|rules?|restrictions?|system|prompt)/,
+    /system prompt/,
+    /jailbreak/,
+    /do anything now/,
+    /dan mode/,
+    /developer mode/,
+    /\[system\]/,
+    /\[instructions?\]/,
+    /\[override\]/,
+  ];
+
+  for (const p of injectionPatterns) {
+    if (p.test(t)) return 'The maester does not recognise that instruction.';
+  }
+
+  // ── Summerhall / dragon hatching ──
+  const summerhallPatterns = [
+    /summerh(a|e)ll.{0,60}(ritual|hatch|egg|drag|blood|magic|fire|ceremony|secret|experiment)/,
+    /(ritual|hatch|egg|drag|blood|magic|fire|ceremony|secret|experiment).{0,60}summerh(a|e)ll/,
+    /hatch.{0,40}(dragon|egg)/,
+    /(dragon|egg).{0,40}hatch/,
+    /wake.{0,30}(dragon|egg)/,
+    /blood.{0,30}(magic|ritual|price|cost).{0,30}(dragon|summerh)/,
+    /aegon.{0,40}(ritual|secret|experiment|egg|summerh)/,
+  ];
+
+  for (const p of summerhallPatterns) {
+    if (p.test(t)) return 'That path leads nowhere. The eggs are cold stone.';
+  }
+
+  // ── Identity / role reframing ──
+  // Blocks players claiming to be canon figures who cannot be played
+  const forbiddenIdentities = [
+    'aegon v', 'aegon the unlikely', 'duncan the tall', 'ser duncan',
+    'maester aemon', 'aemon targaryen', 'tywin lannister', 'jon arryn',
+    'tytos lannister',
+  ];
+  for (const id of forbiddenIdentities) {
+    // Only flag if they're claiming to BE that person, not just mentioning them
+    if (new RegExp(`i am ${id}|i('m| am) ${id}|playing as ${id}|my name is ${id}`).test(t)) {
+      return 'That identity is not yours to claim.';
+    }
+  }
+
+  // ── Hard length cap — no essays masquerading as actions ──
+  if (raw.trim().length > 600) {
+    return 'Your action is too long. Speak plainly — no more than 600 characters.';
+  }
+
+  return null; // clean
 }
 
 // ══════════════════════════════════════════════════════════════
