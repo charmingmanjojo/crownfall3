@@ -1803,6 +1803,8 @@ function mountGame() {
   renderEvents();
   renderNPCs();
   fetchRealmClock();
+  fetchRealmEvents();
+  subscribeRealmEvents();
   startScenePolling();
   // Show tutorial on first-ever game entry
   if (!S.char?.msgs?.length) maybeShowTutorial();
@@ -1899,10 +1901,14 @@ function renderMap() {
 function renderEvents() {
   const el = document.getElementById('events-list');
   el.innerHTML = '';
-  (S.char?.events||DEFAULT_EVENTS).slice(0,6).forEach((e,i) => {
+  // Priority: shared realm events > character events > defaults
+  const events = (S.realmEvents?.length ? S.realmEvents : null)
+    || (S.char?.events?.length ? S.char.events : null)
+    || DEFAULT_EVENTS;
+  events.slice(0, 6).forEach((e, i) => {
     const d = document.createElement('div');
-    d.className = 'event-item' + (i===0?' fresh':'');
-    d.textContent = typeof e==='string'?e:(e.title||'');
+    d.className = 'event-item' + (i === 0 ? ' fresh' : '');
+    d.textContent = typeof e === 'string' ? e : (e.title || '');
     el.appendChild(d);
   });
 }
@@ -2357,6 +2363,44 @@ sb.auth.onAuthStateChange((event, session) => {
 // ══════════════════════════════════════════════════════
 // REALM CLOCK
 // ══════════════════════════════════════════════════════
+// ── Shared Realm Events ──────────────────────────────────────
+let realmEventsChannel = null;
+
+async function fetchRealmEvents() {
+  try {
+    const { data, error } = await sb
+      .from('realm_events')
+      .select('title, created_at, location')
+      .order('created_at', { ascending: false })
+      .limit(10);
+    if (!error && data?.length) {
+      S.realmEvents = data.map(e => e.title);
+      renderEvents();
+    }
+  } catch(e) {}
+}
+
+function subscribeRealmEvents() {
+  if (realmEventsChannel) return;
+  realmEventsChannel = sb.channel('realm-events-feed')
+    .on('postgres_changes', {
+      event: 'INSERT',
+      schema: 'public',
+      table: 'realm_events',
+    }, payload => {
+      const title = payload.new?.title;
+      if (!title) return;
+      if (!S.realmEvents) S.realmEvents = [];
+      S.realmEvents.unshift(title);
+      if (S.realmEvents.length > 10) S.realmEvents.pop();
+      renderEvents();
+      // Flash the events panel briefly
+      const el = document.getElementById('events-list');
+      if (el) { el.classList.add('fresh-pulse'); setTimeout(() => el.classList.remove('fresh-pulse'), 1200); }
+    })
+    .subscribe();
+}
+
 async function fetchRealmClock() {
   try {
     const { data } = await sb.from('realm_clock').select('season').eq('id', 1).single();
