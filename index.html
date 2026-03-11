@@ -59,6 +59,11 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .char-card-status{font-size:10px;color:rgba(100,140,200,.5);margin-top:4px}
 .char-card-dead-badge{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;color:rgba(90,70,30,.45);border:1px solid rgba(90,70,30,.18);padding:2px 8px;flex-shrink:0;text-transform:uppercase}
 .chars-signout{background:transparent;border:none;color:rgba(100,140,200,.3);font-family:'IM Fell English',serif;font-size:11px;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin:28px auto 0;transition:color .2s}
+.char-card-actions{display:flex;gap:5px;flex-shrink:0;align-items:center}
+.char-action-btn{background:transparent;border:1px solid rgba(60,90,150,.2);color:rgba(100,140,200,.45);font-family:'Cinzel',serif;font-size:8px;letter-spacing:.14em;padding:3px 8px;cursor:pointer;transition:all .16s;text-transform:uppercase}
+.char-action-btn:hover{border-color:rgba(180,140,60,.3);color:var(--gold)}
+.char-action-btn.danger:hover{border-color:rgba(180,60,40,.3);color:rgba(180,80,60,.7)}
+.edit-modal-note{font-size:11px;font-style:italic;color:rgba(180,140,60,.5);margin-bottom:14px;min-height:16px}
 .chars-signout:hover{color:var(--dim)}
 .chars-empty{text-align:center;padding:60px 0;font-size:14px;font-style:italic;color:rgba(100,140,200,.4)}
 
@@ -1317,7 +1322,10 @@ async function loadCharList() {
           <div class="char-card-sub">${esc(c.house_full||'No House')} · ${esc(c.relation||'')}</div>
           <div class="char-card-status">${esc(c.region||'')} · ${esc(c.season||'250 AC')} · ${c.dead?'Deceased':c.health||'Hale'}</div>
         </div>
-        ${c.dead ? '<span class="char-card-dead-badge">Deceased</span>' : ''}
+        <div class="char-card-actions">
+          ${!c.dead ? `<button class="char-action-btn" onclick="event.stopPropagation();openEditChar('${c.id}')">Edit</button>` : ''}
+          <button class="char-action-btn danger" onclick="event.stopPropagation();confirmDeleteChar('${c.id}','${esc(c.name)}')">Remove</button>
+        </div>
       `;
       if (!c.dead) div.onclick = () => loadChar(c.id);
       else div.onclick = () => viewDeadChar(c.id);
@@ -1567,6 +1575,99 @@ function clampAge(el) {
   if (v > 80) el.value = 80;
 }
 
+// ══════════════════════════════════════════════════════
+// BIO VALIDATION — runs on create and edit
+// ══════════════════════════════════════════════════════
+const BANNED_BIO_CLAIMS = [
+  'valyrian steel',"dark sister",'blackfyre sword','longclaw','heartsbane',
+  'oathkeeper',"widow's wail",'ice sword',
+  'dragon egg','dragonrider','my dragon','has a dragon','rides a dragon',
+  'son of rickard stark','daughter of rickard stark',
+  'grandson of aegon v','granddaughter of aegon v',
+  'son of aerys','daughter of aerys','child of aerys',
+];
+
+function validateCharacterBio(text) {
+  const lower = text.toLowerCase();
+  return BANNED_BIO_CLAIMS.filter(b => lower.includes(b));
+}
+
+// ══════════════════════════════════════════════════════
+// DELETE CHARACTER
+// ══════════════════════════════════════════════════════
+async function confirmDeleteChar(charId, charName) {
+  if (!confirm('Remove ' + charName + ' from the realm?
+
+This cannot be undone. Their deeds in the chronicle will remain.')) return;
+  const { error } = await sb.from('characters').delete().eq('id', charId).eq('user_id', S.user.id);
+  if (error) { showToast('Error', 'Could not remove character.'); return; }
+  showToast('Realm', charName + ' has been struck from the rolls.');
+  await loadCharList();
+}
+
+// ══════════════════════════════════════════════════════
+// EDIT CHARACTER
+// ══════════════════════════════════════════════════════
+async function openEditChar(charId) {
+  const { data: char, error } = await sb.from('characters').select('*').eq('id', charId).single();
+  if (error || !char) { showToast('Error', 'Could not load character.'); return; }
+  const hasStarted = char.msgs && char.msgs.length > 0;
+  document.getElementById('edit-char-id').value         = charId;
+  document.getElementById('edit-char-nickname').value   = char.nickname || '';
+  document.getElementById('edit-char-appear').value     = char.appear || '';
+  document.getElementById('edit-char-backstory').value  = char.backstory || '';
+  document.getElementById('edit-char-personality').value= char.personality || '';
+  document.getElementById('edit-stats-note').textContent = hasStarted
+    ? 'Stats and traits are locked once your story begins.' : '';
+  document.getElementById('edit-char-modal').style.display = 'flex';
+}
+
+function closeEditChar() {
+  document.getElementById('edit-char-modal').style.display = 'none';
+}
+
+async function saveEditChar() {
+  const charId      = document.getElementById('edit-char-id').value;
+  const appear      = document.getElementById('edit-char-appear').value.trim();
+  const backstory   = document.getElementById('edit-char-backstory').value.trim();
+  const personality = document.getElementById('edit-char-personality').value.trim();
+  const nickname    = document.getElementById('edit-char-nickname').value.trim();
+
+  const banned = validateCharacterBio(appear + ' ' + backstory);
+  if (banned.length) {
+    showToast('Error', 'Invalid claims: ' + banned.join(', '));
+    return;
+  }
+
+  const { error } = await sb.from('characters').update({
+    nickname:    nickname.substring(0, 40),
+    appear:      appear.substring(0, 300),
+    backstory:   backstory.substring(0, 600),
+    personality: personality.substring(0, 300),
+    updated_at:  new Date().toISOString(),
+  }).eq('id', charId).eq('user_id', S.user.id);
+
+  if (error) { showToast('Error', 'Could not save changes.'); return; }
+  showToast('Realm', 'Character updated.');
+  closeEditChar();
+  await loadCharList();
+}
+
+// ══════════════════════════════════════════════════════
+// HOUSE POSITION AVAILABILITY
+// ══════════════════════════════════════════════════════
+async function loadAvailablePositions(houseKey) {
+  try {
+    const { data } = await sb
+      .from('house_positions')
+      .select('*')
+      .eq('house_key', houseKey)
+      .eq('is_public', true)
+      .is('holder_id', null);
+    return data || [];
+  } catch { return []; }
+}
+
 async function beginGame() {
   const h = HOUSES[S.houseKey], bonus = h.bonus || {};
   const stats = {};
@@ -1610,6 +1711,20 @@ async function beginGame() {
     npcs:        {},
     events:      [...DEFAULT_EVENTS],
   };
+
+  // Bio validation before creation
+  const bannedTerms = validateCharacterBio(
+    (document.getElementById('c-appear').value || '') + ' ' +
+    (document.getElementById('c-back').value || '')
+  );
+  if (bannedTerms.length) {
+    alert('Your character description contains impossible claims for 250 AC:
+
+' + bannedTerms.join(', ') + '
+
+Please revise your backstory or appearance.');
+    return;
+  }
 
   document.getElementById('btn-begin').disabled = true;
   showSpinner('Entering the realm...');
@@ -2228,6 +2343,20 @@ function closeSceneInviteModal() {
 
 async function confirmSceneInvite() {
   if (!S.invitedCharId || !S.charId) return;
+
+  // Location gate — both characters must be at the same location
+  const { data: guestData } = await sb
+    .from('characters')
+    .select('location, name')
+    .eq('id', S.invitedCharId)
+    .single();
+
+  if (!guestData || guestData.location !== S.char.location) {
+    showToast('Scene', (guestData?.name || 'That character') + ' is not at your location. They must travel here first.');
+    closeSceneInviteModal();
+    return;
+  }
+
   document.getElementById('scene-invite-confirm-btn').disabled = true;
 
   const { data, error } = await sb.from('shared_scenes').insert({
@@ -2869,6 +2998,39 @@ function renderFinances() {
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
       <button class="page-btn" onclick="closeSceneInviteModal()">Cancel</button>
       <button class="begin-btn" id="scene-invite-confirm-btn" style="width:auto;padding:10px 24px" onclick="confirmSceneInvite()">Send Invitation</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     EDIT CHARACTER MODAL
+════════════════════════════════════════════ -->
+<div class="modal-bg" id="edit-char-modal" style="display:none">
+  <div class="modal-box" style="max-width:520px">
+    <button class="modal-close" onclick="closeEditChar()">✕</button>
+    <div class="modal-name">Edit Character</div>
+    <div class="modal-sub">Appearance, backstory and personality can be refined.<br>Stats and traits are fixed once your story begins.</div>
+    <div class="edit-modal-note" id="edit-stats-note"></div>
+    <input type="hidden" id="edit-char-id"/>
+    <div class="raven-compose-field">
+      <label class="raven-compose-label">Nickname / Epithet</label>
+      <input id="edit-char-nickname" class="raven-compose-input" placeholder="e.g. The Young Falcon, Blackthorn..."/>
+    </div>
+    <div class="raven-compose-field">
+      <label class="raven-compose-label">Appearance</label>
+      <textarea id="edit-char-appear" class="raven-compose-ta" style="min-height:60px" placeholder="Physical description, distinctive features..."></textarea>
+    </div>
+    <div class="raven-compose-field">
+      <label class="raven-compose-label">Backstory</label>
+      <textarea id="edit-char-backstory" class="raven-compose-ta" placeholder="History, origins, formative events..."></textarea>
+    </div>
+    <div class="raven-compose-field">
+      <label class="raven-compose-label">Personality</label>
+      <textarea id="edit-char-personality" class="raven-compose-ta" style="min-height:60px" placeholder="How they think, what drives them..."></textarea>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+      <button class="page-btn" onclick="closeEditChar()">Cancel</button>
+      <button class="begin-btn" style="width:auto;padding:10px 24px" onclick="saveEditChar()">Save Changes</button>
     </div>
   </div>
 </div>
