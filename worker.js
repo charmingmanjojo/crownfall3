@@ -169,12 +169,6 @@ async function handleAct(request, env) {
     }
   }
 
-  // ── Dragon Dreams — ~1-in-6 chance for Valyrian Heritage characters ──
-  let dragonDream = null;
-  if ((char.traits || []).includes('Valyrian Heritage') && Math.random() < 0.17 && !char.dead) {
-    dragonDream = await generateDragonDream(char, updates, env);
-  }
-
   // ── Return scene + validated state to client ──
   return json({
     narrative:  parsed.narrative,
@@ -198,6 +192,7 @@ async function handleAct(request, env) {
       growth:          updates.growth,
       conditions:      updates.conditions,
       reputation:      updates.reputation,
+      scars:           updates.scars,
     },
   });
 }
@@ -484,9 +479,22 @@ function applyStateChanges(char, parsed) {
     if (reputation.length > 20) reputation.shift();
   });
 
+  // Scars — permanent marks from wounds, torture, burns
+  const scars = [...(char.scars || [])];
+  (parsed.scarEvents || []).forEach(s => {
+    if (!s.id || !s.description) return;
+    if (scars.some(x => x.id === s.id)) return;
+    scars.push({
+      id:          String(s.id).substring(0, 40),
+      description: String(s.description).substring(0, 200),
+      origin:      String(s.origin || '').substring(0, 120),
+      gained:      new Date().toISOString(),
+    });
+  });
+
   return {
     health, gold, income_per_turn, lands, debts,
-    location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
+    location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation, scars,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -786,18 +794,73 @@ async function handleAdminClock(request, env) {
   if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
   if (!body.season) return json({ error: 'Missing season' }, 400);
 
+  const newSeason = body.season.substring(0, 80);
+
+  // Get old season for context
+  const clockRes = await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1&limit=1`,
+    { headers: sbHeaders(env) });
+  const clockRows = await clockRes.json();
+  const oldSeason = clockRows?.[0]?.season || 'unknown';
+
+  // Update the clock
   await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1`, {
     method: 'PATCH',
-    headers: {
-      'apikey': env.SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=minimal',
-    },
-    body: JSON.stringify({ season: body.season.substring(0, 80), updated_at: new Date().toISOString() }),
+    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ season: newSeason, updated_at: new Date().toISOString() }),
   });
 
-  return json({ ok: true, season: body.season });
+  // Generate a realm-wide seasonal event via AI
+  const seasonalEvent = await generateSeasonalEvent(oldSeason, newSeason, env);
+
+  // Broadcast it to realm_events so all players see it
+  if (seasonalEvent) {
+    await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
+      method: 'POST',
+      headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        title:       seasonalEvent.headline,
+        source_char: 'The Realm',
+        location:    'Westeros',
+        created_at:  new Date().toISOString(),
+        is_seasonal: true,
+        full_text:   seasonalEvent.full,
+      }),
+    }).catch(() => {});
+  }
+
+  return json({ ok: true, season: newSeason, seasonalEvent });
+}
+
+async function generateSeasonalEvent(oldSeason, newSeason, env) {
+  const prompt = `You are the herald of a Game of Thrones realm set in 250 AC under Aegon V Targaryen.
+
+The realm clock has just advanced from "${oldSeason}" to "${newSeason}".
+
+Write a seasonal proclamation — a short news item that would be cried by heralds across Westeros.
+This is what all players will see as a notification when the season changes.
+
+Format your response as JSON only, no other text:
+{
+  "headline": "One dramatic sentence, 10-15 words, present tense. What has changed or begun.",
+  "full": "2-3 sentences expanding on the headline. Specific. Atmospheric. Hints at what the new season brings politically or physically. Mention Aegon V or the realm's mood if relevant."
+}
+
+The headline should feel like a herald crying news. The full text like a maester's note.
+Stay grounded in 250 AC — no dragons, Aegon V on the throne, realm uneasy.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 300,
+        messages: [{ role: 'user', content: prompt }] }),
+    });
+    const data = await res.json();
+    const raw = data.content?.[0]?.text?.trim();
+    if (!raw) return null;
+    const clean = raw.replace(/```json|```/g, '').trim();
+    return JSON.parse(clean);
+  } catch { return null; }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -971,7 +1034,7 @@ CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
 House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
 Current Location: ${c.location}
-Appearance: ${c.appear || 'Not described'}
+Appearance: ${c.appear || 'Not described'}${c.scars && c.scars.length ? '\nScars & Marks: ' + c.scars.map(s => s.description + (s.origin ? ' (' + s.origin + ')' : '')).join('; ') : ''}
 Backstory: ${c.backstory || 'Unknown'}
 Personality: ${c.personality || 'Unknown'}
 Traits: ${(c.traits || []).join(', ') || 'None'}
@@ -1209,26 +1272,20 @@ in this world. They are not sanitised away. But there is an absolute difference 
 acknowledging that something exists and dwelling on it as spectacle.
 
 WHAT IS PERMITTED:
-- Flirtation, banter, innuendo, seduction, and romantic tension played out in full.
-  These are words and looks — not intimacy. Write them completely. An NPC being flirted
-  with responds in character: wit, deflection, amusement, interest, discomfort, or
-  reciprocation. A coy remark gets a coy answer. A bold advance gets a bold reaction.
-  Do NOT cut away from a charged conversation simply because it is romantic. Play every
-  beat of the courtship, the tension, the game. The fade to black applies only when
-  characters actually become physically intimate — not to everything before that moment.
-- Desire, longing, jealousy, attraction — write it with specificity and texture. The
-  pause before they answer. The word they chose not to say. The way a glance holds a
-  moment too long. ASOIAF is built on this. Do not flatten it.
-- Consensual intimacy between adult characters: write the lead-up fully, then fade to
-  black at the threshold. The door closes. We know what happened. Pick up after, with
-  consequence. The lead-up is entirely fair game.
 - Physical contact of a sexual or threatening nature rendered as a single sharp narrative
-  beat. A lord's unwanted hand. A forced kiss as display of power. Write the beat. Move on.
-- Sexual violence as established fact, backstory, or offstage consequence only.
-- Coerced marriages, political leverage, the threat of violation as intimidation —
-  legitimate story elements. Write them with honesty.
-- A villain's depravity shown through behaviour in public — how they speak, what they
-  take, how others go silent. The most monstrous lords are monstrous in plain sight.
+  beat. A lord's unwanted hand. A forced kiss used as a display of power. A character's
+  body used as political currency. These are real tools of power in this world and GRRM
+  uses them. Write the beat. Move on immediately.
+- Sexual violence as established fact, backstory, or offstage consequence. "What Lord
+  Tarly did to her" can be a known thing in the world without the act ever being a scene.
+- Coerced marriages, political leverage over a character's body, the threat of violation
+  as intimidation — these are legitimate story elements. Write them with honesty.
+- Consensual intimacy between adult characters: acknowledge it, fade to black. The door
+  closes. We know what happened. The prose does not follow them in.
+- A villain's depravity shown through their behaviour in plain sight — how they speak,
+  what they take, how others go silent around them. The most monstrous lords are
+  monstrous in public. What they do in private is known through its aftermath and through
+  the faces of those who survived it.
 
 WHAT IS NEVER PERMITTED:
 - Explicit sexual content of any kind — no graphic description of sexual acts, no
@@ -1267,10 +1324,12 @@ CONDITIONS TAGS — use these to track persistent health and life states:
 REPUTATION TAG — use when a character does something the realm would notice:
 {"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
 {"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
+{"scarEvent":{"id":"riverrun_duel_scar","description":"A thin white line from jaw to collarbone, still pink at the edges.","origin":"From the duel with Ser Harwyn at Riverrun."}}
 
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
 - Only fire reputationEvent when something genuinely notable happens — not for routine actions.
+- Fire scarEvent when a character suffers a wound that would leave a permanent physical mark — duels, battles, torture, burns. Use a unique id (location + type, e.g. "kings_landing_burn"). Write the description as it would appear on the body. The scar persists forever and should be referenced in future scenes involving appearance or combat.
 - region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
 - type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
 - Reputation accumulates across scenes. A character known for cruelty will find doors closing.
@@ -1345,15 +1404,8 @@ for martial, prodigy for any), raise their ceiling by 2 in that stat only.
 Do not award a statGrowth tag that would push a stat past the age ceiling.
 Growth accumulates silently — 5 growth points converts to +1 stat.
 
-RESPONSE FORMAT — follow this exactly. No deviations. No preamble. No text before <narrative>.
-
-CRITICAL: The <choices> and <status> blocks must NEVER appear inside the <narrative> block.
-They are separate blocks that come AFTER the narrative closes. The structure is always:
-1. <narrative>...</narrative>
-2. <choices>...</choices>
-3. <status>...</status>
-
-<narrative>2-4 paragraphs of prose. Inline JSON tags embedded naturally within.</narrative>
+RESPONSE FORMAT — use this exactly, nothing else:
+<narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
 <status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
 
@@ -1400,26 +1452,9 @@ function extractJsonSpans(text) {
 }
 
 function parseResponse(text) {
-  // ── Extract each block. Order matters: pull choices+status FIRST so
-  //    the narrative fallback doesn't accidentally contain them. ──
+  const nRaw = text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim() || text;
   const cRaw = text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim() || '[]';
-  const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim()  || '{}';
-
-  // Narrative: prefer the tagged block, fall back to the whole text minus
-  // choices and status blocks (strip those out before using as fallback)
-  let nRaw;
-  const narrativeMatch = text.match(/<narrative>([\s\S]*?)<\/narrative>/);
-  if (narrativeMatch) {
-    nRaw = narrativeMatch[1].trim();
-  } else {
-    // Fallback: strip ALL known XML blocks from the raw text
-    nRaw = text
-      .replace(/<choices>[\s\S]*?<\/choices>/g, '')
-      .replace(/<status>[\s\S]*?<\/status>/g, '')
-      .replace(/<narrative>[\s\S]*?<\/narrative>/g, '')
-      .trim();
-  }
-
+  const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim() || '{}';
   const memories = [], rolls = [];
   let worldEvent = null;
   const growthEvents = [];
@@ -1431,53 +1466,38 @@ function parseResponse(text) {
   for (const span of spans) {
     try {
       const o = JSON.parse(span.str);
-      if (o.npc && o.memory)       { memories.push(o);                    toRemove.push(span); }
-      else if (o.stat && o.rolls)  { rolls.push(o);                       toRemove.push(span); }
-      else if (o.worldEvent)       { worldEvent = o.worldEvent;            toRemove.push(span); }
-      else if (o.statGrowth)       { growthEvents.push(o);                 toRemove.push(span); }
-      else if (o.conditionGained)  { conditionsGained.push(o.conditionGained);  toRemove.push(span); }
+      if (o.npc && o.memory) { memories.push(o); toRemove.push(span); }
+      else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
+      else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
+      else if (o.statGrowth && o.amount) { growthEvents.push(o); toRemove.push(span); }
+      else if (o.conditionGained) { conditionsGained.push(o.conditionGained); toRemove.push(span); }
       else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
-      else if (o.conditionResolved){ conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
-      else if (o.reputationEvent)  { reputationEvents.push(o.reputationEvent);  toRemove.push(span); }
+      else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
+      else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
   let narrative = nRaw;
   for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
+  narrative = narrative.trim();
 
-  // ── Final safety strip — remove ANY leftover XML tags from narrative ──
-  narrative = narrative
-    .replace(/<\/?narrative>/g, '')
-    .replace(/<\/?choices>/g, '')
-    .replace(/<\/?status>/g, '')
-    .replace(/<[a-zA-Z_]+>[\s\S]*?<\/[a-zA-Z_]+>/g, '') // any other unknown tags
-    .replace(/\[\s*\]$/, '')          // trailing empty arrays
-    .replace(/\{\s*\}$/, '')          // trailing empty objects
-    .trim();
-
-  // ── Rescue choices if they bled into narrative before being stripped ──
   let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
   try { status  = JSON.parse(sRaw); } catch {}
-
-  if (!choices.length) {
-    // Last resort: scan the original text for a choices-like JSON array
-    const rescue = text.match(/\["[^"]+(?:","[^"]+")+"\]/);
-    if (rescue) {
-      try {
-        const r = JSON.parse(rescue[0]);
-        if (Array.isArray(r) && r.every(x => typeof x === 'string')) choices = r;
-      } catch {}
-    }
-  }
 
   choices = (Array.isArray(choices) ? choices : [])
     .filter(c => typeof c === 'string')
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
+  // scarEvent tags
+  const scarEvents = [];
+  // Re-scan for scarEvent (they may have been missed by the JSON span extractor)
+  const scarMatches = [...text.matchAll(/\{"scarEvent":\s*(\{[^}]+\})\}/g)];
+  scarMatches.forEach(m => { try { scarEvents.push(JSON.parse(m[1])); } catch {} });
+
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, scarEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
