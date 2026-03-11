@@ -150,6 +150,23 @@ async function handleAct(request, env) {
     }
   }
 
+  // ── Broadcast worldEvent to shared realm_events table ──
+  if (parsed.worldEvent) {
+    const evTitle = String(parsed.worldEvent.title || parsed.worldEvent.description || '').substring(0, 120);
+    if (evTitle && isValidWorldEvent(evTitle)) {
+      await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
+        method: 'POST',
+        headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          title:      evTitle,
+          source_char: char.name || 'Unknown',
+          location:   updates.location || char.location || 'Unknown',
+          created_at: new Date().toISOString(),
+        }),
+      }).catch(() => {}); // fire-and-forget, don't let this break the response
+    }
+  }
+
   // ── Return scene + validated state to client ──
   return json({
     narrative:  parsed.narrative,
@@ -438,6 +455,30 @@ async function handleSuccession(deadCharId, deadChar, env) {
     return null;
   }
   return null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// WORLD EVENT VALIDATOR — blocks dead kings and impossible events
+// ══════════════════════════════════════════════════════════════
+const DEAD_KINGS = [
+  'jaehaerys i', 'aegon i', 'aegon ii', 'aegon iii', 'daeron i', 'baelor i',
+  'viserys ii', 'aegon iv', 'daeron ii', 'aerys i', 'maekar i', 'aegon v',
+  // Note: Aegon V is ALIVE in 250 AC — he's the current king — but listed here
+  // to catch the AI writing him as if he's a historical figure
+];
+// Kings alive and active in 250 AC — these are valid for worldEvents
+const VALID_RULERS = ['aegon v', 'aegon the unlikely', 'ser duncan', 'duncan the tall'];
+
+function isValidWorldEvent(title) {
+  const t = title.toLowerCase();
+  // Block dead kings being treated as active rulers
+  // Allow Aegon V and Duncan since they're alive
+  const isDead = DEAD_KINGS.filter(k => !VALID_RULERS.includes(k))
+    .some(k => t.includes(k) && (t.includes('holds court') || t.includes('commands') || t.includes('decrees') || t.includes('rides')));
+  if (isDead) return false;
+  // Block dragon events entirely
+  if (t.includes('dragon') && (t.includes('hatch') || t.includes('born') || t.includes('lives') || t.includes('flies'))) return false;
+  return true;
 }
 
 // ══════════════════════════════════════════════════════════════
