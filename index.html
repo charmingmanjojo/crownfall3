@@ -1094,6 +1094,53 @@ const HOUSES = {
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Hill','Man-at-Arms','Minor Steward'],
   },
 
+  // ── ESSOS — FREE CITIES & COMPANIES ─────────────
+  braavosi_merchant: {
+    name:'Braavosi Merchant Family', full:'A Braavosi Merchant Family', words:'What Is Dead May Never Die',
+    color:'#1a6b8a', region:'Essos', seat:'braavos',
+    icon:'none', major:false, essos:true,
+    desc:'Old money from the oldest of the Free Cities. The Iron Bank breathes down every deal. The canals hold secrets. You were born knowing the difference between a contract and a promise — and which one actually binds.',
+    bonus:{stewardship:2}, startTraits:['braavosi_born','essosi_merchant'],
+    startGold:600, startIncome:80,
+    positions:['Merchant's Son','Merchant's Daughter','Iron Bank Factor','Moneylender's Ward','Braavosi Sailor','Faceless Man Acolyte (former)'],
+  },
+  pentoshi_magister: {
+    name:'Pentoshi Magister's Household', full:'A Pentoshi Magister's Household', words:'',
+    color:'#8e6914', region:'Essos', seat:'pentos',
+    icon:'none', major:false, essos:true,
+    desc:'Pentos lives on trade, secrets, and the sufferance of the Dothraki. The magisters are the wealthiest men in the known world and the most precarious. Your family's fortune was built on silk, spice, and things best left unnamed.',
+    bonus:{intrigue:1, stewardship:1}, startTraits:['essosi_merchant'],
+    startGold:900, startIncome:120,
+    positions:['Magister's Son','Magister's Daughter','House Factor','Pentoshi Envoy','Slave-Keeper's Ward','Merchant Prince's Companion'],
+  },
+  volantene_old_blood: {
+    name:'Volantene Old Blood', full:'Volantene Old Blood', words:'',
+    color:'#7b0000', region:'Essos', seat:'volantis',
+    icon:'none', major:false, essos:true,
+    desc:'The oldest blood in the Free Cities — they claim descent from Valyria itself. Volantis is the largest city in the known world and they own most of it. Their wealth is measured in thousands of slaves and they see nothing wrong in this.',
+    bonus:{learning:1, stewardship:1}, startTraits:['Valyrian Heritage','essosi_merchant'],
+    startGold:1200, startIncome:180,
+    positions:['Old Blood Scion','Slave-Master's Heir','Tiger Cloak Officer','Volantene Noblewoman','Red Priest's Patron','Triarch's Cousin'],
+  },
+  golden_company: {
+    name:'The Golden Company', full:'The Golden Company', words:'Our Word Is Good As Gold',
+    color:'#b8860b', region:'Essos', seat:'the_stepstones',
+    icon:'none', major:false, essos:true,
+    desc:'Founded by Aegor Rivers — Bittersteel — from men who followed the Blackfyres into exile. They have never broken a contract. The finest sellsword company in the known world. And every man in it once had a home in Westeros.',
+    bonus:{martial:2}, startTraits:['brave','strategist'],
+    startGold:60, startIncome:20,
+    positions:['Company Captain','Company Sergeant','Cavalry Scout','Camp Follower's Child','Blackfyre Exile (secret)','Company Paymaster'],
+  },
+  lyseni_pleasure_house: {
+    name:'Lyseni Pleasure House', full:'A Lyseni House of Pleasure', words:'',
+    color:'#9b59b6', region:'Essos', seat:'lys',
+    icon:'none', major:false, essos:true,
+    desc:'Lys is famous for two things — poisons and beauty. The pleasure houses trade in both. Information moves through them like water through fingers. Every lord who visits tells them something. You were raised to listen.',
+    bonus:{intrigue:2}, startTraits:['charming','silver_tongued'],
+    startGold:200, startIncome:40,
+    positions:['House Scion','Courtesan','Spymaster's Informant','Poison Apprentice','House Guard','Lys-Born Assassin'],
+  },
+
   // ── THE REACH ─────────────────────────────────────
   ashford: {
     name:'Ashford', full:'House Ashford', words:'Our Sun Shines Bright',
@@ -1282,45 +1329,100 @@ const STATS_DEF = [
 ];
 
 const TRAITS_POS = [
-  {id:'just',          name:'Just',          desc:'Honourable NPCs trust you instantly.'},
-  {id:'brave',         name:'Brave',         desc:'+2 combat rolls. Cannot easily flee.'},
-  {id:'shrewd',        name:'Shrewd',        desc:'GM gives you extra context in scenes.'},
-  {id:'charming',      name:'Charming',      desc:'+1 to all social encounters.'},
-  {id:'scholar',       name:'Scholar',       desc:'+2 learning. People seek your counsel.'},
-  {id:'strategist',    name:'Strategist',    desc:'Battle planning at advantage.'},
-  {id:'patient',       name:'Patient',       desc:'Long-game political options open to you.'},
-  {id:'compassionate', name:'Compassionate', desc:'Smallfolk love you. Lords see weakness.'},
+  // ── Combat & Martial ──
+  {id:'brave',            name:'Brave',               desc:'+2 combat rolls. You do not flee easily.', category:'martial'},
+  {id:'strategist',       name:'Strategist',           desc:'Battle planning at advantage. You see the field.', category:'martial'},
+  {id:'born_fighter',     name:'Born Fighter',         desc:'Martial stat ceiling raised by 2. Combat is in your blood.', category:'martial'},
+  {id:'water_dancer',     name:'Water Dancer',         desc:'Braavosi blade style. Fast, precise, unreadable to northerners.', category:'martial'},
+  // ── Social & Political ──
+  {id:'just',             name:'Just',                 desc:'Honourable NPCs trust you immediately.', category:'social'},
+  {id:'charming',         name:'Charming',             desc:'+1 to all social encounters. Rooms warm when you enter.', category:'social'},
+  {id:'patient',          name:'Patient',              desc:'Long-game political options open to you. You can wait.', category:'social'},
+  {id:'compassionate',    name:'Compassionate',        desc:'Smallfolk love you. Lords call it weakness.', category:'social'},
+  {id:'silver_tongued',   name:'Silver-Tongued',       desc:'Even enemies want to believe you. +2 persuasion.', category:'social'},
+  {id:'commanding',       name:'Commanding',           desc:'Your orders are obeyed without question. Men follow without being asked.', category:'social'},
+  // ── Mind & Learning ──
+  {id:'shrewd',           name:'Shrewd',               desc:'The GM gives you extra context. You notice what others miss.', category:'mind'},
+  {id:'scholar',          name:'Scholar',              desc:'+2 learning. You are sought for counsel and knowledge.', category:'mind'},
+  {id:'prodigy',          name:'Prodigy',              desc:'All stat ceilings raised by 1. You learn unnaturally fast.', category:'mind'},
+  {id:'eidetic_memory',   name:'Eidetic Memory',       desc:'You remember everything. Every insult. Every promise. Every face.', category:'mind'},
+  {id:'maester_trained',  name:'Maester-Trained',      desc:'Citadel education. Medicine, history, ravens. +2 learning, Citadel contacts.', category:'mind'},
+  // ── Background & Heritage ──
+  {id:'Valyrian Heritage',name:'Valyrian Heritage',    desc:'Dragon dreams may come. Silver hair or violet eyes. Something old stirs in your blood.', category:'heritage'},
+  {id:'old_gods',         name:'Old Gods',             desc:'Weirwood-touched. Instinct over reason. The North feels like home anywhere.', category:'heritage'},
+  {id:'ironborn',         name:'Ironborn',             desc:'The Iron Price. You were raised to take. The sea is in your bones.', category:'heritage'},
+  {id:'dornish_blood',    name:'Dornish Blood',        desc:'Unbowed. Passion over propriety. Southern courts find you unsettling.', category:'heritage'},
+  {id:'braavosi_born',    name:'Braavosi-Born',        desc:'Free city upbringing. You know the Iron Bank, the canals, the faceless streets.', category:'heritage'},
+  {id:'essosi_merchant',  name:'Essosi Merchant',      desc:'Trade routes, languages, contacts in three Free Cities. Gold finds you.', category:'heritage'},
 ];
 
 const TRAITS_NEG = [
-  {id:'wrathful',  name:'Wrathful',  desc:'Anger checks in tense scenes.'},
-  {id:'greedy',    name:'Greedy',    desc:'Gold temptation checks. NPCs exploit it.'},
-  {id:'paranoid',  name:'Paranoid',  desc:'You see plots. Some are real.'},
-  {id:'craven',    name:'Craven',    desc:'-2 combat. You can flee. You often do.'},
-  {id:'ambitious', name:'Ambitious', desc:'Drives you into the wrong rooms.'},
-  {id:'deceitful', name:'Deceitful', desc:'+2 intrigue, -1 diplomacy. You lie well.'},
-  {id:'lustful',   name:'Lustful',   desc:'Temptation checks. Blackmail is possible.'},
-  {id:'arbitrary', name:'Arbitrary', desc:'Unpredictable. Nobody fully trusts you.'},
+  // ── Anger & Violence ──
+  {id:'wrathful',         name:'Wrathful',             desc:'Anger checks in tense scenes. You have broken things you should not.', category:'anger'},
+  {id:'bloodthirsty',     name:'Bloodthirsty',         desc:'Combat is where you feel most alive. It shows. People notice.', category:'anger'},
+  // ── Weakness ──
+  {id:'craven',           name:'Craven',               desc:'-2 combat. You can flee. You often do before you should.', category:'weakness'},
+  {id:'sickly',           name:'Sickly',               desc:'Health conditions hit harder. Recovery takes longer. Winter is always worse.', category:'weakness'},
+  // ── Vice ──
+  {id:'greedy',           name:'Greedy',               desc:'Gold temptation checks. NPCs who know you will exploit it.', category:'vice'},
+  {id:'lustful',          name:'Lustful',              desc:'Temptation checks in the right company. Blackmail is possible.', category:'vice'},
+  {id:'drunkard',         name:'Drunkard',             desc:'You drink. Heavily. Bad decisions follow. Occasionally you overhear something useful because everyone forgets you're there.', category:'vice'},
+  {id:'gambler',          name:'Gambler',              desc:'Dice call to you. Random gold gains and losses. You always think the next hand will be different.', category:'vice'},
+  // ── Personality ──
+  {id:'paranoid',         name:'Paranoid',             desc:'You see plots everywhere. Some are real. NPCs find you exhausting.', category:'personality'},
+  {id:'ambitious',        name:'Ambitious',            desc:'Drives you into rooms you have no business entering. It has worked before.', category:'personality'},
+  {id:'deceitful',        name:'Deceitful',            desc:'+2 intrigue, -1 diplomacy. You lie the way others breathe.', category:'personality'},
+  {id:'arbitrary',        name:'Arbitrary',            desc:'Unpredictable. Nobody fully trusts you. You do not fully trust yourself.', category:'personality'},
+  {id:'envious',          name:'Envious',              desc:'What others have, you want. The AI tracks what you covet. It shapes everything.', category:'personality'},
 ];
+
+// ── Physical traits — purely cosmetic, AI references in appearance scenes ──
+const TRAITS_PHYSICAL = [
+  {id:'heterochromia',    name:'Heterochromia',        desc:'One eye a different colour. Unsettling to some. Striking to others.'},
+  {id:'valyrian_look',    name:'Valyrian Features',    desc:'Silver hair, violet eyes, pale skin. Valyrian blood shows plainly in you.'},
+  {id:'remarkably_tall',  name:'Remarkably Tall',      desc:'You stand a head above most rooms. People look up when you enter.'},
+  {id:'remarkably_short', name:'Remarkably Short',     desc:'Overlooked. Underestimated. Neither is always a disadvantage.'},
+  {id:'left_handed',      name:'Left-Handed',          desc:'Considered unlucky in Westeros. A surprise in the blade hand.'},
+  {id:'notable_scar',     name:'Notable Scar',         desc:'Before the story started, something already marked you.'},
+  {id:'striking_beauty',  name:'Striking Beauty',      desc:'You are noticed in every room. Whether that helps depends on the room.'},
+  {id:'disfigured',       name:'Disfigured',           desc:'A burn, a wound, a twist of birth. Strangers stare. Children point.'},
+  {id:'birthmark',        name:'Birthmark',            desc:'Visible. Some call it the mark of the gods. Others call it nothing.'},
+];
+
 const NEG_IDS = new Set(TRAITS_NEG.map(t => t.id));
+const ALL_TRAITS = [...TRAITS_POS, ...TRAITS_NEG, ...TRAITS_PHYSICAL];
 
 const LOCS = [
-  {id:'kings_landing', name:"King's Landing",  region:'The Crownlands', x:340,y:378},
-  {id:'winterfell',    name:'Winterfell',       region:'The North',      x:308,y:118},
-  {id:'casterly_rock', name:'Casterly Rock',    region:'The Westerlands',x:168,y:308},
-  {id:'highgarden',    name:'Highgarden',       region:'The Reach',      x:218,y:428},
-  {id:'storms_end',    name:"Storm's End",      region:'The Stormlands', x:388,y:468},
-  {id:'riverrun',      name:'Riverrun',         region:'The Riverlands', x:248,y:268},
-  {id:'dragonstone',   name:'Dragonstone',      region:'The Crownlands', x:438,y:348},
-  {id:'the_wall',      name:'The Wall',         region:'The North',      x:278,y:58 },
-  {id:'oldtown',       name:'Oldtown',          region:'The Reach',      x:178,y:488},
-  {id:'the_eyrie',     name:'The Eyrie',        region:'The Vale',       x:418,y:208},
-  {id:'sunspear',      name:'Sunspear',         region:'Dorne',          x:378,y:538},
-  {id:'pyke',          name:'Pyke',             region:'The Iron Islands',x:98,y:238},
-  {id:'harrenhal',     name:'Harrenhal',        region:'The Riverlands', x:298,y:298},
-  {id:'dreadfort',     name:'The Dreadfort',    region:'The North',      x:358,y:128},
-  {id:'lannisport',    name:'Lannisport',       region:'The Westerlands',x:148,y:328},
-  {id:'gulltown',      name:'Gulltown',         region:'The Vale',       x:448,y:238},
+  // ── WESTEROS — coordinates match SVG viewBox 723.4 x 1395.74 ──
+  {id:'kings_landing', name:"King's Landing",  region:'The Crownlands',  svgId:'King_s_Landing',  x:426, y:1009},
+  {id:'winterfell',    name:'Winterfell',       region:'The North',       svgId:'Winterfell',      x:310, y:465},
+  {id:'casterly_rock', name:'Casterly Rock',    region:'The Westerlands', svgId:'Casterly_Rock',   x:122, y:978},
+  {id:'highgarden',    name:'Highgarden',       region:'The Reach',       svgId:'Highgarden',      x:188, y:1185},
+  {id:'storms_end',    name:"Storm's End",      region:'The Stormlands',  svgId:'Storm_s_End',     x:489, y:1109},
+  {id:'riverrun',      name:'Riverrun',         region:'The Riverlands',  svgId:'Riverrun',        x:268, y:869},
+  {id:'dragonstone',   name:'Dragonstone',      region:'The Crownlands',  svgId:'Baratheon_of_Dragonstone', x:540, y:985},
+  {id:'the_wall',      name:'Castle Black',     region:'The North',       svgId:'Castle_Black',    x:377, y:249},
+  {id:'oldtown',       name:'Oldtown',          region:'The Reach',       svgId:'Oldtown',         x:127, y:1267},
+  {id:'the_eyrie',     name:'The Eyrie',        region:'The Vale',        svgId:'Eyrie',           x:430, y:789},
+  {id:'sunspear',      name:'Sunspear',         region:'Dorne',           svgId:'Sunspear',        x:529, y:1305},
+  {id:'pyke',          name:'Pyke',             region:'The Iron Islands',svgId:'Pyke',            x:129, y:826},
+  {id:'harrenhal',     name:'Harrenhal',        region:'The Riverlands',  svgId:'Harrenhal',       x:340, y:896},
+  {id:'dreadfort',     name:'The Dreadfort',    region:'The North',       svgId:'Dreadfort',       x:427, y:450},
+  {id:'lannisport',    name:'Lannisport',       region:'The Westerlands', svgId:'Lannisport',      x:110, y:1004},
+  {id:'gulltown',      name:'Gulltown',         region:'The Vale',        svgId:'Gulltown',        x:535, y:824},
+  {id:'white_harbor',  name:'White Harbor',     region:'The North',       svgId:'White_Harbor',    x:344, y:583},
+  {id:'ashford',       name:'Ashford',          region:'The Reach',       svgId:'Ashford',         x:295, y:1133},
+  {id:'summerhall',    name:'Summerhall',       region:'The Stormlands',  svgId:'Ruins_of_Summerhall', x:520, y:1154},
+  // ── ESSOS — no SVG region, shown in essos panel only ──
+  {id:'braavos',       name:'Braavos',          region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'pentos',        name:'Pentos',           region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'volantis',      name:'Volantis',         region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'myr',           name:'Myr',              region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'lys',           name:'Lys',              region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'tyrosh',        name:'Tyrosh',           region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'norvos',        name:'Norvos',           region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'qohor',         name:'Qohor',            region:'Essos',           svgId:null, x:null, y:null, essos:true},
+  {id:'the_stepstones',name:'The Stepstones',   region:'Essos',           svgId:null, x:null, y:null, essos:true},
 ];
 
 const DEFAULT_EVENTS = [
@@ -1351,8 +1453,15 @@ function resolveLocClient(raw) {
     { id:'harrenhal',    keywords:['harrenhal'] },
     { id:'summerhall',   keywords:['summerhall'] },
     { id:'white_harbor', keywords:['white harbor','white harbour'] },
-    { id:'braavos',      keywords:['braavos'] },
+    { id:'braavos',      keywords:['braavos','iron bank'] },
     { id:'pentos',       keywords:['pentos'] },
+    { id:'volantis',     keywords:['volantis'] },
+    { id:'myr',          keywords:['myr','myrish'] },
+    { id:'lys',          keywords:['lys','lyseni','lysene'] },
+    { id:'tyrosh',       keywords:['tyrosh'] },
+    { id:'norvos',       keywords:['norvos'] },
+    { id:'qohor',        keywords:['qohor'] },
+    { id:'the_stepstones', keywords:['stepstones','the stepstones'] },
   ];
   if (locs.find(l => l.id === lower)) return lower;
   for (const loc of locs) {
@@ -1562,6 +1671,24 @@ async function viewDeadChar(id) {
 
 // saveChar() removed — all state writes now go through the worker (/act endpoint).
 // The worker reads from DB, validates AI output, and patches state server-side.
+
+function getStartingGold(houseKey, position) {
+  const h = HOUSES[houseKey];
+  if (h?.startGold) return h.startGold + Math.floor(Math.random() * 100);
+  // Westerosi default by position
+  const pos = (position || '').toLowerCase();
+  if (pos.includes("lord's son") || pos.includes("lord's daughter")) return 200 + Math.floor(Math.random()*100);
+  if (pos.includes('bastard') && pos.includes('legitimis')) return 100 + Math.floor(Math.random()*60);
+  if (pos.includes('bastard')) return 40 + Math.floor(Math.random()*30);
+  if (pos.includes('knight')) return 60 + Math.floor(Math.random()*40);
+  if (pos.includes('hedge knight')) return 20 + Math.floor(Math.random()*20);
+  if (pos.includes('prince') || pos.includes('princess')) return 400 + Math.floor(Math.random()*200);
+  if (pos.includes('ward') || pos.includes('squire')) return 30 + Math.floor(Math.random()*20);
+  // Great house bonus
+  const major = ['targaryen','stark','lannister','baratheon','tyrell','martell','arryn','greyjoy','tully'];
+  if (major.includes(houseKey)) return 250 + Math.floor(Math.random()*150);
+  return 80 + Math.floor(Math.random()*40);
+}
 
 async function createCharInDB(charData) {
   const { data, error } = await sb.from('characters').insert({
@@ -1967,7 +2094,7 @@ function mountGame() {
 }
 
 function traitLabel(id) {
-  const all = [...TRAITS_POS,...TRAITS_NEG];
+  const all = ALL_TRAITS || [...TRAITS_POS,...TRAITS_NEG,...TRAITS_PHYSICAL];
   return all.find(t=>t.id===id)?.name || id.replace(/_/g,' ').replace(/\b\w/g,l=>l.toUpperCase());
 }
 
@@ -2008,12 +2135,13 @@ function mountStatDisplay() {
 function renderMap() {
   const lid = S.char?.location || 'kings_landing';
   const season = getSeasonType(S.char?.season);
-  const sc = SEASON_COLORS[season];
+  const isWinter = season === 'winter';
+  const isEssos = LOCS.find(l => l.id === lid)?.essos;
 
   // Seasonal snow overlay
   const snowEl = document.getElementById('snow-overlay');
   if (snowEl) {
-    if (season === 'winter') {
+    if (isWinter) {
       if (!snowEl.classList.contains('on')) {
         snowEl.classList.add('on');
         snowEl.innerHTML = [...Array(18)].map((_,i) => {
@@ -2038,34 +2166,104 @@ function renderMap() {
     charsByLoc[mapLoc].push(c);
   });
 
-  document.getElementById('g-map').innerHTML = `<svg viewBox="0 0 600 580">
-    <defs>
-      <filter id="gw"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-      ${season==='winter'?'<filter id="wf"><feColorMatrix type="matrix" values="0.8 0.1 0.1 0 0.05  0.1 0.8 0.1 0 0.05  0.1 0.1 1.1 0 0.08  0 0 0 1 0"/></filter>':''}
-    </defs>
-    <rect width="600" height="580" fill="${sc.bg}" ${season==='winter'?'filter="url(#wf)"':''}/>
-    ${[...Array(13)].map((_,i)=>`<path d="M${i*48} 0 Q${i*48+18} 290 ${i*48} 580" stroke="rgba(10,24,60,0.3)" stroke-width="0.5" fill="none"/>`).join('')}
-    <path d="M140,30 L200,20 L280,15 L350,25 L410,40 L450,70 L480,110 L490,150 L470,190 L490,220 L500,260 L480,300 L500,340 L510,380 L490,420 L460,460 L420,500 L380,530 L330,545 L280,540 L240,520 L200,500 L160,470 L130,440 L110,400 L100,360 L90,320 L95,280 L80,240 L85,200 L100,160 L110,120 L120,80 Z" fill="${sc.land}" stroke="rgba(160,120,48,0.16)" stroke-width="1.5"/>
-    <path d="M255,215 Q242,268 218,318 Q200,352 190,398" stroke="${sc.water}" stroke-width="1.5" fill="none"/>
-    <path d="M118,113 L422,93" stroke="${sc.wall}" stroke-width="1.8" stroke-dasharray="7,4"/>
-    <text x="270" y="85" fill="${sc.sky}" font-size="7.5" font-family="serif" text-anchor="middle">THE WALL</text>
-    ${LOCS.map(l => {
-      const me = l.id===lid;
-      const others = (charsByLoc[l.id]||[]).slice(0,4);
-      return `<g>
-        ${me?`<circle cx="${l.x}" cy="${l.y}" r="12" fill="none" stroke="rgba(200,168,75,0.28)" stroke-width="1"><animate attributeName="r" values="8;15;8" dur="2.3s" repeatCount="indefinite"/><animate attributeName="opacity" values="0.7;0.1;0.7" dur="2.3s" repeatCount="indefinite"/></circle>`:''}
-        <circle cx="${l.x}" cy="${l.y}" r="${me?5:3.5}" fill="${me?'#c8a84b':'rgba(140,105,40,0.6)'}" stroke="${me?'#e8c870':'rgba(85,62,15,0.8)'}" stroke-width="1" ${me?'filter="url(#gw)"':''}/>
-        ${others.map((c,i) => {
-          const offX = (i%2===0?-1:1)*(8+Math.floor(i/2)*8);
-          const offY = -10 - Math.floor(i/2)*8;
-          return `<image href="${ICONS[c.house_key]||ICONS.none}" x="${l.x+offX-7}" y="${l.y+offY-7}" width="14" height="14" opacity="0.75" style="image-rendering:pixelated"/>
-            <line x1="${l.x}" y1="${l.y}" x2="${l.x+offX}" y2="${l.y+offY}" stroke="rgba(180,140,60,0.18)" stroke-width="0.8"/>`;
+  // Current location's svgId for highlighting
+  const curLoc = LOCS.find(l => l.id === lid);
+  const curSvgId = curLoc?.svgId;
+
+  // If player is in Essos, show Essos panel instead of map
+  if (isEssos) {
+    const essosLocs = LOCS.filter(l => l.essos);
+    document.getElementById('g-map').innerHTML = `
+      <div style="padding:16px;color:rgba(180,210,240,.7);font-family:'IM Fell English',serif">
+        <div style="font-family:'Cinzel',serif;font-size:10px;letter-spacing:.3em;color:rgba(200,168,75,.5);margin-bottom:12px">ACROSS THE NARROW SEA</div>
+        ${essosLocs.map(l => {
+          const me = l.id === lid;
+          const others = (charsByLoc[l.id]||[]).slice(0,4);
+          return `<div style="padding:8px 0;border-bottom:1px solid rgba(60,90,150,.15);display:flex;align-items:center;gap:10px">
+            <div style="width:8px;height:8px;border-radius:50%;background:${me?'#c8a84b':'rgba(100,140,200,.3)'};${me?'box-shadow:0 0 8px rgba(200,168,75,.5)':''}"></div>
+            <div>
+              <div style="font-size:13px;color:${me?'#c8a84b':'rgba(180,210,240,.6)'}">${l.name}</div>
+              <div style="font-size:10px;color:rgba(100,140,200,.4)">${l.region}${others.length?' · '+others.map(c=>c.name).join(', '):''}</div>
+            </div>
+          </div>`;
         }).join('')}
-        <text x="${l.x}" y="${l.y+13}" fill="rgba(140,105,40,0.48)" font-size="6.5" font-family="IM Fell English,serif" text-anchor="middle">${l.name}</text>
-      </g>`;
-    }).join('')}
-    <text x="10" y="572" fill="rgba(80,60,22,0.25)" font-size="7" font-family="serif">CROWNFALL · 250 AC</text>
-  </svg>`;
+      </div>`;
+    return;
+  }
+
+  // Build the SVG with the real map + overlaid location dots
+  const VW = 723.4, VH = 1395.74;
+
+  // Location dots overlay
+  const dotsLayer = LOCS.filter(l => !l.essos && l.x).map(l => {
+    const me = l.id === lid;
+    const others = (charsByLoc[l.id]||[]).slice(0,4);
+    return `<g class="map-loc-pin" data-loc="${l.id}">
+      ${me ? `<circle cx="${l.x}" cy="${l.y}" r="18" fill="none" stroke="rgba(200,168,75,0.25)" stroke-width="1.5">
+        <animate attributeName="r" values="12;22;12" dur="2.3s" repeatCount="indefinite"/>
+        <animate attributeName="opacity" values="0.6;0.05;0.6" dur="2.3s" repeatCount="indefinite"/>
+      </circle>` : ''}
+      <circle cx="${l.x}" cy="${l.y}" r="${me?7:4.5}"
+        fill="${me?'#c8a84b':'rgba(120,90,30,0.55)'}"
+        stroke="${me?'#e8c870':'rgba(70,50,10,0.7)'}"
+        stroke-width="1.5"
+        style="cursor:pointer"
+        ${me?'filter="url(#pin-glow)"':''}/>
+      ${others.map((c,i) => {
+        const offX = (i%2===0?-1:1)*(12+Math.floor(i/2)*12);
+        const offY = -14 - Math.floor(i/2)*12;
+        return `<circle cx="${l.x+offX}" cy="${l.y+offY}" r="5"
+          fill="rgba(60,90,150,.6)" stroke="rgba(100,140,200,.4)" stroke-width="1"/>
+          <line x1="${l.x}" y1="${l.y}" x2="${l.x+offX}" y2="${l.y+offY}"
+            stroke="rgba(100,140,200,.15)" stroke-width="0.8"/>`;
+      }).join('')}
+      ${me ? `<text x="${l.x}" y="${l.y+18}" fill="rgba(200,168,75,0.6)" font-size="9"
+        font-family="Cinzel,serif" text-anchor="middle">${l.name}</text>` : ''}
+    </g>`;
+  }).join('');
+
+  // Highlight current region if it has an svgId
+  const highlightScript = curSvgId ? `
+    const hlEl = svgDoc.getElementById('${curSvgId}');
+    if (hlEl) {
+      hlEl.style.fill = 'rgba(200,168,75,0.25)';
+      hlEl.style.stroke = 'rgba(200,168,75,0.5)';
+      hlEl.style.strokeWidth = '2';
+    }` : '';
+
+  document.getElementById('g-map').innerHTML = `
+    <svg viewBox="0 0 ${VW} ${VH}" style="width:100%;height:100%;display:block;background:#04080f"
+         xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <filter id="pin-glow">
+          <feGaussianBlur stdDeviation="3" result="b"/>
+          <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+        ${isWinter ? `<filter id="wf">
+          <feColorMatrix type="matrix" values="0.7 0.1 0.2 0 0.04  0.1 0.7 0.2 0 0.04  0.2 0.2 1.0 0 0.1  0 0 0 1 0"/>
+        </filter>` : ''}
+      </defs>
+      <g id="map-regions" ${isWinter ? 'filter="url(#wf)"' : ''}>
+        ${inner}
+      </g>
+      <g id="map-pins">
+        ${dotsLayer}
+      </g>
+      <text x="10" y="${VH-10}" fill="rgba(80,60,22,0.2)" font-size="11" font-family="serif">CROWNFALL · 250 AC</text>
+    </svg>`;
+
+  // Highlight current region after render
+  if (curSvgId) {
+    const svgEl = document.getElementById('g-map').querySelector('svg');
+    if (svgEl) {
+      const regionEl = svgEl.getElementById(curSvgId);
+      if (regionEl) {
+        regionEl.style.fill = 'rgba(200,168,75,0.3)';
+        regionEl.style.stroke = 'rgba(200,168,75,0.6)';
+        regionEl.style.strokeWidth = '2.5';
+      }
+    }
+  }
 }
 
 function renderEvents() {
@@ -2323,10 +2521,6 @@ async function act(text) {
   // NPC memories are shown via the Known Persons panel (click for full history)
 
   removeLoading();
-
-  if (resp.saveWarning) {
-    showToast('⚠ Save Warning', resp.saveWarning);
-  }
 
   if (resp.charState?.dead) {
     S.char.dead = true;
