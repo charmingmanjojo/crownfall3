@@ -359,6 +359,19 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .scene-banner-leave:hover{background:rgba(180,140,60,.08)}
 .scene-invite-modal{max-width:400px}
 .scene-pending-banner{background:rgba(180,140,60,.06);border:1px solid rgba(180,140,60,.2);padding:8px 12px;margin:8px 0;font-size:12px;font-style:italic;color:rgba(200,168,75,.7);text-align:center}
+/* ── FINANCES ── */
+.char-income{font-size:10px;color:rgba(120,180,80,.45);margin-top:1px;font-style:italic}
+.fin-holding{font-size:11px;color:var(--text);padding:3px 0;border-bottom:1px solid rgba(100,78,35,.07);display:flex;align-items:center;gap:5px}
+.fin-holding:last-child{border:none}
+.fin-holding::before{content:'⚑';font-size:9px;color:rgba(180,140,60,.4)}
+.fin-debt{font-size:11px;padding:3px 0;border-bottom:1px solid rgba(140,30,20,.1);display:flex;justify-content:space-between;align-items:center}
+.fin-debt-name{color:rgba(200,80,60,.7);font-style:italic}
+.fin-debt-amt{color:rgba(200,80,60,.5);font-family:'Cinzel',serif;font-size:10px}
+.fin-empty{font-size:11px;color:rgba(80,62,28,.35);font-style:italic;padding:2px 0}
+.gold-flash-up{animation:gflash-up .7s ease forwards}
+.gold-flash-dn{animation:gflash-dn .7s ease forwards}
+@keyframes gflash-up{0%{color:rgba(100,200,80,.9)}100%{color:rgba(140,190,100,.5)}}
+@keyframes gflash-dn{0%{color:rgba(220,80,50,.9)}100%{color:rgba(140,190,100,.5)}}
 </style>
 </head>
 <body>
@@ -426,7 +439,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <div class="three-col">
         <div class="section">
           <span class="sec-lbl">Age</span>
-          <input id="c-age" class="cr-input sm" value="20" placeholder="20"/>
+          <input id="c-age" class="cr-input sm" value="20" placeholder="20" type="number" min="13" max="80" oninput="clampAge(this)"/>
         </div>
         <div class="section">
           <span class="sec-lbl">Gender</span>
@@ -535,6 +548,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         <div class="char-name-big"><img id="g-sigil" src="" alt=""/><span id="g-name">—</span></div>
         <div class="char-sub" id="g-sub">—</div>
         <div class="char-gold" id="g-gold">💰 100 dragons</div>
+        <div class="char-income" id="g-income" style="display:none"></div>
+      </div>
+      <div class="psec" id="fin-panel" style="display:none">
+        <span class="plbl">Finances</span>
+        <div id="fin-lands"></div>
+        <div id="fin-debts"></div>
       </div>
       <div class="psec">
         <span class="plbl">Attributes</span>
@@ -1541,14 +1560,33 @@ function checkForm() {
   );
 }
 
+function clampAge(el) {
+  let v = parseInt(el.value);
+  if (isNaN(v)) return;
+  if (v < 13) el.value = 13;
+  if (v > 80) el.value = 80;
+}
+
 async function beginGame() {
   const h = HOUSES[S.houseKey], bonus = h.bonus || {};
   const stats = {};
   STATS_DEF.forEach(s => { stats[s.key] = S.cStats[s.key] + (bonus[s.key]||0); });
 
+  const rawAge = parseInt(document.getElementById('c-age').value) || 20;
+  if (rawAge < 13) {
+    alert('Characters must be at least 13 years of age.');
+    document.getElementById('c-age').value = 13;
+    return;
+  }
+  if (rawAge > 80) {
+    alert('Age cannot exceed 80.');
+    document.getElementById('c-age').value = 80;
+    return;
+  }
+
   const charData = {
     name:        document.getElementById('c-name').value.trim(),
-    age:         parseInt(document.getElementById('c-age').value)||20,
+    age:         rawAge,
     gender:      document.getElementById('c-gender').value.trim(),
     nickname:    document.getElementById('c-nick').value.trim(),
     house_key:   S.houseKey,
@@ -1564,6 +1602,9 @@ async function beginGame() {
     location:    S.startLoc,
     season:      'Early Spring, 250 AC',
     gold:        100,
+    income_per_turn: 0,
+    lands:       [],
+    debts:       [],
     msgs:        [],
     hist:        [],
     npcs:        {},
@@ -1600,6 +1641,8 @@ function mountGame() {
   document.getElementById('g-name').textContent = c.name;
   document.getElementById('g-sub').textContent = (c.house_full||'No House') + (c.relation ? ' · ' + c.relation : '');
   document.getElementById('g-gold').textContent = '💰 ' + (c.gold||100) + ' dragons';
+  updateGoldDisplay(c.gold || 100, 0);
+  renderFinances();
 
   const gs = document.getElementById('g-stats');
   gs.innerHTML = '';
@@ -1789,7 +1832,14 @@ async function act(text) {
     const cs = resp.charState;
     if (cs.health)   { S.char.health   = cs.health;   setHealth(cs.health); }
     if (cs.season)   { S.char.season   = cs.season;   document.getElementById('tb-season').textContent = cs.season; }
-    if (cs.gold != null){ S.char.gold  = cs.gold;     document.getElementById('g-gold').textContent = '💰 ' + cs.gold + ' dragons'; }
+    if (cs.gold != null) {
+      const prev = S.char.gold || 0;
+      S.char.gold = cs.gold;
+      updateGoldDisplay(cs.gold, cs.gold - prev);
+    }
+    if (cs.income_per_turn != null) { S.char.income_per_turn = cs.income_per_turn; updateGoldDisplay(S.char.gold, 0); }
+    if (cs.lands)  { S.char.lands  = cs.lands;  renderFinances(); }
+    if (cs.debts)  { S.char.debts  = cs.debts;  renderFinances(); }
     if (cs.location) {
       const f = LOCS.find(l =>
         l.name.toLowerCase().includes(cs.location.toLowerCase()) ||
@@ -2051,21 +2101,63 @@ async function callAct(action, sceneId) {
   return res.json(); // { narrative, choices, status, rolls, memories, worldEvent, charState }
 }
 
+// Extract all JSON objects from text, including nested ones (e.g. worldEvent has nested {})
+function extractJsonSpans(text) {
+  const spans = [];
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === '{') {
+      let depth = 0, start = i, inStr = false, escape = false;
+      while (i < text.length) {
+        const c = text[i];
+        if (escape) { escape = false; }
+        else if (c === '\\' && inStr) { escape = true; }
+        else if (c === '"') { inStr = !inStr; }
+        else if (!inStr) {
+          if (c === '{') depth++;
+          else if (c === '}') {
+            depth--;
+            if (depth === 0) {
+              spans.push({ str: text.slice(start, i + 1), start, end: i + 1 });
+              break;
+            }
+          }
+        }
+        i++;
+      }
+    }
+    i++;
+  }
+  return spans;
+}
+
 function parseResp(text) {
   const nRaw = text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim() || text;
   const cRaw = text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim() || '[]';
   const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim() || '{}';
   const memories = [], rolls = [];
   let worldEvent = null;
-  const narrative = nRaw.replace(/\{[^{}]+\}/g, match => {
+
+  // Find all JSON objects in narrative (handles nested braces correctly)
+  const spans = extractJsonSpans(nRaw);
+  // Process from end to start so replacements don't shift indices
+  let narrative = nRaw;
+  const replacements = [];
+  for (const span of spans) {
     try {
-      const o = JSON.parse(match);
-      if (o.npc && o.memory)  { memories.push(o); return ''; }
-      if (o.stat && o.rolls)  { rolls.push(o);    return ''; }
-      if (o.worldEvent)       { worldEvent = o.worldEvent; return ''; }
+      const o = JSON.parse(span.str);
+      if (o.npc && o.memory)  { memories.push(o); replacements.push(span); }
+      else if (o.stat && o.rolls) { rolls.push(o); replacements.push(span); }
+      else if (o.worldEvent)  { worldEvent = o.worldEvent; replacements.push(span); }
     } catch {}
-    return match;
-  }).trim();
+  }
+  // Remove matched spans from narrative (back to front to preserve indices)
+  replacements.sort((a, b) => b.start - a.start);
+  for (const r of replacements) {
+    narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
+  }
+  narrative = narrative.trim();
+
   let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
   try { status  = JSON.parse(sRaw); } catch {}
@@ -2638,6 +2730,73 @@ function scheduleRavenCalls() {
   if (!soundActive) return;
   const delay = 15000 + Math.random() * 30000;
   setTimeout(() => { playRavenCall(); if (soundActive) scheduleRavenCalls(); }, delay);
+}
+
+// ══════════════════════════════════════════════════════
+// FINANCES
+// ══════════════════════════════════════════════════════
+let goldFlashTimer;
+function updateGoldDisplay(amount, delta) {
+  const el = document.getElementById('g-gold');
+  const inc = document.getElementById('g-income');
+  if (!el) return;
+
+  el.textContent = '💰 ' + amount + ' dragon' + (amount !== 1 ? 's' : '');
+
+  // Flash colour on change
+  if (delta !== 0) {
+    el.classList.remove('gold-flash-up', 'gold-flash-dn');
+    void el.offsetWidth; // reflow
+    el.classList.add(delta > 0 ? 'gold-flash-up' : 'gold-flash-dn');
+    clearTimeout(goldFlashTimer);
+    goldFlashTimer = setTimeout(() => el.classList.remove('gold-flash-up', 'gold-flash-dn'), 800);
+  }
+
+  // Income line
+  const ipt = S.char?.income_per_turn || 0;
+  if (inc) {
+    if (ipt > 0) {
+      inc.textContent = '+' + ipt + ' per season';
+      inc.style.display = '';
+    } else {
+      inc.style.display = 'none';
+    }
+  }
+}
+
+function renderFinances() {
+  const panel   = document.getElementById('fin-panel');
+  const landsEl = document.getElementById('fin-lands');
+  const debtsEl = document.getElementById('fin-debts');
+  if (!panel || !S.char) return;
+
+  const lands = S.char.lands  || [];
+  const debts = S.char.debts  || [];
+
+  // Hide panel entirely if nothing to show
+  if (!lands.length && !debts.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+
+  if (landsEl) {
+    if (lands.length) {
+      landsEl.innerHTML = '<div style="font-family:\'Cinzel\',serif;font-size:8px;letter-spacing:.2em;color:rgba(100,78,35,.5);text-transform:uppercase;margin-bottom:5px">Holdings</div>'
+        + lands.map(l => `<div class="fin-holding">${esc(l)}</div>`).join('');
+    } else {
+      landsEl.innerHTML = '';
+    }
+  }
+
+  if (debtsEl) {
+    if (debts.length) {
+      debtsEl.innerHTML = '<div style="font-family:\'Cinzel\',serif;font-size:8px;letter-spacing:.2em;color:rgba(180,60,40,.5);text-transform:uppercase;margin:8px 0 5px">Debts</div>'
+        + debts.map(d => `<div class="fin-debt">
+            <span class="fin-debt-name">${esc(d.creditor)}</span>
+            <span class="fin-debt-amt">${d.amount}gd</span>
+          </div>`).join('');
+    } else {
+      debtsEl.innerHTML = '';
+    }
+  }
 }
 
 
