@@ -131,6 +131,12 @@ async function handleAct(request, env) {
 
   // ── Parse and validate ──
   const parsed  = parseResponse(raw);
+
+  // Guard: if narrative came back empty the parse failed — return an error
+  // so the client's error handler fires instead of rendering a blank scene
+  if (!parsed.narrative) {
+    return json({ error: 'The maester\'s quill ran dry. Please try again.' }, 500);
+  }
   const updates = applyStateChanges(char, parsed);
 
   // ── Persist to DB ──
