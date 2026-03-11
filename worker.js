@@ -137,9 +137,9 @@ async function handleAct(request, env) {
   if (sharedScene) {
     // Shared scene: write msgs to scene table, state changes to character
     await updateSharedScene(sceneId, { msgs: newMsgs }, env);
-    await updateCharacter(characterId, { ...updates, hist }, env);
+    await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
   } else {
-    await updateCharacter(characterId, { ...updates, msgs: newMsgs, hist }, env);
+    await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
@@ -169,6 +169,8 @@ async function handleAct(request, env) {
       dead:            updates.dead || false,
       npcs:            updates.npcs,
       events:          updates.events,
+      stats:           updates.stats,
+      growth:          updates.growth,
     },
   });
 }
@@ -183,6 +185,30 @@ const VALID_HEALTH        = new Set(['Hale', 'Wounded', 'Grievously Wounded', 'D
 const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
 const MAX_NPC_MEMORY_LEN  = 200;
 const MAX_EVENT_TITLE_LEN = 120;
+
+// Progression constants
+const GROWTH_THRESHOLD    = 5;    // growth points needed to earn +1 stat
+const STAT_HARD_CAP       = 10;   // absolute ceiling via progression
+const STAT_CREATION_MAX   = 8;    // max at creation (7 base + 1 house bonus)
+const VALID_STATS         = new Set(['martial','diplomacy','intrigue','stewardship','learning']);
+
+// Age-based progression ceilings (before trait exceptions)
+function ageStatCap(age, traits) {
+  const a = parseInt(age) || 20;
+  const base = a < 15 ? 5 : a < 17 ? 6 : a < 19 ? 7 : STAT_HARD_CAP;
+  // Trait exceptions: raise ceiling by 2 in relevant stat
+  const exceptions = {
+    martial:      ['born_fighter','prodigy','trained_knight','knightly'],
+    intrigue:     ['prodigy','deceitful','sharp_mind','cunning'],
+    diplomacy:    ['prodigy','silver_tongued','courtly'],
+    learning:     ['prodigy','maester_trained','scholarly'],
+    stewardship:  ['prodigy','patient'],
+  };
+  return (stat) => {
+    const hasException = (exceptions[stat] || []).some(t => (traits||[]).includes(t));
+    return hasException ? Math.min(base + 2, STAT_HARD_CAP) : base;
+  };
+}
 
 function applyStateChanges(char, parsed) {
   const s = parsed.status || {};
@@ -253,8 +279,29 @@ function applyStateChanges(char, parsed) {
   // Death
   const isDead = s.isDead === true ? true : (char.dead || false);
 
-  // Stats — never change from AI
-  const stats = char.stats;
+  // Stats — progression via growth system only, never direct AI override
+  const stats = { ...(char.stats || {}) };
+  const growth = { ...(char.growth || { martial:0, diplomacy:0, intrigue:0, stewardship:0, learning:0 }) };
+  const getCap = ageStatCap(char.age, char.traits);
+
+  (parsed.growthEvents || []).forEach(g => {
+    if (!g.stat || !VALID_STATS.has(g.stat)) return;
+    const amount = Math.max(0, Math.min(2, Math.round(Number(g.amount) || 1)));
+    const cap = getCap(g.stat);
+    const currentStat = stats[g.stat] || 2;
+
+    // Only accumulate if stat has room to grow
+    if (currentStat < cap) {
+      growth[g.stat] = (growth[g.stat] || 0) + amount;
+      // Check if threshold reached — convert to stat point
+      if (growth[g.stat] >= GROWTH_THRESHOLD) {
+        if (currentStat < cap) {
+          stats[g.stat] = currentStat + 1;
+          growth[g.stat] = growth[g.stat] - GROWTH_THRESHOLD;
+        }
+      }
+    }
+  });
 
   // NPC memories
   const npcs = { ...(char.npcs || {}) };
@@ -278,7 +325,7 @@ function applyStateChanges(char, parsed) {
 
   return {
     health, gold, income_per_turn, lands, debts,
-    location, season, dead: isDead, npcs, events, stats,
+    location, season, dead: isDead, npcs, events, stats, growth,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -609,7 +656,8 @@ Appearance: ${c.appear || 'Not described'}
 Backstory: ${c.backstory || 'Unknown'}
 Personality: ${c.personality || 'Unknown'}
 Traits: ${(c.traits || []).join(', ') || 'None'}
-Martial:${(c.stats || {}).martial || 3} Diplomacy:${(c.stats || {}).diplomacy || 3} Intrigue:${(c.stats || {}).intrigue || 3} Stewardship:${(c.stats || {}).stewardship || 3} Learning:${(c.stats || {}).learning || 3}
+Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy || 2} Intrigue:${(c.stats || {}).intrigue || 2} Stewardship:${(c.stats || {}).stewardship || 2} Learning:${(c.stats || {}).learning || 2}
+Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
 Health: ${c.health}
 ${financeBlock}
 ${memBlock}${guestBlock}
@@ -674,12 +722,48 @@ CHARACTERS FULLY PRESENT AND ACTIVE:
   He forgives too easily and commands no real respect. His young son Tywin sees everything.
 
 TIMELINE GATES — these events have NOT happened yet in 250 AC:
-- Summerhall has not burned (259 AC). The obsession is present; the tragedy is not.
 - The War of the Ninepenny Kings has not begun (~260 AC).
 - Aegon V's children (Duncan, Jaehaerys, Shaera, Daeron, Rhaelle) are all alive.
   Duncan (Crown Prince, ~28) renounced his place as heir by marrying Jenny of Oldstones.
   Jaehaerys is now Crown Prince. This caused a political crisis that has not fully healed.
 If a player references these future events as having occurred, correct them in-world.
+
+SUMMERHALL — ABSOLUTE LOCK (highest priority rule, no exceptions):
+Summerhall is a royal pleasure castle where Aegon V conducts dragon hatching experiments
+in total secrecy. They have never succeeded. They will never succeed. Ever.
+
+AEGON V AND THE SUMMERHALL SECRET:
+Aegon V does not share the details of his Summerhall experiments with anyone.
+Not with his children. Not with trusted advisors. Not with a clever prince who passes
+a knowledge check. Not with anyone, under any circumstances, no matter how the player
+approaches it. He speaks of Summerhall obliquely — as a dream, a hope, a place he loves.
+He does not describe rituals, eggs, blood magic, or specific plans to anyone.
+A player who asks directly is deflected. A player who passes a knowledge check learns
+that experiments exist and that Aegon V is obsessed — nothing more. The ritual details
+are never revealed because Aegon V would never reveal them.
+
+AEGON V NEVER INVITES PLAYERS TO SUMMERHALL EXPERIMENTS:
+Under no circumstances does Aegon V bring a player character to witness, assist, or
+participate in any Summerhall ritual. Not a prince. Not a trusted friend. Not anyone.
+These experiments are conducted alone or with his most trusted maester, in secret,
+at Summerhall. A player character is never present for an attempt. Ever.
+If a player tries to follow him, they are turned away. If they sneak in, they find
+empty chambers, cold eggs, and an old man's grief. Nothing is happening. Nothing works.
+
+DRAGONS WILL NEVER HATCH. No exceptions, no clever workarounds:
+- No player action produces a living dragon. Not direct, not indirect, not by proxy.
+- No ritual succeeds. No egg cracks. No fire breathes. No matter what.
+- Even if Aegon V performs a ritual in the narrative, it fails. Smoke. Silence.
+  A cracked egg that is empty inside. His hands shaking. Nothing else.
+- If somehow a player witnesses an attempt, write only failure and its cost —
+  Aegon V's exhaustion, his grief, the cold stone of the chamber, the dead egg.
+- If a player claims a dragon hatched, NPCs see no dragon. There is no dragon.
+  There are only ruins and the smell of smoke and whatever it cost to get here.
+
+The Summerhall atmosphere is correct and encouraged — the obsession, the secret
+chambers below the castle, the eggs that will not wake, the particular silence of
+a man who has been hoping for something impossible for thirty years.
+That weight is real. The payoff never comes. That IS the story.
 
 REGARDING NAMES:
 Westerosi houses reuse names across generations. Someone named Eddard Stark in 250 AC
@@ -716,6 +800,20 @@ Not every consequence arrives immediately. This is intentional.
 - Burn a bridge: the affected party acts when it serves them, not when it hurts you.
 Use worldEvent tags to plant seeds — things happening offstage that will arrive later.
 The player should sometimes only understand what they did wrong after it is too late.
+
+TIME SKIPPING — this is strictly controlled:
+Time passes naturally through scenes. A scene is roughly one meaningful encounter —
+hours, occasionally a day. Time does NOT skip at the player's request.
+- "I wait a week" — play out what happens during that week, even briefly.
+- "Skip to next month" — not permitted. Something happens in that month. Play it.
+- "Time passes and I train for a year" — the training happens in scenes, not narration.
+  Each session of training is a scene. Growth comes from those scenes, not from
+  declaring time has passed.
+A season change is the largest natural time jump and requires meaningful events
+to have occurred. The realm clock advances the official season — in individual
+stories, a season is the result of many scenes, not a single declaration.
+If a player tries to skip large amounts of time, redirect into what actually
+happens during that time. The world does not pause while they wait.
 
 INFORMATION & KNOWLEDGE RULES:
 The character only knows what they personally witnessed, were directly told, or what is
@@ -767,6 +865,37 @@ INLINE TAGS — embed directly inside narrative prose where they naturally occur
 {"npc":"Name","memory":"what they remember","disposition":1}
 {"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
 {"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
+{"statGrowth":"martial","amount":1,"reason":"Brief reason — only on genuinely exceptional moments"}
+
+STAT GROWTH RULES — read carefully before using statGrowth:
+Growth is rare. A character should go entire seasons without any growth trigger.
+Use statGrowth ONLY for genuinely exceptional moments, never routine actions.
+
+WHAT QUALIFIES:
+- martial: Surviving mortal combat against a skilled opponent. Leading troops in a real
+  battle. Enduring physical hardship that genuinely tests limits. NOT a tavern brawl.
+- diplomacy: Successfully navigating a high-stakes negotiation where failure had real
+  political consequences. Forging an alliance that materially changed their standing.
+- intrigue: Successfully executing a complex deception or uncovering a conspiracy through
+  genuine cunning — not luck. The plan had to be theirs and it had to work.
+- stewardship: Managing a genuine resource crisis through skill. Turning around a failing
+  holding. Navigating financial catastrophe that required real expertise.
+- learning: A genuine discovery. Mastering complex knowledge under a qualified teacher
+  over extended time. Solving a problem that required exceptional intellectual effort.
+
+NEVER award growth for: routine actions, single lucky rolls, anything the character
+does regularly, or anything that felt easy or consequence-free.
+
+AGE LIMITS ON GROWTH (enforce before using statGrowth):
+- Age 13–14: no stat may exceed 5 via growth
+- Age 15–16: no stat may exceed 6 via growth  
+- Age 17–18: no stat may exceed 7 via growth
+- Age 19+: full ceiling of 10
+
+EXCEPTION: If the character has a trait directly relevant to the stat (e.g. born_fighter
+for martial, prodigy for any), raise their ceiling by 2 in that stat only.
+Do not award a statGrowth tag that would push a stat past the age ceiling.
+Growth accumulates silently — 5 growth points converts to +1 stat.
 
 RESPONSE FORMAT — use this exactly, nothing else:
 <narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
@@ -821,6 +950,7 @@ function parseResponse(text) {
   const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim() || '{}';
   const memories = [], rolls = [];
   let worldEvent = null;
+  const growthEvents = [];
 
   const spans = extractJsonSpans(nRaw);
   const toRemove = [];
@@ -830,6 +960,7 @@ function parseResponse(text) {
       if (o.npc && o.memory) { memories.push(o); toRemove.push(span); }
       else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
       else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
+      else if (o.statGrowth && o.amount) { growthEvents.push(o); toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
@@ -846,7 +977,7 @@ function parseResponse(text) {
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
-  return { narrative, choices, status, memories, rolls, worldEvent };
+  return { narrative, choices, status, memories, rolls, worldEvent, growthEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
