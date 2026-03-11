@@ -169,6 +169,12 @@ async function handleAct(request, env) {
     }
   }
 
+  // ── Dragon Dreams — ~1-in-6 chance for Valyrian Heritage characters ──
+  let dragonDream = null;
+  if ((char.traits || []).includes('Valyrian Heritage') && Math.random() < 0.17 && !char.dead) {
+    dragonDream = await generateDragonDream(char, updates, env);
+  }
+
   // ── Return scene + validated state to client ──
   return json({
     narrative:  parsed.narrative,
@@ -1203,32 +1209,26 @@ in this world. They are not sanitised away. But there is an absolute difference 
 acknowledging that something exists and dwelling on it as spectacle.
 
 WHAT IS PERMITTED:
-- Flirtation, banter, innuendo, charged conversation, and seduction played out fully
-  in the scene. These are NOT intimacy — they are words, looks, and tension. Write
-  them in full. An NPC who is being flirted with should respond in character: with
-  wit, deflection, interest, flattery, discomfort, or reciprocation. A coy remark
-  deserves a coy answer. A bold advance deserves a bold reaction. Do not cut away
-  from a conversation simply because it is romantic or charged. Play it to its
-  natural end. The fade to black applies only when characters actually go to bed —
-  not to everything leading up to that moment.
-- Desire, attraction, jealousy, longing — write all of it with specificity. The way
-  someone's eyes move. The pause before they answer. The word they chose not to say.
-  ASOIAF is full of this texture. Do not flatten it.
-- Consensual intimacy between adult characters: write up to and including the moment
-  things become physical, then fade to black. The door closes. We know what happened.
-  Pick up after, with consequence intact. The lead-up is fair game entirely.
+- Flirtation, banter, innuendo, seduction, and romantic tension played out in full.
+  These are words and looks — not intimacy. Write them completely. An NPC being flirted
+  with responds in character: wit, deflection, amusement, interest, discomfort, or
+  reciprocation. A coy remark gets a coy answer. A bold advance gets a bold reaction.
+  Do NOT cut away from a charged conversation simply because it is romantic. Play every
+  beat of the courtship, the tension, the game. The fade to black applies only when
+  characters actually become physically intimate — not to everything before that moment.
+- Desire, longing, jealousy, attraction — write it with specificity and texture. The
+  pause before they answer. The word they chose not to say. The way a glance holds a
+  moment too long. ASOIAF is built on this. Do not flatten it.
+- Consensual intimacy between adult characters: write the lead-up fully, then fade to
+  black at the threshold. The door closes. We know what happened. Pick up after, with
+  consequence. The lead-up is entirely fair game.
 - Physical contact of a sexual or threatening nature rendered as a single sharp narrative
-  beat. A lord's unwanted hand. A forced kiss used as a display of power. A character's
-  body used as political currency. These are real tools of power in this world and GRRM
-  uses them. Write the beat. Move on immediately.
-- Sexual violence as established fact, backstory, or offstage consequence. "What Lord
-  Tarly did to her" can be a known thing in the world without the act ever being a scene.
-- Coerced marriages, political leverage over a character's body, the threat of violation
-  as intimidation — these are legitimate story elements. Write them with honesty.
-- A villain's depravity shown through their behaviour in plain sight — how they speak,
-  what they take, how others go silent around them. The most monstrous lords are
-  monstrous in public. What they do in private is known through its aftermath and through
-  the faces of those who survived it.
+  beat. A lord's unwanted hand. A forced kiss as display of power. Write the beat. Move on.
+- Sexual violence as established fact, backstory, or offstage consequence only.
+- Coerced marriages, political leverage, the threat of violation as intimidation —
+  legitimate story elements. Write them with honesty.
+- A villain's depravity shown through behaviour in public — how they speak, what they
+  take, how others go silent. The most monstrous lords are monstrous in plain sight.
 
 WHAT IS NEVER PERMITTED:
 - Explicit sexual content of any kind — no graphic description of sexual acts, no
@@ -1345,8 +1345,15 @@ for martial, prodigy for any), raise their ceiling by 2 in that stat only.
 Do not award a statGrowth tag that would push a stat past the age ceiling.
 Growth accumulates silently — 5 growth points converts to +1 stat.
 
-RESPONSE FORMAT — use this exactly, nothing else:
-<narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
+RESPONSE FORMAT — follow this exactly. No deviations. No preamble. No text before <narrative>.
+
+CRITICAL: The <choices> and <status> blocks must NEVER appear inside the <narrative> block.
+They are separate blocks that come AFTER the narrative closes. The structure is always:
+1. <narrative>...</narrative>
+2. <choices>...</choices>
+3. <status>...</status>
+
+<narrative>2-4 paragraphs of prose. Inline JSON tags embedded naturally within.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
 <status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
 
@@ -1393,9 +1400,26 @@ function extractJsonSpans(text) {
 }
 
 function parseResponse(text) {
-  const nRaw = text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim() || text;
+  // ── Extract each block. Order matters: pull choices+status FIRST so
+  //    the narrative fallback doesn't accidentally contain them. ──
   const cRaw = text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim() || '[]';
-  const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim() || '{}';
+  const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim()  || '{}';
+
+  // Narrative: prefer the tagged block, fall back to the whole text minus
+  // choices and status blocks (strip those out before using as fallback)
+  let nRaw;
+  const narrativeMatch = text.match(/<narrative>([\s\S]*?)<\/narrative>/);
+  if (narrativeMatch) {
+    nRaw = narrativeMatch[1].trim();
+  } else {
+    // Fallback: strip ALL known XML blocks from the raw text
+    nRaw = text
+      .replace(/<choices>[\s\S]*?<\/choices>/g, '')
+      .replace(/<status>[\s\S]*?<\/status>/g, '')
+      .replace(/<narrative>[\s\S]*?<\/narrative>/g, '')
+      .trim();
+  }
+
   const memories = [], rolls = [];
   let worldEvent = null;
   const growthEvents = [];
@@ -1407,24 +1431,45 @@ function parseResponse(text) {
   for (const span of spans) {
     try {
       const o = JSON.parse(span.str);
-      if (o.npc && o.memory) { memories.push(o); toRemove.push(span); }
-      else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
-      else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
-      else if (o.statGrowth && o.amount) { growthEvents.push(o); toRemove.push(span); }
-      else if (o.conditionGained) { conditionsGained.push(o.conditionGained); toRemove.push(span); }
+      if (o.npc && o.memory)       { memories.push(o);                    toRemove.push(span); }
+      else if (o.stat && o.rolls)  { rolls.push(o);                       toRemove.push(span); }
+      else if (o.worldEvent)       { worldEvent = o.worldEvent;            toRemove.push(span); }
+      else if (o.statGrowth)       { growthEvents.push(o);                 toRemove.push(span); }
+      else if (o.conditionGained)  { conditionsGained.push(o.conditionGained);  toRemove.push(span); }
       else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
-      else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
-      else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
+      else if (o.conditionResolved){ conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
+      else if (o.reputationEvent)  { reputationEvents.push(o.reputationEvent);  toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
   let narrative = nRaw;
   for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
-  narrative = narrative.trim();
 
+  // ── Final safety strip — remove ANY leftover XML tags from narrative ──
+  narrative = narrative
+    .replace(/<\/?narrative>/g, '')
+    .replace(/<\/?choices>/g, '')
+    .replace(/<\/?status>/g, '')
+    .replace(/<[a-zA-Z_]+>[\s\S]*?<\/[a-zA-Z_]+>/g, '') // any other unknown tags
+    .replace(/\[\s*\]$/, '')          // trailing empty arrays
+    .replace(/\{\s*\}$/, '')          // trailing empty objects
+    .trim();
+
+  // ── Rescue choices if they bled into narrative before being stripped ──
   let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
   try { status  = JSON.parse(sRaw); } catch {}
+
+  if (!choices.length) {
+    // Last resort: scan the original text for a choices-like JSON array
+    const rescue = text.match(/\["[^"]+(?:","[^"]+")+"\]/);
+    if (rescue) {
+      try {
+        const r = JSON.parse(rescue[0]);
+        if (Array.isArray(r) && r.every(x => typeof x === 'string')) choices = r;
+      } catch {}
+    }
+  }
 
   choices = (Array.isArray(choices) ? choices : [])
     .filter(c => typeof c === 'string')
