@@ -131,17 +131,21 @@ async function handleAct(request, env) {
 
   // ── Persist to DB ──
   const newMsgs = [...msgs, { role: 'assistant', content: raw }];
-  if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
+
+  // Keep only last 20 messages. Each assistant message can be 1-2KB of JSON.
+  // 40 messages was hitting Supabase row size limits and causing silent save failures.
+  while (newMsgs.length > 20) newMsgs.shift();
 
   const hist = [...(char.hist || [])];
   if (hist.length > 28) hist.shift();
 
+  let saveOk = true;
   if (sharedScene) {
-    // Shared scene: write msgs to scene table, state changes to character
     await updateSharedScene(sceneId, { msgs: newMsgs }, env);
     await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
   } else {
-    await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
+    const saveRes = await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
+    saveOk = saveRes.ok;
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
@@ -171,6 +175,7 @@ async function handleAct(request, env) {
 
   // ── Return scene + validated state to client ──
   return json({
+    ...(saveOk === false ? { saveWarning: 'Your progress may not have saved. Try again.' } : {}),
     narrative:  parsed.narrative,
     choices:    parsed.choices,
     status:     parsed.status,
@@ -192,7 +197,6 @@ async function handleAct(request, env) {
       growth:          updates.growth,
       conditions:      updates.conditions,
       reputation:      updates.reputation,
-      scars:           updates.scars,
     },
   });
 }
@@ -479,22 +483,9 @@ function applyStateChanges(char, parsed) {
     if (reputation.length > 20) reputation.shift();
   });
 
-  // Scars — permanent marks from wounds, torture, burns
-  const scars = [...(char.scars || [])];
-  (parsed.scarEvents || []).forEach(s => {
-    if (!s.id || !s.description) return;
-    if (scars.some(x => x.id === s.id)) return;
-    scars.push({
-      id:          String(s.id).substring(0, 40),
-      description: String(s.description).substring(0, 200),
-      origin:      String(s.origin || '').substring(0, 120),
-      gained:      new Date().toISOString(),
-    });
-  });
-
   return {
     health, gold, income_per_turn, lands, debts,
-    location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation, scars,
+    location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -794,73 +785,18 @@ async function handleAdminClock(request, env) {
   if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
   if (!body.season) return json({ error: 'Missing season' }, 400);
 
-  const newSeason = body.season.substring(0, 80);
-
-  // Get old season for context
-  const clockRes = await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1&limit=1`,
-    { headers: sbHeaders(env) });
-  const clockRows = await clockRes.json();
-  const oldSeason = clockRows?.[0]?.season || 'unknown';
-
-  // Update the clock
   await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1`, {
     method: 'PATCH',
-    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-    body: JSON.stringify({ season: newSeason, updated_at: new Date().toISOString() }),
+    headers: {
+      'apikey': env.SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+      'Prefer': 'return=minimal',
+    },
+    body: JSON.stringify({ season: body.season.substring(0, 80), updated_at: new Date().toISOString() }),
   });
 
-  // Generate a realm-wide seasonal event via AI
-  const seasonalEvent = await generateSeasonalEvent(oldSeason, newSeason, env);
-
-  // Broadcast it to realm_events so all players see it
-  if (seasonalEvent) {
-    await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
-      method: 'POST',
-      headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-      body: JSON.stringify({
-        title:       seasonalEvent.headline,
-        source_char: 'The Realm',
-        location:    'Westeros',
-        created_at:  new Date().toISOString(),
-        is_seasonal: true,
-        full_text:   seasonalEvent.full,
-      }),
-    }).catch(() => {});
-  }
-
-  return json({ ok: true, season: newSeason, seasonalEvent });
-}
-
-async function generateSeasonalEvent(oldSeason, newSeason, env) {
-  const prompt = `You are the herald of a Game of Thrones realm set in 250 AC under Aegon V Targaryen.
-
-The realm clock has just advanced from "${oldSeason}" to "${newSeason}".
-
-Write a seasonal proclamation — a short news item that would be cried by heralds across Westeros.
-This is what all players will see as a notification when the season changes.
-
-Format your response as JSON only, no other text:
-{
-  "headline": "One dramatic sentence, 10-15 words, present tense. What has changed or begun.",
-  "full": "2-3 sentences expanding on the headline. Specific. Atmospheric. Hints at what the new season brings politically or physically. Mention Aegon V or the realm's mood if relevant."
-}
-
-The headline should feel like a herald crying news. The full text like a maester's note.
-Stay grounded in 250 AC — no dragons, Aegon V on the throne, realm uneasy.`;
-
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-      body: JSON.stringify({ model: 'claude-sonnet-4-6', max_tokens: 300,
-        messages: [{ role: 'user', content: prompt }] }),
-    });
-    const data = await res.json();
-    const raw = data.content?.[0]?.text?.trim();
-    if (!raw) return null;
-    const clean = raw.replace(/```json|```/g, '').trim();
-    return JSON.parse(clean);
-  } catch { return null; }
+  return json({ ok: true, season: body.season });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1034,7 +970,7 @@ CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
 House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
 Current Location: ${c.location}
-Appearance: ${c.appear || 'Not described'}${c.scars && c.scars.length ? '\nScars & Marks: ' + c.scars.map(s => s.description + (s.origin ? ' (' + s.origin + ')' : '')).join('; ') : ''}
+Appearance: ${c.appear || 'Not described'}
 Backstory: ${c.backstory || 'Unknown'}
 Personality: ${c.personality || 'Unknown'}
 Traits: ${(c.traits || []).join(', ') || 'None'}
@@ -1324,12 +1260,10 @@ CONDITIONS TAGS — use these to track persistent health and life states:
 REPUTATION TAG — use when a character does something the realm would notice:
 {"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
 {"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
-{"scarEvent":{"id":"riverrun_duel_scar","description":"A thin white line from jaw to collarbone, still pink at the edges.","origin":"From the duel with Ser Harwyn at Riverrun."}}
 
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
 - Only fire reputationEvent when something genuinely notable happens — not for routine actions.
-- Fire scarEvent when a character suffers a wound that would leave a permanent physical mark — duels, battles, torture, burns. Use a unique id (location + type, e.g. "kings_landing_burn"). Write the description as it would appear on the body. The scar persists forever and should be referenced in future scenes involving appearance or combat.
 - region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
 - type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
 - Reputation accumulates across scenes. A character known for cruelty will find doors closing.
@@ -1490,14 +1424,8 @@ function parseResponse(text) {
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
-  // scarEvent tags
-  const scarEvents = [];
-  // Re-scan for scarEvent (they may have been missed by the JSON span extractor)
-  const scarMatches = [...text.matchAll(/\{"scarEvent":\s*(\{[^}]+\})\}/g)];
-  scarMatches.forEach(m => { try { scarEvents.push(JSON.parse(m[1])); } catch {} });
-
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, scarEvents };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1549,7 +1477,15 @@ async function updateSharedScene(id, fields, env) {
 }
 
 async function updateCharacter(id, fields, env) {
-  return fetch(
+  // Aggressively trim msgs to prevent row size issues.
+  // Each msg can be ~1-2KB. Keep last 20 to stay well under Supabase limits.
+  if (fields.msgs && Array.isArray(fields.msgs)) {
+    // Strip the raw AI text from assistant messages — only keep parsed content
+    // and trim to last 20 messages
+    fields.msgs = fields.msgs.slice(-20);
+  }
+
+  const res = await fetch(
     `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`,
     {
       method: 'PATCH',
@@ -1562,6 +1498,36 @@ async function updateCharacter(id, fields, env) {
       body: JSON.stringify({ ...fields, updated_at: new Date().toISOString() }),
     }
   );
+
+  // Log save failures — these were previously silently swallowed
+  if (!res.ok) {
+    const errText = await res.text().catch(() => 'unknown');
+    console.error(`updateCharacter failed for ${id}: ${res.status} — ${errText}`);
+
+    // If the full save failed, try a minimal save with just the critical fields
+    // (no msgs/hist) so at least health/gold/location/conditions survive
+    if (fields.msgs || fields.hist) {
+      const { msgs, hist, npcs, events, ...minimal } = fields;
+      const fallbackRes = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'apikey': env.SUPABASE_SERVICE_KEY,
+            'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal',
+          },
+          body: JSON.stringify({ ...minimal, updated_at: new Date().toISOString() }),
+        }
+      );
+      if (!fallbackRes.ok) {
+        console.error(`Fallback save also failed for ${id}: ${fallbackRes.status}`);
+      }
+    }
+  }
+
+  return res;
 }
 
 // ══════════════════════════════════════════════════════════════
