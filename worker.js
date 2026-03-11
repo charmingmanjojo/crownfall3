@@ -200,6 +200,7 @@ async function handleAct(request, env) {
       events:          updates.events,
       stats:           updates.stats,
       growth:          updates.growth,
+      conditions:      updates.conditions,
     },
   });
 }
@@ -211,6 +212,24 @@ async function handleAct(request, env) {
 // inflate stats — all of that is enforced here.
 // ══════════════════════════════════════════════════════════════
 const VALID_HEALTH        = new Set(['Hale', 'Wounded', 'Grievously Wounded', 'Dead']);
+
+// ── Conditions system ──
+const VALID_CONDITION_TYPES = new Set(['illness','injury','pregnancy','mental','addiction']);
+const VALID_CONDITION_IDS = new Set([
+  // Illness
+  'autumn_fever','consumption','grey_plague','flux','pox','shivers','wound_fever',
+  'childbed_fever','infected_wound','milk_of_poppy_sickness',
+  // Injury
+  'broken_arm','broken_leg','lost_eye','lost_hand','battle_wound','deep_wound',
+  'scarred_face','burn_wounds','arrow_wound',
+  // Pregnancy
+  'with_child_early','with_child_late','recovering_childbirth',
+  // Mental
+  'grief_stricken','broken_spirit','haunted','melancholy','manic',
+  // Addiction
+  'milk_of_poppy','strongwine',
+]);
+const MAX_CONDITIONS = 6;
 const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
 const MAX_NPC_MEMORY_LEN  = 200;
 const MAX_EVENT_TITLE_LEN = 120;
@@ -352,9 +371,74 @@ function applyStateChanges(char, parsed) {
     if (title) { events.unshift(title); if (events.length > 18) events.pop(); }
   }
 
+  // ── Conditions system ──
+  // Conditions persist across scenes — the AI cannot remove them directly,
+  // only add, worsen, or mark as resolving. Actual removal requires explicit
+  // conditionResolved tag with valid reasoning (recovery, death, childbirth).
+  const conditions = [...(char.conditions || [])];
+
+  // Add new conditions
+  (parsed.conditionsGained || []).forEach(c => {
+    if (!c.id || !VALID_CONDITION_IDS.has(c.id)) return;
+    if (!VALID_CONDITION_TYPES.has(c.type || '')) return;
+    // Hard block: pregnancy conditions cannot be applied to male characters
+    const pregnancyIds = new Set(['with_child_early','with_child_late','recovering_childbirth']);
+    if (pregnancyIds.has(c.id)) {
+      const g = (char.gender || '').toLowerCase();
+      // Block if gender is explicitly male, or if not recognisably female
+      const isFemale = g.includes('female') || g.includes('woman') || g.includes('girl') || g === 'f';
+      if (!isFemale) return;
+    }
+    // Don't duplicate
+    if (conditions.some(x => x.id === c.id)) return;
+    conditions.push({
+      id:       c.id,
+      label:    String(c.label || c.id).substring(0, 60),
+      type:     c.type,
+      severity: Math.max(1, Math.min(4, Math.round(Number(c.severity) || 1))),
+      onset:    season,
+      note:     String(c.note || '').substring(0, 180),
+    });
+    if (conditions.length > MAX_CONDITIONS) conditions.shift(); // oldest drops off
+  });
+
+  // Worsen or improve an existing condition's severity
+  (parsed.conditionChanged || []).forEach(c => {
+    if (!c.id) return;
+    const idx = conditions.findIndex(x => x.id === c.id);
+    if (idx === -1) return;
+    const newSev = Math.max(1, Math.min(4, conditions[idx].severity + (Math.round(Number(c.severityDelta) || 0))));
+    conditions[idx] = { ...conditions[idx], severity: newSev };
+    if (c.note) conditions[idx].note = String(c.note).substring(0, 180);
+    // Severity 0 or below means resolved (should use conditionResolved instead, but guard it)
+    if (newSev <= 0) conditions.splice(idx, 1);
+  });
+
+  // Resolve/clear a condition (recovery, childbirth, etc.)
+  (parsed.conditionsResolved || []).forEach(id => {
+    const idx = conditions.findIndex(x => x.id === id);
+    if (idx > -1) conditions.splice(idx, 1);
+  });
+
+  // Pregnancy progression: auto-advance label from early → late
+  const pregEarly = conditions.findIndex(x => x.id === 'with_child_early');
+  if (pregEarly > -1) {
+    const onset = conditions[pregEarly].onset || '';
+    // After 2+ seasons have been noted in the narrative, auto-progress
+    // (the AI should handle this explicitly, but we flag it for the system prompt)
+    conditions[pregEarly]._seasons_elapsed = (conditions[pregEarly]._seasons_elapsed || 0);
+    if (season !== char.season) {
+      conditions[pregEarly]._seasons_elapsed += 1;
+      if (conditions[pregEarly]._seasons_elapsed >= 2) {
+        conditions[pregEarly].id = 'with_child_late';
+        conditions[pregEarly].label = 'With Child (Late)';
+      }
+    }
+  }
+
   return {
     health, gold, income_per_turn, lands, debts,
-    location, season, dead: isDead, npcs, events, stats, growth,
+    location, season, dead: isDead, npcs, events, stats, growth, conditions,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -779,6 +863,7 @@ Traits: ${(c.traits || []).join(', ') || 'None'}
 Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy || 2} Intrigue:${(c.stats || {}).intrigue || 2} Stewardship:${(c.stats || {}).stewardship || 2} Learning:${(c.stats || {}).learning || 2}
 Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
 Health: ${c.health}
+Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 ${financeBlock}
 ${memBlock}${guestBlock}
 ${ageGuard}
@@ -1011,6 +1096,36 @@ INLINE TAGS — embed directly inside narrative prose where they naturally occur
 {"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
 {"statGrowth":"martial","amount":1,"reason":"Brief reason — only on genuinely exceptional moments"}
 
+CONDITIONS TAGS — use these to track persistent health and life states:
+{"conditionGained":{"id":"autumn_fever","label":"Autumn Fever","type":"illness","severity":2,"note":"Contracted at the feast in the great hall."}}
+{"conditionChanged":{"id":"autumn_fever","severityDelta":-1,"note":"The maester's treatment has eased the fever."}}
+{"conditionResolved":"autumn_fever"}
+
+CONDITION IDs you may use (use the exact string):
+ILLNESS: autumn_fever, consumption, grey_plague, flux, pox, shivers, wound_fever, childbed_fever, infected_wound, milk_of_poppy_sickness
+INJURY: broken_arm, broken_leg, lost_eye, lost_hand, battle_wound, deep_wound, scarred_face, burn_wounds, arrow_wound
+PREGNANCY: with_child_early, with_child_late, recovering_childbirth
+MENTAL: grief_stricken, broken_spirit, haunted, melancholy, manic
+ADDICTION: milk_of_poppy, strongwine
+
+CONDITION RULES — read carefully:
+1. Conditions are PERSISTENT. Once gained, they affect every subsequent scene until resolved.
+2. Health field and conditions are separate: a character can be "Hale" (health) but have a mental condition or early pregnancy.
+3. ILLNESS: Most illnesses cannot be resolved in a single scene. They worsen (severityDelta: +1) without treatment, improve (severityDelta: -1) with good care, and resolve after several scenes of recovery. Severity 4 = potentially fatal — escalate health to "Grievously Wounded" as well.
+4. PREGNANCY:
+   - Use with_child_early when pregnancy is first established (confirmed or strongly suspected).
+   - After 2 narrative seasons have passed, switch to with_child_late via conditionChanged.
+   - Childbirth is a scene unto itself — dramatic, dangerous, consequential. Severity 1-2 = uncomplicated. Severity 3 = difficult, painful. Severity 4 = life-threatening.
+   - A miscarriage: conditionResolved:"with_child_early", then conditionGained:"grief_stricken".
+   - Death in childbed: conditionResolved, isDead:true in status.
+   - Successful birth: conditionResolved:"with_child_late" or "with_child_early", then conditionGained:"recovering_childbirth".
+   - ONLY female characters of childbearing age (approximately 14-45) may gain pregnancy conditions. Check character gender and age before ever applying. Male characters NEVER gain pregnancy conditions.
+5. MENTAL: grief_stricken reduces diplomacy and social effectiveness. broken_spirit affects all rolls. haunted manifests as involuntary reactions in specific circumstances. These resolve slowly over weeks or months of narrative time — not a single kind word.
+6. ADDICTION: milk_of_poppy begins as treatment for serious wounds. If used repeatedly, severity increases. Severity 3+ means the character seeks it independently. Resolution requires a hard withdrawal arc across many scenes.
+7. INJURIES: Some are permanent: lost_eye, lost_hand, scarred_face. Never mark these resolved without a direct story-supported reason. A broken limb heals in weeks. A missing hand does not.
+8. CONDITIONS IN NARRATIVE: Every active condition MUST affect the prose. A character with autumn_fever (severity 3) is feverish and weak — they do not display sharp wit. grief_stricken is not a background detail. Do not write a character as normal when their conditions say otherwise.
+
+
 STAT GROWTH RULES — read carefully before using statGrowth:
 Growth is rare. A character should go entire seasons without any growth trigger.
 Use statGrowth ONLY for genuinely exceptional moments, never routine actions.
@@ -1095,6 +1210,7 @@ function parseResponse(text) {
   const memories = [], rolls = [];
   let worldEvent = null;
   const growthEvents = [];
+  const conditionsGained = [], conditionChanged = [], conditionsResolved = [];
 
   const spans = extractJsonSpans(nRaw);
   const toRemove = [];
@@ -1105,6 +1221,9 @@ function parseResponse(text) {
       else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
       else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
       else if (o.statGrowth && o.amount) { growthEvents.push(o); toRemove.push(span); }
+      else if (o.conditionGained) { conditionsGained.push(o.conditionGained); toRemove.push(span); }
+      else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
+      else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
@@ -1121,7 +1240,8 @@ function parseResponse(text) {
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
-  return { narrative, choices, status, memories, rolls, worldEvent, growthEvents };
+  return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
+           conditionsGained, conditionChanged, conditionsResolved };
 }
 
 // ══════════════════════════════════════════════════════════════
