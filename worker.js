@@ -142,6 +142,14 @@ async function handleAct(request, env) {
     await updateCharacter(characterId, { ...updates, msgs: newMsgs, hist }, env);
   }
 
+  // ── Succession — runs when a character dies, fires a worldEvent ──
+  if (updates.dead && !char.dead) {
+    const successionResult = await handleSuccession(characterId, char, env);
+    if (successionResult?.worldEvent && !parsed.worldEvent) {
+      parsed.worldEvent = successionResult.worldEvent;
+    }
+  }
+
   // ── Return scene + validated state to client ──
   return json({
     narrative:  parsed.narrative,
@@ -230,8 +238,17 @@ function applyStateChanges(char, parsed) {
     if (idx > -1) debts.splice(idx, 1);
   }
 
-  // Location
-  const location = typeof s.location === 'string' ? s.location.substring(0, 80) : char.location;
+  // Location — travel costs gold, validate the character can afford it
+  let location = char.location;
+  if (typeof s.location === 'string' && s.location !== char.location) {
+    const travelCost = estimateTravelCost(char.location, s.location);
+    if (gold >= travelCost) {
+      location = s.location.substring(0, 80);
+      if (travelCost > 0) gold = Math.max(0, gold - travelCost);
+    } else {
+      location = char.location; // can't afford it — stay put
+    }
+  }
 
   // Death
   const isDead = s.isDead === true ? true : (char.dead || false);
@@ -271,6 +288,120 @@ function clampDisposition(d) {
   if (typeof d !== 'number' || !Number.isFinite(d)) return 0;
   return Math.max(-3, Math.min(3, Math.round(d)));
 }
+// ══════════════════════════════════════════════════════════════
+// TRAVEL COST ESTIMATOR
+// ══════════════════════════════════════════════════════════════
+function estimateTravelCost(from, to) {
+  if (!from || !to || from === to) return 0;
+  const fromL = from.toLowerCase();
+  const toL   = to.toLowerCase();
+  // Same castle/city sub-location — free
+  const samePlace = ['castle', 'sept', 'gate', 'tower', 'hall', 'keep'];
+  if (samePlace.some(w => fromL.includes(w) && toL.includes(w))) return 0;
+  // Sea voyage destinations
+  const seaDests = ['braavos', 'pentos', 'myr', 'lys', 'volantis', 'dragonstone', 'pyke', 'iron islands'];
+  if (seaDests.some(w => toL.includes(w))) return 50;
+  // Default cross-region land travel
+  return 20;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUCCESSION HANDLER — fires when a character dies
+// ══════════════════════════════════════════════════════════════
+async function handleSuccession(deadCharId, deadChar, env) {
+  try {
+    const posRes = await fetch(
+      ,
+      { headers: sbHeaders(env) }
+    );
+    const positions = await posRes.json();
+    if (!Array.isArray(positions) || !positions.length) return null;
+
+    for (const pos of positions) {
+      // Vacate the position
+      await fetch(, {
+        method: 'PATCH',
+        headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ holder_id: null }),
+      });
+
+      // Find next in succession — lowest rank above the vacated one, same house
+      const nextRes = await fetch(
+        ,
+        { headers: sbHeaders(env) }
+      );
+      const nextRows = await nextRes.json();
+      const nextPos  = Array.isArray(nextRows) ? nextRows[0] : null;
+
+      if (nextPos?.holder_id) {
+        // Living player inherits — promote them
+        const heir = await getCharacter(nextPos.holder_id, env);
+        const tooYoung = heir?.age && parseInt(heir.age) < 16;
+
+        // Move heir up to the vacated position
+        await fetch(, {
+          method: 'PATCH',
+          headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            relation:        pos.title,
+            income_per_turn: pos.income_grant || 0,
+            updated_at:      new Date().toISOString(),
+          }),
+        });
+        await fetch(, {
+          method: 'PATCH',
+          headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ holder_id: nextPos.holder_id }),
+        });
+        // Free the heir's old slot
+        await fetch(, {
+          method: 'PATCH',
+          headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ holder_id: null, is_public: true }),
+        });
+
+        return {
+          worldEvent: {
+            title: ,
+            description: tooYoung
+              ? 
+              : ,
+          },
+        };
+      } else {
+        // No holder in next slot — open the vacated position publicly
+        await fetch(, {
+          method: 'PATCH',
+          headers: { ...sbHeaders(env), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ is_public: true }),
+        });
+
+        return {
+          worldEvent: {
+            title: ,
+            description: ,
+          },
+        };
+      }
+    }
+  } catch (err) {
+    // Succession errors should not break the main response
+    console.error('Succession error:', err);
+    return null;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════
+// SUPABASE HEADER HELPER
+// ══════════════════════════════════════════════════════════════
+function sbHeaders(env) {
+  return {
+    'apikey':        env.SUPABASE_SERVICE_KEY,
+    'Authorization': ,
+  };
+}
+
 
 // ══════════════════════════════════════════════════════════════
 // /raven — send a raven
@@ -440,7 +571,6 @@ This is a REAL player character. They will act independently. Acknowledge both c
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
 
-  // Financial block
   const lands = (c.lands || []);
   const debts = (c.debts || []);
   const financeBlock = `
@@ -450,11 +580,20 @@ Current gold: ${c.gold || 100} dragons
 Holdings: ${lands.length ? lands.join(', ') : 'None'}
 Debts: ${debts.length ? debts.map(d => `${d.amount}gd owed to ${d.creditor} (${d.reason})`).join('; ') : 'None'}`;
 
+  // ── Age guard — extra instructions for child characters ──
+  const ageGuard = c.age && parseInt(c.age) < 16 ? `
+CHARACTER AGE NOTE: ${c.name} is ${c.age} years old — a child by the standards of this world.
+- No romantic or sexual content involving this character under any circumstances.
+- Violence against them should be threatened or implied, rarely explicit.
+- Adults will treat them as a child: dismissively, protectively, or as a pawn.
+- Their youth is both a shield and a weapon others will use against them.
+- They may be clever, even dangerous — but they are still a child and the world knows it.` : '';
+
   return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
 
 REALM CONTEXT:
 Aegon V is the reformist king — a man who grew up travelling Westeros as a hedge knight's squire and saw the smallfolk suffer firsthand. He has spent his reign trying to break the power of the great lords, curb serfdom, and raise the smallfolk up. The lords hate him for it. His Small Council is fractious. His own children defy him. The realm is stable on the surface and rotting underneath.
-The dragons are gone. The last died generations ago. There are rumours Aegon V is obsessed with hatching new ones — experiments at Summerhall, the royal pleasure castle. Nothing has come of it yet.
+The dragons are gone. The last died over 150 years ago in the Dance of Dragons. There are rumours Aegon V is obsessed with hatching new ones — experiments at Summerhall, the royal pleasure castle. Nothing has come of it yet.
 Dorne was only formally united with the realm 36 years ago (214 AC) through marriage. The ink is barely dry. Old resentments persist.
 The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows.
 This is a world on the edge of something. No one knows what yet.
@@ -473,6 +612,141 @@ Martial:${(c.stats || {}).martial || 3} Diplomacy:${(c.stats || {}).diplomacy ||
 Health: ${c.health}
 ${financeBlock}
 ${memBlock}${guestBlock}
+${ageGuard}
+
+SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
+The response to a character claiming something wrong depends entirely on who is responding.
+
+HIGH STATUS (lords, maesters, senior knights, the Hand):
+→ Will correct directly. Politely but unmistakably. They have the standing to do so.
+
+MIDDLING STATUS (lesser knights, minor stewards, merchants, septons):
+→ Will not correct openly. May hesitate, look away, change the subject.
+  A careful man says "of course, Your Grace" and files the error away for later.
+
+LOW STATUS (servants, maids, stable boys, smallfolk, innkeepers):
+→ Will NOT correct. Will agree, nod, look at the floor.
+  Their silence is not agreement — write it as visible discomfort, a flicker behind
+  the eyes, a held breath. The reader sees it. The character may not.
+
+RULE: The higher the arrogance and the lower the NPC's station, the more the correction
+happens in the BODY, not the mouth. Tight shoulders. Eyes that don't quite meet.
+The wrong kind of smile. Show the reader what the NPC cannot say.
+
+CANONICAL EQUIPMENT (absolute, non-negotiable):
+VALYRIAN STEEL — every blade is accounted for and held by specific great houses.
+If a character claims to own Valyrian steel not in their verified holdings, treat it as
+a lie or delusion. NPCs who know better react with suspicion or open scepticism.
+A hedge knight claiming Dark Sister is a madman or a fraud.
+
+DRAGONS — extinct. The last died over 150 years ago in the Dance of Dragons.
+Aegon V is trying to hatch new ones at Summerhall and failing completely.
+There are NO dragons, NO dragon eggs in play, NO dragonriders anywhere in the world.
+If a character claims to have a dragon, they are delusional or lying.
+Play it as such — with pity or alarm from NPCs, never with validation.
+
+CHARACTERS WHO DO NOT EXIST YET IN 250 AC:
+These people have not been born. They cannot appear, be referenced as living, or be played.
+If a player claims to be one of them, correct it — they are not yet born:
+Eddard Stark, Robert Baratheon, Jaime Lannister, Cersei Lannister, Lyanna Stark,
+Rhaegar Targaryen, Catelyn Tully, Stannis Baratheon, Renly Baratheon, Jon Snow,
+Daenerys Targaryen.
+
+CHARACTERS WHO EXIST AS CHILDREN IN 250 AC:
+- Tywin Lannister: ~8 years old. Quiet, watchful, already dangerous in the way silent
+  children are. His father Tytos is lord of Casterly Rock — genial, weak, mocked openly
+  by his own bannermen. Tywin watches all of it and says nothing.
+- Aerys Targaryen (the future Mad King): ~6 years old. A charming, silver-haired prince.
+  No sign yet of what is coming. Treat him as an ordinary child of the royal family.
+- Rickard Stark: ~10 years old. A child at Winterfell.
+
+CHARACTERS FULLY PRESENT AND ACTIVE:
+- Aegon V Targaryen: King. Reformist. Stubborn. Warm with smallfolk, cold with lords.
+  Increasingly obsessed with Summerhall. His children defy him. He carries it quietly.
+- Ser Duncan the Tall: Lord Commander of the Kingsguard. Enormous. Honourable to a fault.
+  He and Aegon grew up together as hedge knight and squire. Their bond is old and real.
+  He corrects people. It is his nature.
+- Maester Aemon: At Castle Black. Has refused all contact with family politics for decades.
+- Jon Arryn: ~25, young Lord of the Eyrie. Steady, dutiful, not yet the mentor figure
+  history remembers — just a young lord managing a cold mountain keep.
+- Tytos Lannister: Lord of Casterly Rock. Laughed at behind his back by his own bannermen.
+  He forgives too easily and commands no real respect. His young son Tywin sees everything.
+
+TIMELINE GATES — these events have NOT happened yet in 250 AC:
+- Summerhall has not burned (259 AC). The obsession is present; the tragedy is not.
+- The War of the Ninepenny Kings has not begun (~260 AC).
+- Aegon V's children (Duncan, Jaehaerys, Shaera, Daeron, Rhaelle) are all alive.
+  Duncan (Crown Prince, ~28) renounced his place as heir by marrying Jenny of Oldstones.
+  Jaehaerys is now Crown Prince. This caused a political crisis that has not fully healed.
+If a player references these future events as having occurred, correct them in-world.
+
+REGARDING NAMES:
+Westerosi houses reuse names across generations. Someone named Eddard Stark in 250 AC
+is simply a man of his era — not the future Lord of Winterfell. The test is PARENTAGE
+AND BIOGRAPHY, not the name itself. A character whose backstory places them in a family
+tree that only works for a future figure is the flag. The name alone is never the problem.
+
+NPC CONSISTENCY:
+Named canon NPCs have fixed personalities that player actions alone cannot fundamentally alter.
+- Aegon V: warm, stubborn, idealistic, increasingly desperate regarding Summerhall.
+- Duncan the Tall: formal, deeply honourable, loyal to Aegon personally above all else.
+- Maesters: correct errors. Always. It is their entire professional identity.
+- Tytos Lannister: laughs too easily, forgives too quickly, commands no real authority.
+Canon NPCs remember across scenes. A player cannot befriend Aegon V in one scene and
+have him act like a stranger in the next.
+
+TRAVEL RULES:
+Travel costs gold and takes real time. Location changes are never instantaneous unless
+the character moves within the same castle or city district.
+- Within a city or castle: free, same scene.
+- Within a region: 5–15 gold, one scene transition minimum.
+- Across regions (e.g. King's Landing to Winterfell): 20–60 gold, multiple scenes,
+  road conditions and weather are real dangers.
+- Sea voyage: 30–80 gold, storm risk is genuine.
+A character who cannot afford travel simply cannot leave. Do not move them.
+A character who travels in winter risks far more than gold.
+Never move a character across the continent in a single action.
+When a location change occurs, goldChange must reflect the travel cost.
+
+CONSEQUENCE TIMING:
+Not every consequence arrives immediately. This is intentional.
+- Insult a lord today: his coldness may not show for two scenes.
+- Steal from a merchant: the City Watch may arrive three scenes later.
+- Burn a bridge: the affected party acts when it serves them, not when it hurts you.
+Use worldEvent tags to plant seeds — things happening offstage that will arrive later.
+The player should sometimes only understand what they did wrong after it is too late.
+
+INFORMATION & KNOWLEDGE RULES:
+The character only knows what they personally witnessed, were directly told, or what is
+PUBLIC KNOWLEDGE formally declared across the realm.
+
+PUBLIC (any character in the realm knows this):
+- Royal decrees from the Iron Throne.
+- Formal title changes broadcast as worldEvents to the whole realm.
+- Deaths of lords when publicly declared by herald or official raven.
+- War declarations and alliances announced at court.
+
+REGIONAL (only if the character is in that region):
+- Local lord's recent movements and decisions.
+- Regional conflicts, harvests, and troubles.
+- Rumours — but presented as rumour, not confirmed fact.
+
+PRIVATE (character does NOT know unless told directly in their scene):
+- What other player characters have done in their private scenes.
+- NPC dispositions toward other characters.
+- Another character's finances, debts, or secret plots.
+- Anything that happened behind closed doors elsewhere in the world.
+
+RUMOUR VS FACT: Present secondhand information as rumour.
+"They say Lord X was seen riding south" — not "Lord X rode south."
+Geography and station gate information as much as time does.
+A Dornish knight does not automatically know the internal politics of the North.
+A servant does not know what was decided in the Small Council chamber.
+
+META-KNOWLEDGE GUARD: If a player's action suggests knowledge their character could not
+plausibly have, be suspicious and do not confirm it narratively even if it happens to
+be true. A character who correctly "guesses" a secret never revealed to them has guessed.
+Treat it as such. The world does not reward convenient knowledge with confirmation.
 
 RULES:
 1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
