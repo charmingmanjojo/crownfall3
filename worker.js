@@ -462,18 +462,15 @@ async function handleSuccession(deadCharId, deadChar, env) {
 // ══════════════════════════════════════════════════════════════
 const DEAD_KINGS = [
   'jaehaerys i', 'aegon i', 'aegon ii', 'aegon iii', 'daeron i', 'baelor i',
-  'viserys ii', 'aegon iv', 'daeron ii', 'aerys i', 'maekar i', 'aegon v',
-  // Note: Aegon V is ALIVE in 250 AC — he's the current king — but listed here
-  // to catch the AI writing him as if he's a historical figure
+  'viserys ii', 'aegon iv', 'daeron ii', 'aerys i', 'maekar i',
+  // Aegon V is ALIVE in 250 AC — he is NOT in this list
 ];
-// Kings alive and active in 250 AC — these are valid for worldEvents
-const VALID_RULERS = ['aegon v', 'aegon the unlikely', 'ser duncan', 'duncan the tall'];
+// Kings alive and active in 250 AC — Aegon V, Duncan the Tall, etc. are valid for worldEvents
 
 function isValidWorldEvent(title) {
   const t = title.toLowerCase();
   // Block dead kings being treated as active rulers
-  // Allow Aegon V and Duncan since they're alive
-  const isDead = DEAD_KINGS.filter(k => !VALID_RULERS.includes(k))
+  const isDead = DEAD_KINGS
     .some(k => t.includes(k) && (t.includes('holds court') || t.includes('commands') || t.includes('decrees') || t.includes('rides')));
   if (isDead) return false;
   // Block dragon events entirely
