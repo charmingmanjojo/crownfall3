@@ -2057,6 +2057,14 @@ async function beginGame() {
 // ══════════════════════════════════════════════════════
 // GAME MOUNT
 // ══════════════════════════════════════════════════════
+// Warn before closing if there is unsaved progress
+window.addEventListener('beforeunload', e => {
+  if (pendingSave) {
+    e.preventDefault();
+    e.returnValue = 'You have unsaved progress this turn. Are you sure?';
+  }
+});
+
 function mountGame() {
   const c = S.char; if (!c) return;
   const icon = ICONS[c.house_key] || ICONS.none;
@@ -2405,6 +2413,7 @@ function tickerTick() {
 // STORY ENGINE
 // ══════════════════════════════════════════════════════
 let currentScene = null;
+let pendingSave  = null;  // holds unsaved charState if DB write failed
 let currentChoices = [];
 
 async function startStory() {
@@ -2445,6 +2454,14 @@ async function act(text) {
   const parsed = resp;
   currentScene  = parsed;
   currentChoices = parsed.choices || [];
+
+  // ── Save error — DB write failed but scene ran fine ──
+  if (resp.saveError) {
+    pendingSave = { charState: resp.charState };
+    showToast('⚠ Autosave Failed', 'Your progress this turn was not saved. Tap to retry.', 8000, () => retrySave());
+  } else {
+    pendingSave = null;
+  }
 
   // ── Apply validated charState returned by server ──
   if (resp.charState) {
@@ -2572,6 +2589,31 @@ function appendError(msg) {
 }
 
 function scrollBottom() { setTimeout(() => { const el=ss(); el.scrollTop=el.scrollHeight; }, 80); }
+
+// ── Retry a failed save ──
+async function retrySave() {
+  if (!pendingSave || !S.charId) return;
+  try {
+    const res = await fetch(WORKER_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'saveChar',
+        characterId: S.charId,
+        fields: pendingSave.charState,
+        userToken: S.session?.access_token,
+      }),
+    });
+    if (res.ok) {
+      pendingSave = null;
+      showToast('✓ Saved', 'Progress recovered.');
+    } else {
+      showToast('✗ Still failing', 'Check your connection.');
+    }
+  } catch (e) {
+    showToast('✗ Still failing', 'Check your connection.');
+  }
+}
 
 function stripXML(t) {
   if (!t) return '';
