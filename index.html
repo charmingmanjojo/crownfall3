@@ -164,6 +164,22 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .hb-Wounded{color:#b09030;border-color:rgba(180,140,60,.28)}
 .hb-Grievously{color:#a03020;border-color:rgba(160,50,32,.28)}
 .hb-Dead{color:#555;border-color:rgba(80,80,80,.22)}
+/* ── Conditions panel ── */
+#conditions-panel{padding:8px 12px 4px;border-bottom:1px solid rgba(60,90,150,.1)}
+.condition-pip{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px solid rgba(60,90,150,.07)}
+.condition-pip:last-child{border-bottom:none}
+.condition-icon{font-size:14px;flex-shrink:0;margin-top:1px}
+.condition-body{flex:1;min-width:0}
+.condition-label{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;color:var(--gold)}
+.condition-sev{display:inline-flex;gap:2px;margin-left:5px;vertical-align:middle}
+.sev-dot{width:5px;height:5px;border-radius:50%;background:rgba(160,80,30,.25)}
+.sev-dot.on{background:rgba(180,80,30,.8)}
+.condition-note{font-size:10px;font-style:italic;color:rgba(100,140,200,.45);margin-top:1px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cond-ill{--cicon:'🤒'}
+.cond-inj{--cicon:'🩸'}
+.cond-preg{--cicon:'🌿'}
+.cond-mental{--cicon:'🌑'}
+.cond-addiction{--cicon:'⚗'}
 .tb-season{font-size:11px;font-style:italic;color:rgba(120,160,210,.55)}
 .tb-right{display:flex;gap:6px}
 .tb-btn{background:transparent;border:1px solid rgba(60,90,150,.2);color:rgba(100,140,200,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.14em;padding:4px 10px;cursor:pointer;transition:all .16s;text-transform:uppercase}
@@ -596,6 +612,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         <span class="plbl">Traits</span>
         <div class="trait-pips" id="g-traits"></div>
       </div>
+      <div id="conditions-panel" style="display:none">
+        <span class="plbl">Afflictions</span>
+        <div id="conditions-list"></div>
+      </div>
       <div class="map-wrap">
         <span class="plbl">The Realm</span>
         <div style="position:relative;flex:1;min-height:0">
@@ -779,6 +799,11 @@ create table if not exists characters (
   hist          jsonb default '[]',
   npcs          jsonb default '{}',
   events        jsonb default '[]',
+  income_per_turn int default 0,
+  lands         jsonb default '[]',
+  debts         jsonb default '[]',
+  growth        jsonb default '{}',
+  conditions    jsonb default '[]',
   created_at    timestamptz default now(),
   updated_at    timestamptz default now()
 );
@@ -1386,8 +1411,23 @@ async function loadChar(id) {
   hideChoices();
 
   S.charId = id;
+
+  // ── Normalise location: DB stores display name ("King's Landing"),
+  //    but renderMap() and map lookups need the ID ("kings_landing").
+  //    Resolve whichever format the DB has to the canonical ID.
+  const rawLoc = data.location || '';
+  const resolvedLoc = (
+    LOCS.find(l => l.id === rawLoc) ||
+    LOCS.find(l => l.name.toLowerCase() === rawLoc.toLowerCase()) ||
+    LOCS.find(l =>
+      l.name.toLowerCase().includes(rawLoc.toLowerCase()) ||
+      rawLoc.toLowerCase().includes(l.name.toLowerCase())
+    )
+  )?.id || rawLoc;
+
   S.char = {
     ...data,
+    location: resolvedLoc,
     stats: data.stats || {},
     traits: data.traits || [],
     msgs: data.msgs || [],
@@ -1395,6 +1435,7 @@ async function loadChar(id) {
     npcs: data.npcs || {},
     events: data.events || [...DEFAULT_EVENTS],
     gold: data.gold || 100,
+    conditions: data.conditions || [],
   };
 
   if (data.dead) {
@@ -1443,6 +1484,10 @@ function goCreate() { buildCreation(); go('create'); }
 function goChars() {
   currentScene = null; currentChoices = [];
   S.busy = false; hideChoices();
+  // Clean up realtime subscriptions and polling to avoid leaks
+  if (scenePollingInterval) { clearInterval(scenePollingInterval); scenePollingInterval = null; }
+  if (presenceChannel) { try { presenceChannel.unsubscribe(); } catch(e){} presenceChannel = null; }
+  if (ravenChannel)    { try { ravenChannel.unsubscribe();    } catch(e){} ravenChannel = null; }
   if (S.user) loadCharList();
   else go('auth');
 }
@@ -1810,6 +1855,7 @@ function mountGame() {
   renderMap();
   renderEvents();
   renderNPCs();
+  renderConditions();
   fetchRealmClock();
   fetchRealmEvents();
   subscribeRealmEvents();
@@ -1950,6 +1996,31 @@ function renderNPCs() {
   });
 }
 
+function renderConditions() {
+  const panel = document.getElementById('conditions-panel');
+  const list  = document.getElementById('conditions-list');
+  if (!panel || !list) return;
+  const conds = S.char?.conditions || [];
+  if (!conds.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  const ICONS = { illness:'🤒', injury:'🩸', pregnancy:'🌿', mental:'🌑', addiction:'⚗' };
+  list.innerHTML = conds.map(c => {
+    const icon = ICONS[c.type] || '⚠';
+    const sev  = Math.max(1, Math.min(4, c.severity || 1));
+    const dots = [1,2,3,4].map(i =>
+      `<span class="sev-dot${i <= sev ? ' on' : ''}"></span>`
+    ).join('');
+    return `<div class="condition-pip">
+      <div class="condition-icon">${icon}</div>
+      <div class="condition-body">
+        <span class="condition-label">${esc(c.label)}</span>
+        <span class="condition-sev">${dots}</span>
+        ${c.note ? `<div class="condition-note">${esc(c.note)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
 let tickerI = 0;
 function tickerTick() {
   const events = S.char?.events || DEFAULT_EVENTS;
@@ -2036,6 +2107,24 @@ async function act(text) {
       mountStatDisplay();
     }
     if (cs.growth) { S.char.growth = cs.growth; }
+    if (cs.conditions) {
+      const prev = S.char.conditions || [];
+      S.char.conditions = cs.conditions;
+      // Toast new conditions
+      cs.conditions.forEach(c => {
+        if (!prev.some(p => p.id === c.id)) {
+          const icons = { illness:'🤒', injury:'🩸', pregnancy:'🌿', mental:'🌑', addiction:'⚗' };
+          showToast(icons[c.type] || '⚠', c.label + (c.note ? ' — ' + c.note : ''));
+        }
+      });
+      // Toast resolved conditions
+      prev.forEach(p => {
+        if (!cs.conditions.some(c => c.id === p.id)) {
+          showToast('✦', p.label + ' has passed.');
+        }
+      });
+      renderConditions();
+    }
   }
 
   // Show NPC memory toasts
@@ -2613,8 +2702,10 @@ async function acceptSceneInvite() {
 }
 
 // Start polling for invites when in game
+let scenePollingInterval = null;
 function startScenePolling() {
-  setInterval(pollSceneInvites, 15000);
+  if (scenePollingInterval) clearInterval(scenePollingInterval);
+  scenePollingInterval = setInterval(pollSceneInvites, 15000);
 }
 
 // ══════════════════════════════════════════════════════
