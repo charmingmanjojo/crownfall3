@@ -150,6 +150,34 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .begin-btn{width:100%;padding:13px;background:transparent;border:1px solid rgba(180,140,60,.35);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.25em;text-transform:uppercase;cursor:pointer;transition:all .22s}
 .begin-btn:hover:not(:disabled){background:rgba(180,140,60,.07);border-color:var(--gold)}
 .begin-btn:disabled{opacity:.2;cursor:not-allowed}
+/* ── PRE-EXISTING RELATIONSHIPS ── */
+.rel-entry{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding:10px;border:1px solid rgba(180,140,60,.1);background:rgba(255,255,255,.012)}
+.rel-entry input,.rel-entry select,.rel-entry textarea{background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;padding:5px 0;outline:none;width:100%}
+.rel-entry textarea{resize:none;grid-column:1/-1;margin-top:4px;min-height:44px;border:1px solid rgba(180,140,60,.12);padding:5px 8px}
+.rel-entry select{cursor:pointer}
+.rel-entry select option{background:#0a0e1a}
+.rel-add-btn{background:transparent;border:1px dashed rgba(180,140,60,.25);color:rgba(200,168,75,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:7px;width:100%;cursor:pointer;text-transform:uppercase;transition:all .2s;margin-top:4px}
+.rel-add-btn:hover{border-color:rgba(180,140,60,.5);color:var(--gold)}
+.rel-remove-btn{background:transparent;border:none;color:rgba(180,60,40,.5);cursor:pointer;font-size:11px;text-align:right;grid-column:1/-1;padding:0;font-family:'IM Fell English',serif;font-style:italic}
+.rel-remove-btn:hover{color:var(--red)}
+.canon-note{font-size:10px;font-style:italic;color:rgba(100,140,200,.4);margin-top:3px}
+/* ── FACE CLAIM ── */
+.face-upload-wrap{display:flex;flex-direction:column;gap:8px}
+.face-upload-label{display:flex;align-items:center;gap:10px;cursor:pointer;border:1px dashed rgba(180,140,60,.2);padding:10px 14px;transition:border-color .2s}
+.face-upload-label:hover{border-color:rgba(180,140,60,.45)}
+.face-upload-label span{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:rgba(200,168,75,.6);text-transform:uppercase}
+.face-preview{width:56px;height:56px;object-fit:cover;border:1px solid rgba(180,140,60,.2);display:none}
+.face-preview.on{display:block}
+/* ── PROFILE MODAL ── */
+#profile-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;align-items:center;justify-content:center}
+#profile-modal.on{display:flex}
+.profile-box{background:#0a0e1a;border:1px solid rgba(180,140,60,.25);padding:28px;max-width:340px;width:90%;text-align:center}
+.profile-face{width:180px;height:220px;object-fit:cover;border:1px solid rgba(180,140,60,.2);margin-bottom:14px}
+.profile-name{font-family:'Cinzel',serif;font-size:18px;color:var(--gold)}
+.profile-sub{font-size:12px;font-style:italic;color:var(--dim);margin-top:4px}
+.profile-close{margin-top:18px;background:transparent;border:1px solid rgba(180,140,60,.2);color:var(--dim);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:7px 18px;cursor:pointer;text-transform:uppercase}
+.profile-close:hover{border-color:var(--gold);color:var(--gold)}
+
 
 /* ── GAME ── */
 #p-game{flex-direction:column;overflow:hidden}
@@ -646,6 +674,23 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
           <div id="traits-neg"></div>
         </div>
       </div>
+    </div>
+
+    <div class="section">
+      <span class="sec-lbl">Face Claim <span style="color:rgba(100,78,35,.4);font-size:9px;font-style:italic">— optional portrait shown on your profile</span></span>
+      <div class="face-upload-wrap">
+        <label class="face-upload-label" for="c-face-input">
+          <img id="face-preview" class="face-preview" src="" alt="Preview"/>
+          <span id="face-upload-text">Choose an image...</span>
+        </label>
+        <input id="c-face-input" type="file" accept="image/*" style="display:none" onchange="previewFaceClaim(this)"/>
+      </div>
+    </div>
+
+    <div class="section">
+      <span class="sec-lbl">Pre-existing Relationships <span style="color:rgba(100,78,35,.4);font-size:9px;font-style:italic">— up to 3, established before your story begins</span></span>
+      <div id="rel-list"></div>
+      <button class="rel-add-btn" id="rel-add-btn" onclick="addRelEntry()">+ Add Relationship</button>
     </div>
 
     <button class="begin-btn" id="btn-begin" disabled onclick="beginGame()">Enter the Realm — 250 AC, Aegon V</button>
@@ -1696,7 +1741,7 @@ async function loadCharList() {
   showSpinner('Loading characters...');
   const { data, error } = await sb
     .from('characters')
-    .select('id,name,house_key,house_full,region,relation,health,dead,season,created_at')
+    .select('id,name,house_key,house_full,region,relation,health,dead,season,created_at,face_claim_url')
     .eq('user_id', S.user.id)
     .order('created_at', { ascending: false });
   hideSpinner();
@@ -1717,7 +1762,7 @@ async function loadCharList() {
       div.innerHTML = `
         <div class="char-card-sigil"><img src="${icon}" alt=""/></div>
         <div class="char-card-info">
-          <div class="char-card-name">${esc(c.name)}</div>
+          <div class="char-card-name" style="cursor:pointer;text-decoration:underline dotted rgba(200,168,75,.4)" onclick="event.stopPropagation();openProfileModal('${esc(c.id)}','${esc(c.name)}','${esc(c.house_full||'No House')}',${JSON.stringify(c.face_claim_url||null)})">${esc(c.name)}</div>
           <div class="char-card-sub">${esc(c.house_full||'No House')} · ${esc(c.relation||'')}</div>
           <div class="char-card-status">${esc(c.region||'')} · ${esc(c.season||'250 AC')} · ${c.dead?'Deceased':c.health||'Hale'}</div>
         </div>
@@ -1889,6 +1934,16 @@ function buildCreation() {
   document.getElementById('house-search').value = '';
   document.getElementById('house-selected-box').classList.remove('visible');
   document.getElementById('relation-wrap').style.display = 'none';
+  // Reset face claim
+  document.getElementById('c-face-input').value = '';
+  document.getElementById('face-preview').classList.remove('on');
+  document.getElementById('face-preview').src = '';
+  document.getElementById('face-upload-text').textContent = 'Choose an image...';
+  S.faceClaimFile = null;
+  // Reset relationships
+  document.getElementById('rel-list').innerHTML = '';
+  S.relEntries = [];
+  document.getElementById('rel-add-btn').style.display = '';
   checkForm();
 }
 
@@ -2013,6 +2068,167 @@ function toggleTrait(id, isNeg) {
     document.getElementById('titem-'+id)?.classList.add('on');
     document.getElementById('tbox-'+id)?.classList.add('on');
   }
+}
+
+
+// ══════════════════════════════════════════════════════
+// FACE CLAIM
+// ══════════════════════════════════════════════════════
+function previewFaceClaim(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) {
+    alert('Image must be under 3MB.');
+    input.value = '';
+    return;
+  }
+  S.faceClaimFile = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const prev = document.getElementById('face-preview');
+    prev.src = e.target.result;
+    prev.classList.add('on');
+    document.getElementById('face-upload-text').textContent = file.name;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function uploadFaceClaim(charId) {
+  if (!S.faceClaimFile) return null;
+  try {
+    const ext = S.faceClaimFile.name.split('.').pop() || 'jpg';
+    const path = `${S.user.id}/${charId}.${ext}`;
+    const { error } = await sb.storage
+      .from('face-claims')
+      .upload(path, S.faceClaimFile, { upsert: true, contentType: S.faceClaimFile.type });
+    if (error) { console.warn('Face claim upload failed:', error.message); return null; }
+    const { data } = sb.storage.from('face-claims').getPublicUrl(path);
+    return data?.publicUrl || null;
+  } catch (e) { console.warn('Face claim upload error:', e); return null; }
+}
+
+// ══════════════════════════════════════════════════════
+// PRE-EXISTING RELATIONSHIPS
+// ══════════════════════════════════════════════════════
+const CANON_NPC_RULES = {
+  'Aegon V': ['ally','patron','acquaintance','respected'],
+  'Duncan the Tall': ['ally','respected','patron','acquaintance'],
+  'Maester Aemon': ['mentor','ally','respected','acquaintance'],
+  'Tywin Lannister': ['rival','ally','suspicious','acquaintance','respected'],
+  'Tytos Lannister': ['patron','ally','acquaintance'],
+  'Aerion Brightflame': [], // deceased, cannot have relationship
+};
+
+const ALL_REL_TYPES = [
+  'friend','rival','enemy','mentor','student','romantic_interest',
+  'lover','ally','patron','ward','suspected','respected','feared',
+  'indebted','creditor','complicated','acquaintance'
+];
+
+function addRelEntry() {
+  if (!S.relEntries) S.relEntries = [];
+  if (S.relEntries.length >= 3) return;
+  const idx = S.relEntries.length;
+  S.relEntries.push({ name:'', type:'friend', description:'' });
+
+  const div = document.createElement('div');
+  div.className = 'rel-entry';
+  div.id = 'rel-entry-' + idx;
+  div.innerHTML = `
+    <input placeholder="Name" value="" oninput="updateRelEntry(${idx},'name',this.value)" style="grid-column:1/-1"/>
+    <select onchange="updateRelEntry(${idx},'type',this.value); updateRelTypeOptions(${idx}, this.value)">
+      ${ALL_REL_TYPES.map(t => `<option value="${t}">${t}</option>`).join('')}
+    </select>
+    <input placeholder="Brief description (optional)" oninput="updateRelEntry(${idx},'description',this.value)"/>
+    <textarea placeholder="Context — how did you meet? What is your history?" rows="2" oninput="updateRelEntry(${idx},'description',this.value)" style="grid-column:1/-1"></textarea>
+    <div class="canon-note" id="rel-canon-note-${idx}"></div>
+    <button class="rel-remove-btn" onclick="removeRelEntry(${idx})">✕ Remove</button>
+  `;
+  document.getElementById('rel-list').appendChild(div);
+  if (S.relEntries.length >= 3) {
+    document.getElementById('rel-add-btn').style.display = 'none';
+  }
+}
+
+function updateRelEntry(idx, field, value) {
+  if (!S.relEntries[idx]) return;
+  S.relEntries[idx][field] = value;
+  if (field === 'name') checkCanonNpc(idx, value);
+}
+
+function checkCanonNpc(idx, name) {
+  const note = document.getElementById('rel-canon-note-' + idx);
+  if (!note) return;
+  const trimmed = name.trim();
+  const canonKey = Object.keys(CANON_NPC_RULES).find(k =>
+    k.toLowerCase() === trimmed.toLowerCase()
+  );
+  if (!canonKey) { note.textContent = ''; return; }
+  const allowed = CANON_NPC_RULES[canonKey];
+  if (allowed.length === 0) {
+    note.textContent = canonKey + ' is deceased in 250 AC and cannot have a pre-existing relationship.';
+    note.style.color = 'rgba(180,60,40,.6)';
+    return;
+  }
+  note.textContent = 'Canon NPC — allowed types: ' + allowed.join(', ');
+  note.style.color = 'rgba(100,140,200,.5)';
+  // Lock select to allowed types
+  const select = document.querySelector('#rel-entry-' + idx + ' select');
+  if (select) {
+    const current = select.value;
+    select.innerHTML = ALL_REL_TYPES.map(t =>
+      allowed.includes(t) ? `<option value="${t}">${t}</option>` : ''
+    ).join('');
+    if (allowed.includes(current)) select.value = current;
+    else { select.value = allowed[0]; S.relEntries[idx].type = allowed[0]; }
+  }
+}
+
+function updateRelTypeOptions(idx, value) {
+  if (S.relEntries[idx]) S.relEntries[idx].type = value;
+}
+
+function removeRelEntry(idx) {
+  S.relEntries.splice(idx, 1);
+  // Re-render all entries
+  document.getElementById('rel-list').innerHTML = '';
+  const entries = [...S.relEntries];
+  S.relEntries = [];
+  document.getElementById('rel-add-btn').style.display = '';
+  entries.forEach(e => {
+    addRelEntry();
+    const last = S.relEntries.length - 1;
+    S.relEntries[last] = e;
+    // Restore values
+    const div = document.getElementById('rel-entry-' + last);
+    if (div) {
+      div.querySelector('input').value = e.name;
+      div.querySelector('select').value = e.type;
+      div.querySelectorAll('textarea')[0].value = e.description;
+      checkCanonNpc(last, e.name);
+    }
+  });
+}
+
+// ══════════════════════════════════════════════════════
+// PROFILE MODAL
+// ══════════════════════════════════════════════════════
+function openProfileModal(charId, name, houseFull, faceClaimUrl) {
+  const modal = document.getElementById('profile-modal');
+  const img   = document.getElementById('profile-face-img');
+  document.getElementById('profile-modal-name').textContent = name || '—';
+  document.getElementById('profile-modal-sub').textContent  = houseFull || '';
+  if (faceClaimUrl) {
+    img.src = faceClaimUrl;
+    img.style.display = 'block';
+  } else {
+    img.style.display = 'none';
+  }
+  modal.classList.add('on');
+}
+
+function closeProfileModal() {
+  document.getElementById('profile-modal').classList.remove('on');
 }
 
 function checkForm() {
@@ -2163,6 +2379,13 @@ async function beginGame() {
     hist:        [],
     npcs:        {},
     events:      [...DEFAULT_EVENTS],
+    pre_relationships: (S.relEntries || [])
+      .filter(r => r.name && r.name.trim())
+      .map(r => ({
+        name:        r.name.trim().substring(0, 60),
+        type:        r.type || 'friend',
+        description: r.description.trim().substring(0, 200),
+      })),
   };
 
   // Bio validation before creation
@@ -2188,6 +2411,34 @@ async function beginGame() {
 
   S.charId = data.id;
   S.char = { ...charData, id: data.id };
+
+  // Upload face claim if provided
+  if (S.faceClaimFile) {
+    showSpinner('Uploading portrait...');
+    const faceUrl = await uploadFaceClaim(data.id);
+    hideSpinner();
+    if (faceUrl) {
+      await sb.from('characters').update({ face_claim_url: faceUrl }).eq('id', data.id);
+      S.char.face_claim_url = faceUrl;
+    }
+  }
+
+  // Seed NPC object from pre-existing relationships so they're in memory from turn 1
+  const seededNpcs = {};
+  (charData.pre_relationships || []).forEach(r => {
+    const key = r.name.toLowerCase().trim();
+    seededNpcs[key] = [{
+      t: r.description || `Established relationship — ${r.type}`,
+      d: 1,
+      r: r.type,
+      s: 'Early Spring, 250 AC',
+    }];
+  });
+  if (Object.keys(seededNpcs).length) {
+    await sb.from('characters').update({ npcs: seededNpcs }).eq('id', data.id);
+    S.char.npcs = seededNpcs;
+  }
+
   currentScene = null;
   currentChoices = [];
   S.busy = false;
@@ -4551,5 +4802,15 @@ function renderFinances() {
   </div>
 </div>
 
+
+<!-- PROFILE MODAL -->
+<div id="profile-modal" onclick="closeProfileModal()">
+  <div class="profile-box" onclick="event.stopPropagation()">
+    <img id="profile-face-img" class="profile-face" src="" alt=""/>
+    <div class="profile-name" id="profile-modal-name">—</div>
+    <div class="profile-sub" id="profile-modal-sub">—</div>
+    <button class="profile-close" onclick="closeProfileModal()">Close</button>
+  </div>
+</div>
 </body>
 </html>
