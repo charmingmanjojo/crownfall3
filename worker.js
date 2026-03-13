@@ -29,6 +29,7 @@ export default {
 
     const path = new URL(request.url).pathname;
     if (path === '/act')          return handleAct(request, env);
+    if (path === '/saveChar')     return handleSaveChar(await request.json().catch(() => ({})), env);
     if (path === '/raven')        return handleRaven(request, env);
     if (path === '/inscribe')     return handleInscribe(request, env);
     if (path === '/scene/leave')  return handleSceneLeave(request, env);
@@ -96,6 +97,12 @@ async function handleAct(request, env) {
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
   const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
+  // Keep the story opening (first 2 msgs) for narrative anchor + the most recent 18.
+  // This prevents the AI losing the opening context when conversations get long.
+  const windowedMsgs = msgs.length > 20
+    ? [...msgs.slice(0, 2), ...msgs.slice(-18)]
+    : msgs;
+
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -107,7 +114,7 @@ async function handleAct(request, env) {
       model: 'claude-sonnet-4-6',
       max_tokens: 1000,
       system: buildSystemPrompt(char, realmSeason, guestChar),
-      messages: msgs.slice(-20),
+      messages: windowedMsgs,
     }),
   });
 
@@ -949,6 +956,20 @@ Name: ${guestChar.name} | House: ${guestChar.house_full} | Health: ${guestChar.h
 Traits: ${(guestChar.traits || []).join(', ') || 'None'}
 This is a REAL player character. They will act independently. Acknowledge both characters in the scene. Do not speak for them — only for NPCs.` : '';
 
+  // -- Story history block -- prevents the AI from re-introducing resolved situations
+  const histBlock = (c.hist && c.hist.length)
+    ? '\nSTORY SO FAR -- WHAT HAS ALREADY HAPPENED (do NOT re-introduce, reset, or replay these):\n' +
+      c.hist.slice(-6).map((h, i) => {
+        const choiceLabel = h.choice ? '[' + h.choice + ']' : '';
+        const summary = (h.narrative || '').replace(/\n+/g, ' ').substring(0, 200);
+        return (i + 1) + '. ' + choiceLabel + ' -> ' + summary;
+      }).join('\n') +
+      '\n\nCONTINUATION RULE: Continue the story as a direct consequence of the above. ' +
+      'Do not restart, reset to an earlier situation, re-introduce already-resolved NPCs or tensions, ' +
+      'or open a new unrelated scene unless the player action explicitly moves to a new location. ' +
+      'The world remembers everything above. So does every NPC in it.'
+    : '';
+
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
   // Compute overall reputation score for display in prompt
   const totalRepScore = (c.reputation || []).reduce((a, r) => a + (r.score || 0), 0);
@@ -1001,7 +1022,7 @@ Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}
-${memBlock}${repBlock}${guestBlock}
+${memBlock}${repBlock}${guestBlock}${histBlock}
 ${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
