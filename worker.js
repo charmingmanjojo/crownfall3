@@ -93,9 +93,37 @@ async function handleAct(request, env) {
     }
   }
 
+  // ── "While you were away" — inject matured NPC events into the opening turn ──
+  // Pending events that have counted down to 0 fire here as context injected before
+  // the player's action, forcing the AI to address the consequence in this scene.
+  const pendingEvents = char.pending_npc_events || [];
+  const maturedNow = pendingEvents.filter(ev => (ev.resolvesAfter || 1) <= 1);
+  const stillPending = pendingEvents.filter(ev => (ev.resolvesAfter || 1) > 1)
+    .map(ev => ({ ...ev, resolvesAfter: ev.resolvesAfter - 1 }));
+
+  let awayInjection = '';
+  if (maturedNow.length > 0 && (char.hist || []).length > 0) {
+    // Only fire if character has a history (not brand new)
+    const eventDescs = maturedNow.map(ev => {
+      const base = `${ev.npc} — ${ev.pendingEvent.replace(/_/g, ' ')}`;
+      const extra = ev.data?.note ? `: ${ev.data.note}` : '';
+      return base + extra;
+    }).join('
+');
+    awayInjection = `
+[WORLD UPDATE — things that have happened since your last scene:
+${eventDescs}
+Address at least one of these naturally in this scene.]`;
+    // Clear fired events from pending
+    await updateCharacter(characterId, { pending_npc_events: stillPending }, env).catch(() => {});
+  }
+
   // ── Build conversation — shared scene uses scene msgs, solo uses char msgs ──
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
-  const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
+  const actionWithInjection = awayInjection
+    ? `[${char.name}]: ${action}${awayInjection}`
+    : `[${char.name}]: ${action}`;
+  const msgs = [...baseMsgs, { role: 'user', content: actionWithInjection }];
 
   // When hist is populated the system prompt's CURRENT SITUATION + STORY SO FAR blocks
   // already carry the narrative context. Sending the same turns again in the message
@@ -185,9 +213,17 @@ async function handleAct(request, env) {
       // Extra guard: ensure shared scene msgs are capped before write
       const sharedMsgsCapped = newMsgs.length > 40 ? newMsgs.slice(-40) : newMsgs;
       await updateSharedScene(sceneId, { msgs: sharedMsgsCapped }, env);
-      await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
+      await updateCharacter(characterId, {
+        ...updates, growth: updates.growth, hist,
+        turn_count: updates.turnCount,
+        pending_npc_events: updates.pendingNpcEvents,
+      }, env);
     } else {
-      await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
+      await updateCharacter(characterId, {
+        ...updates, growth: updates.growth, msgs: newMsgs, hist,
+        turn_count: updates.turnCount,
+        pending_npc_events: updates.pendingNpcEvents,
+      }, env);
     }
   } catch (saveErr) {
     // The AI ran fine but the save failed — return the scene WITH a warning flag
@@ -204,9 +240,11 @@ async function handleAct(request, env) {
       saveFields: {
         // Everything updateCharacter would have written
         ...updates,
-        hist:    hist,
-        msgs:    sharedScene ? undefined : newMsgs,  // msgs only on solo saves
-        growth:  updates.growth,
+        hist:               hist,
+        msgs:               sharedScene ? undefined : newMsgs,
+        growth:             updates.growth,
+        turn_count:         updates.turnCount,
+        pending_npc_events: updates.pendingNpcEvents,
       },
     });
   }
@@ -269,7 +307,10 @@ async function handleAct(request, env) {
       growth:          updates.growth,
       conditions:      updates.conditions,
       reputation:      updates.reputation,
+      turn_count:      updates.turnCount,
+      pending_npc_events: updates.pendingNpcEvents,
     },
+    firedEvents: updates.firedEvents || [],
   });
 }
 
@@ -282,7 +323,7 @@ async function handleAct(request, env) {
 const VALID_HEALTH        = new Set(['Hale', 'Wounded', 'Grievously Wounded', 'Dead']);
 
 // ── Conditions system ──
-const VALID_CONDITION_TYPES = new Set(['illness','injury','pregnancy','mental','addiction']);
+const VALID_CONDITION_TYPES = new Set(['illness','injury','pregnancy','mental','addiction','supernatural','social']);
 const VALID_CONDITION_IDS = new Set([
   // Illness
   'autumn_fever','consumption','grey_plague','flux','pox','shivers','wound_fever',
@@ -296,6 +337,11 @@ const VALID_CONDITION_IDS = new Set([
   'grief_stricken','broken_spirit','haunted','melancholy','manic',
   // Addiction
   'milk_of_poppy','strongwine',
+  // Supernatural (Targaryen dreams, greensight, etc.)
+  'dragon_dreams','greensight','prophetic_dreams','shadow_touched','fire_resistant',
+  // Social consequences
+  'bastard_born','scandal_known','betrothal_broken','blood_debt_owed','exiled',
+  'disinherited','imprisoned','hostage',
 ]);
 const MAX_CONDITIONS = 6;
 const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
@@ -539,6 +585,39 @@ function applyStateChanges(char, parsed) {
     }
   }
 
+  // ── Pending NPC Events — time-delayed consequences ──
+  // The AI can tag an NPC with a pendingEvent that resolves after N turns.
+  // e.g. {"npc":"Mira","pendingEvent":"pregnancy_reveal","resolvesAfter":8,"data":{...}}
+  // Each turn we decrement the counter; when it hits 0 the event fires on next session load.
+  const pendingNpcEvents = [...(char.pending_npc_events || [])];
+  const firedEvents = []; // events that matured this turn — returned to client
+  const newPending = [];
+  const turnCount = (char.turn_count || 0) + 1;
+
+  pendingNpcEvents.forEach(ev => {
+    const remaining = (ev.resolvesAfter || 1) - 1;
+    if (remaining <= 0) {
+      firedEvents.push(ev); // matured — will be injected into next session opening
+    } else {
+      newPending.push({ ...ev, resolvesAfter: remaining });
+    }
+  });
+
+  // Check if AI emitted any new pending NPC events this turn
+  (parsed.pendingNpcEvents || []).forEach(ev => {
+    if (!ev.npc || !ev.pendingEvent || !ev.resolvesAfter) return;
+    // Don't duplicate — one pending event per npc+type
+    const key = ev.npc + ':' + ev.pendingEvent;
+    if (newPending.some(e => e.npc + ':' + e.pendingEvent === key)) return;
+    newPending.push({
+      npc:           String(ev.npc).substring(0, 60),
+      pendingEvent:  String(ev.pendingEvent).substring(0, 60),
+      resolvesAfter: Math.max(1, Math.min(30, Math.round(Number(ev.resolvesAfter) || 6))),
+      data:          ev.data || {},
+      createdTurn:   turnCount,
+    });
+  });
+
   // Reputation — realm-wide and regional standing
   const reputation = [...(char.reputation || [])];
   (parsed.reputationEvents || []).forEach(r => {
@@ -562,6 +641,10 @@ function applyStateChanges(char, parsed) {
     location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
+    // Pending NPC event system — time-delayed consequences
+    turnCount,
+    pendingNpcEvents: newPending,
+    firedEvents,
   };
 }
 
@@ -1389,6 +1472,7 @@ CONDITIONS TAGS — use these to track persistent health and life states:
 REPUTATION TAG — use when a character does something the realm would notice:
 {"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
 {"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
+{"pendingNpcEvent":{"npc":"Mira Flowers","pendingEvent":"pregnancy_reveal","resolvesAfter":6,"data":{"note":"She is with child. She has not said so yet. She will."}}}  ← use this when an NPC consequence is brewing but not yet ready to surface. resolvesAfter = turns until it forces its way into the story.
 
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
@@ -1431,6 +1515,8 @@ INJURY: broken_arm, broken_leg, lost_eye, lost_hand, battle_wound, deep_wound, s
 PREGNANCY: with_child_early, with_child_late, recovering_childbirth
 MENTAL: grief_stricken, broken_spirit, haunted, melancholy, manic
 ADDICTION: milk_of_poppy, strongwine
+SUPERNATURAL: dragon_dreams (Targaryen blood stirring — visions of fire and shadow), greensight (seeing through trees and animals, Northern-born), prophetic_dreams (futures that may or may not come true), shadow_touched (marked by dark magic), fire_resistant (heat does not harm as it should)
+SOCIAL: bastard_born (an illegitimate child attributed to this character), scandal_known (reputation-destroying knowledge is now public), betrothal_broken (a match has collapsed with political consequence), blood_debt_owed (someone is owed a life), exiled (formally cast out), disinherited (cut from house and inheritance), imprisoned, hostage
 
 CONDITION RULES — read carefully:
 1. Conditions are PERSISTENT. Once gained, they affect every subsequent scene until resolved.
@@ -1604,8 +1690,16 @@ function parseResponse(text) {
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
+  // pendingNpcEvents tag — AI can schedule time-delayed NPC consequences
+  const pendingNpcEvents = [];
+  for (const span of spans) {
+    try {
+      const o = JSON.parse(span.str);
+      if (o.pendingNpcEvent) { pendingNpcEvents.push(o.pendingNpcEvent); }
+    } catch {}
+  }
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, pendingNpcEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1710,6 +1804,7 @@ async function handleSaveChar(body, env) {
   const ALLOWED = new Set([
     'health','gold','income_per_turn','lands','debts','location','season',
     'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
+    'turn_count','pending_npc_events',
   ]);
   const safeFields = Object.fromEntries(
     Object.entries(fields).filter(([k]) => ALLOWED.has(k))
