@@ -2599,6 +2599,8 @@ async function act(text) {
 
   appendScene(parsed);
   showChoices(currentChoices);
+  // Update who-is-here panel in case location changed this turn
+  if (typeof renderWhoIsHere === 'function') renderWhoIsHere();
   S.busy = false;
   scrollBottom();
 }
@@ -2766,8 +2768,25 @@ function sendCustom() {
 function restoreScene() {
   const last = [...(S.char.msgs||[])].reverse().find(m => m.role === 'assistant');
   if (!last) { go('game'); return; }
+
+  // parseResp is display-only here — we use it for narrative text and choices.
+  // We do NOT re-apply state changes (conditions, growthEvents, reputationEvents)
+  // from the stored message because S.char is already the authoritative state loaded
+  // from the DB. Re-parsing inline tags here would duplicate or drop server-side changes.
   const parsed = parseResp(last.content);
-  parsed.narrative = stripXML(parsed.narrative || ''); // guard against XML bleed in stored msgs
+
+  // Strip inline JSON blobs and XML tags from the narrative before display
+  parsed.narrative = stripXML(parsed.narrative || '');
+  // Also strip any leftover inline tag JSON objects (npc memories, stat rolls, etc.)
+  parsed.narrative = parsed.narrative
+    .replace(/\{[^{}]*"npc"[^{}]*\}/g, '')
+    .replace(/\{[^{}]*"stat"[^{}]*\}/g, '')
+    .replace(/\{[^{}]*"worldEvent"[^{}]*\}/g, '')
+    .replace(/\{[^{}]*"statGrowth"[^{}]*\}/g, '')
+    .replace(/\{[^{}]*"condition[^{}]*\}/g, '')
+    .replace(/\{[^{}]*"reputation[^{}]*\}/g, '')
+    .trim();
+
   currentScene = parsed; currentChoices = parsed.choices || [];
   go('game');
   setTimeout(() => {
@@ -2842,7 +2861,7 @@ function hideSpinner() { document.getElementById('spinner').classList.remove('sh
 // API
 // ══════════════════════════════════════════════════════
 
-async function callAct(action, sceneId) {
+async function callAct(action, sceneId, attempt = 0) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 45000); // 45s max
   let res;
@@ -2861,11 +2880,21 @@ async function callAct(action, sceneId) {
   } catch(e) {
     clearTimeout(timeout);
     if (e.name === 'AbortError') throw new Error('The raven timed out. Try again.');
+    // Network blip — retry once after a short delay
+    if (attempt === 0) {
+      await new Promise(r => setTimeout(r, 2000));
+      return callAct(action, sceneId, 1);
+    }
     throw e;
   }
   clearTimeout(timeout);
   if (!res.ok) {
     const e = await res.json().catch(() => ({}));
+    // Retry once on 5xx (server hiccup), never on 4xx (bad request)
+    if (res.status >= 500 && attempt === 0) {
+      await new Promise(r => setTimeout(r, 2000));
+      return callAct(action, sceneId, 1);
+    }
     throw new Error(e.error || 'Proxy error ' + res.status);
   }
   return res.json(); // { narrative, choices, status, rolls, memories, worldEvent, charState }
@@ -2949,7 +2978,7 @@ window.addEventListener('load', async () => {
   }
 
   setInterval(tickerTick, 6500);
-  setInterval(fetchRealmClock, 60000); // update clock every minute
+  // fetchRealmClock is started by startGamePolling() — only runs while in-game
 });
 
 // ── Supabase auth state listener ──
@@ -2959,6 +2988,7 @@ sb.auth.onAuthStateChange((event, session) => {
     S.sharedSceneId = null; S.sceneActive = false; S.busy = false;
     currentScene = null; currentChoices = [];
     if (scenePollingInterval)  { clearInterval(scenePollingInterval); scenePollingInterval = null; }
+    if (clockPollingInterval)    { clearInterval(clockPollingInterval);  clockPollingInterval  = null; }
     if (presenceChannel)       { try { presenceChannel.unsubscribe();       } catch(e){} presenceChannel = null; }
     if (ravenChannel)          { try { ravenChannel.unsubscribe();           } catch(e){} ravenChannel = null; }
     if (sceneChannel)          { try { sceneChannel.unsubscribe();           } catch(e){} sceneChannel = null; }
@@ -3183,10 +3213,18 @@ async function acceptSceneInvite() {
 
 // Start polling for invites when in game
 let scenePollingInterval = null;
+let clockPollingInterval = null;
 function startScenePolling() {
   if (scenePollingInterval) clearInterval(scenePollingInterval);
+  if (clockPollingInterval) clearInterval(clockPollingInterval);
   pollSceneInvites();
-  scenePollingInterval = setInterval(pollSceneInvites, 5000);
+  fetchRealmClock();
+  scenePollingInterval = setInterval(pollSceneInvites, 20000);
+  clockPollingInterval  = setInterval(fetchRealmClock, 60000);
+}
+function stopScenePolling() {
+  if (scenePollingInterval) { clearInterval(scenePollingInterval); scenePollingInterval = null; }
+  if (clockPollingInterval)  { clearInterval(clockPollingInterval);  clockPollingInterval  = null; }
 }
 
 // ══════════════════════════════════════════════════════
