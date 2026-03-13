@@ -140,7 +140,13 @@ async function handleAct(request, env) {
   const newMsgs = [...msgs, { role: 'assistant', content: raw }];
   if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
 
+  // Push this turn into history so the STORY SO FAR block stays current
   const hist = [...(char.hist || [])];
+  hist.push({
+    choice:    action,
+    narrative: parsed.narrative ? parsed.narrative.substring(0, 300) : '',
+    rolls:     parsed.rolls || [],
+  });
   if (hist.length > 28) hist.shift();
 
   try {
@@ -343,19 +349,21 @@ function applyStateChanges(char, parsed) {
   const getCap = ageStatCap(char.age, char.traits);
 
   (parsed.growthEvents || []).forEach(g => {
-    if (!g.stat || !VALID_STATS.has(g.stat)) return;
+    // AI emits {"statGrowth":"martial","amount":1} -- the key is statGrowth, not stat
+    const statKey = g.statGrowth || g.stat;
+    if (!statKey || !VALID_STATS.has(statKey)) return;
     const amount = Math.max(0, Math.min(2, Math.round(Number(g.amount) || 1)));
-    const cap = getCap(g.stat);
-    const currentStat = stats[g.stat] || 2;
+    const cap = getCap(statKey);
+    const currentStat = stats[statKey] || 2;
 
     // Only accumulate if stat has room to grow
     if (currentStat < cap) {
-      growth[g.stat] = (growth[g.stat] || 0) + amount;
+      growth[statKey] = (growth[statKey] || 0) + amount;
       // Check if threshold reached — convert to stat point
-      if (growth[g.stat] >= GROWTH_THRESHOLD) {
+      if (growth[statKey] >= GROWTH_THRESHOLD) {
         if (currentStat < cap) {
-          stats[g.stat] = currentStat + 1;
-          growth[g.stat] = growth[g.stat] - GROWTH_THRESHOLD;
+          stats[statKey] = currentStat + 1;
+          growth[statKey] = growth[statKey] - GROWTH_THRESHOLD;
         }
       }
     }
