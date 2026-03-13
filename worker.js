@@ -97,11 +97,10 @@ async function handleAct(request, env) {
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
   const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
-  // Keep the story opening (first 2 msgs) for narrative anchor + the most recent 18.
-  // This prevents the AI losing the opening context when conversations get long.
-  const windowedMsgs = msgs.length > 20
-    ? [...msgs.slice(0, 2), ...msgs.slice(-18)]
-    : msgs;
+  // Keep the most recent 20 turns. The system prompt's CURRENT SITUATION + STORY SO FAR
+  // blocks carry all necessary narrative context -- anchoring on the opening message
+  // is counterproductive for long games (opening is irrelevant after 30+ turns).
+  const windowedMsgs = msgs.slice(-20);
 
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -141,13 +140,15 @@ async function handleAct(request, env) {
   if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
 
   // Push this turn into history so the STORY SO FAR block stays current
+  // Store the AI's own summary (one sentence) -- far more useful than raw narrative
   const hist = [...(char.hist || [])];
+  const turnSummary = String((parsed.status || {}).summary || '').substring(0, 200);
   hist.push({
-    choice:    action,
-    narrative: parsed.narrative ? parsed.narrative.substring(0, 300) : '',
-    rolls:     parsed.rolls || [],
+    choice:  action,
+    summary: turnSummary || (parsed.narrative ? parsed.narrative.replace(/\n+/g,' ').substring(0, 160) : ''),
+    rolls:   parsed.rolls || [],
   });
-  if (hist.length > 28) hist.shift();
+  if (hist.length > 30) hist.shift();
 
   try {
     if (sharedScene) {
@@ -761,6 +762,7 @@ async function handleInscribe(request, env) {
   if (!userId || !characterId || !narrativeExcerpt?.trim()) {
     return json({ error: 'Missing required fields' }, 400);
   }
+  if (!checkRateLimit('inscribe:' + userId)) return json({ error: 'Too many inscriptions.' }, 429);
 
   const char = await getCharacter(characterId, env);
   if (!char || char.user_id !== userId) return json({ error: 'Forbidden' }, 403);
@@ -964,18 +966,26 @@ Name: ${guestChar.name} | House: ${guestChar.house_full} | Health: ${guestChar.h
 Traits: ${(guestChar.traits || []).join(', ') || 'None'}
 This is a REAL player character. They will act independently. Acknowledge both characters in the scene. Do not speak for them — only for NPCs.` : '';
 
-  // -- Story history block -- prevents the AI from re-introducing resolved situations
-  const histBlock = (c.hist && c.hist.length)
-    ? '\nSTORY SO FAR -- WHAT HAS ALREADY HAPPENED (do NOT re-introduce, reset, or replay these):\n' +
-      c.hist.slice(-6).map((h, i) => {
-        const choiceLabel = h.choice ? '[' + h.choice + ']' : '';
-        const summary = (h.narrative || '').replace(/\n+/g, ' ').substring(0, 200);
-        return (i + 1) + '. ' + choiceLabel + ' -> ' + summary;
+  // -- Current situation + story history block --
+  // These appear EARLY in the prompt (right after CHARACTER) so the AI weights them highly.
+  // Uses the AI's own turn summaries -- compact, accurate, no noise.
+  const recentHist = c.hist ? c.hist.slice(-8) : [];
+  const lastEntry  = recentHist.length ? recentHist[recentHist.length - 1] : null;
+
+  const situationLine = lastEntry && lastEntry.summary
+    ? '\nCURRENT SITUATION: ' + lastEntry.summary
+    : '';
+
+  const histBlock = recentHist.length > 1
+    ? '\n\nSTORY SO FAR (most recent first — do NOT re-introduce any of this):\n' +
+      recentHist.slice(0, -1).reverse().map((h, i) => {
+        const act = h.choice ? h.choice.substring(0, 80) : '';
+        const sum = (h.summary || '').substring(0, 160);
+        return (i + 1) + '. [' + act + '] ' + sum;
       }).join('\n') +
-      '\n\nCONTINUATION RULE: Continue the story as a direct consequence of the above. ' +
-      'Do not restart, reset to an earlier situation, re-introduce already-resolved NPCs or tensions, ' +
-      'or open a new unrelated scene unless the player action explicitly moves to a new location. ' +
-      'The world remembers everything above. So does every NPC in it.'
+      '\n\nCONTINUATION RULE: The narrative continues directly from CURRENT SITUATION above. ' +
+      'Every NPC, tension, and consequence from the Story So Far persists. ' +
+      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
     : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
@@ -1029,8 +1039,8 @@ Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the
 Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
-${financeBlock}
-${memBlock}${repBlock}${guestBlock}${histBlock}
+${financeBlock}${situationLine}${histBlock}
+${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
