@@ -969,7 +969,7 @@ This is a REAL player character. They will act independently. Acknowledge both c
   // -- Current situation + story history block --
   // These appear EARLY in the prompt (right after CHARACTER) so the AI weights them highly.
   // Uses the AI's own turn summaries -- compact, accurate, no noise.
-  const recentHist = c.hist ? c.hist.slice(-8) : [];
+  const recentHist = c.hist ? c.hist.slice(-12) : [];
   const lastEntry  = recentHist.length ? recentHist[recentHist.length - 1] : null;
 
   const situationLine = lastEntry && lastEntry.summary
@@ -980,12 +980,14 @@ This is a REAL player character. They will act independently. Acknowledge both c
     ? '\n\nSTORY SO FAR (most recent first — do NOT re-introduce any of this):\n' +
       recentHist.slice(0, -1).reverse().map((h, i) => {
         const act = h.choice ? h.choice.substring(0, 80) : '';
-        const sum = (h.summary || '').substring(0, 160);
+        const sum = (h.summary || '').substring(0, 240);
         return (i + 1) + '. [' + act + '] ' + sum;
       }).join('\n') +
       '\n\nCONTINUATION RULE: The narrative continues directly from CURRENT SITUATION above. ' +
       'Every NPC, tension, and consequence from the Story So Far persists. ' +
-      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
+      'Named NPCs remember every prior interaction — they do not reset between scenes. ' +
+      'Do NOT restart, reset to an earlier scene, re-introduce already-resolved situations, ' +
+      'or treat any named NPC as a stranger if they have appeared before.'
     : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
@@ -1341,7 +1343,12 @@ REPUTATION RULES:
   will find guards' hands near their swords.
 
 NPC MEMORY RULES — read carefully:
-- Fire the npc tag once per scene per NPC, only when something meaningful happened.
+- Fire the npc tag for EVERY named NPC who appears in a scene, without exception.
+  Even a brief interaction warrants a tag. This is how NPCs persist across sessions.
+- If an NPC already exists in NPC RELATIONSHIPS above, you MUST still tag them each
+  scene they appear in — their entry updates, it does not reset.
+- An NPC named in a previous scene who reappears MUST be treated as remembered.
+  They do not forget the player. Continuity is absolute.
 - The memory text must be SPECIFIC and NEW — not a summary of what already existed.
   "Shared a cup of wine and discussed the Blackfyre threat" not "Met again at the feast."
 - relationship: the nature of this connection. Use the most accurate term:
