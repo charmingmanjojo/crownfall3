@@ -1740,8 +1740,22 @@ async function updateSharedScene(id, fields, env) {
   );
 }
 
+// Columns that exist in the base schema — always safe to write
+const BASE_CHAR_COLUMNS = new Set([
+  'name','age','gender','nickname','house_key','house_full','region','relation',
+  'appear','backstory','personality','stats','traits','health','location','season',
+  'dead','death_narrative','death_summary','gold','msgs','hist','npcs','events',
+  'income_per_turn','lands','debts','growth','conditions','updated_at',
+  // Extended columns — added via migration
+  'reputation','turn_count','pending_npc_events',
+]);
+
 async function updateCharacter(id, fields, env, retries = 3) {
-  const body = JSON.stringify({ ...fields, updated_at: new Date().toISOString() });
+  // Strip any keys not in the known column list to prevent 400s from unknown columns
+  const safeFields = Object.fromEntries(
+    Object.entries(fields).filter(([k]) => BASE_CHAR_COLUMNS.has(k))
+  );
+  const body = JSON.stringify({ ...safeFields, updated_at: new Date().toISOString() });
   const url  = `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`;
   const hdrs = {
     'apikey': env.SUPABASE_SERVICE_KEY,
@@ -1772,15 +1786,24 @@ async function updateCharacter(id, fields, env, retries = 3) {
 // SAVE CHAR — retry endpoint for failed saves
 // ══════════════════════════════════════════════════════════════
 async function handleSaveChar(body, env) {
-  const { characterId, fields, userToken } = body;
+  const { characterId, fields, userToken, debugKey } = body;
   if (!characterId || !fields) return json({ error: 'Missing fields' }, 400);
-  // Verify ownership
+
+  // Two paths:
+  // A) Normal save retry — user token only, restricted to fields /act would write
+  // B) Debug write — requires ADMIN_KEY, can write any allowed field including
+  //    gold/stats/conditions injected via the stress-test panel
+  const isDebugWrite = !!debugKey;
+  if (isDebugWrite && debugKey !== env.ADMIN_KEY) {
+    return json({ error: 'Unauthorized.' }, 403);
+  }
+
+  // Verify user owns this character via their session token
   const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
     headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${userToken}` }
   }).catch(() => null);
   if (!userRes?.ok) return json({ error: 'Unauthorized' }, 401);
   const user = await userRes.json();
-  // Confirm character belongs to this user
   const charRes = await fetch(
     `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(characterId)}&select=user_id`,
     { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
@@ -1788,16 +1811,20 @@ async function handleSaveChar(body, env) {
   const chars = await charRes.json();
   if (!chars?.[0] || chars[0].user_id !== user.id) return json({ error: 'Forbidden' }, 403);
 
-  // Whitelist only the fields that a retry save is allowed to write.
-  // This prevents a client from overwriting arbitrary columns and ensures
-  // npcs/hist/msgs from a failed turn are correctly recovered.
-  const ALLOWED = new Set([
+  // Field whitelists — normal retries get a tighter set than debug writes
+  const RETRY_FIELDS = new Set([
     'health','gold','income_per_turn','lands','debts','location','season',
     'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
     'turn_count','pending_npc_events',
   ]);
+  const DEBUG_FIELDS = new Set([
+    'health','gold','income_per_turn','lands','debts','location','season',
+    'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
+    'turn_count','pending_npc_events',
+  ]);
+  const allowed = isDebugWrite ? DEBUG_FIELDS : RETRY_FIELDS;
   const safeFields = Object.fromEntries(
-    Object.entries(fields).filter(([k]) => ALLOWED.has(k))
+    Object.entries(fields).filter(([k]) => allowed.has(k))
   );
   if (!Object.keys(safeFields).length) return json({ error: 'No valid fields' }, 400);
 
