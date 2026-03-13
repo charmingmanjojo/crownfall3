@@ -97,10 +97,13 @@ async function handleAct(request, env) {
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
   const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
-  // Keep the most recent 20 turns. The system prompt's CURRENT SITUATION + STORY SO FAR
-  // blocks carry all necessary narrative context -- anchoring on the opening message
-  // is counterproductive for long games (opening is irrelevant after 30+ turns).
-  const windowedMsgs = msgs.slice(-20);
+  // When hist is populated the system prompt's CURRENT SITUATION + STORY SO FAR blocks
+  // already carry the narrative context. Sending the same turns again in the message
+  // window is redundant and causes the AI to echo/re-introduce resolved scenes.
+  // Use a tighter window (10) when hist has content; fall back to 20 for fresh games.
+  const histLen = (char.hist || []).length;
+  const msgWindow = histLen >= 3 ? 10 : 20;
+  const windowedMsgs = msgs.slice(-msgWindow);
 
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -111,7 +114,7 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 700,
       system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: windowedMsgs,
     }),
@@ -969,7 +972,7 @@ This is a REAL player character. They will act independently. Acknowledge both c
   // -- Current situation + story history block --
   // These appear EARLY in the prompt (right after CHARACTER) so the AI weights them highly.
   // Uses the AI's own turn summaries -- compact, accurate, no noise.
-  const recentHist = c.hist ? c.hist.slice(-8) : [];
+  const recentHist = c.hist ? c.hist.slice(-5) : [];
   const lastEntry  = recentHist.length ? recentHist[recentHist.length - 1] : null;
 
   const situationLine = lastEntry && lastEntry.summary
@@ -985,7 +988,9 @@ This is a REAL player character. They will act independently. Acknowledge both c
       }).join('\n') +
       '\n\nCONTINUATION RULE: The narrative continues directly from CURRENT SITUATION above. ' +
       'Every NPC, tension, and consequence from the Story So Far persists. ' +
-      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
+      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations. ' +
+      'Do NOT offer choices that mirror or repeat what was just done. ' +
+      'The player has already acted — the world now responds. Move forward only.'
     : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
@@ -1234,7 +1239,7 @@ RULES:
 4. Named NPCs remember what the character has done and act on it accordingly.
 5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
 6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
-7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious.
+7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious. CRITICAL: Choices must be DISTINCT from each other and must NOT repeat or rephrase the action the player just took. If the player just insulted a lord, do not offer "insult him again" as a choice.
 8. The world moves without the character. Events happen offstage. Time passes.
 9. Custom player actions get resolved honestly — even if the result is fatal.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
@@ -1662,7 +1667,7 @@ async function generateRealmSummary(stats, env) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 350,
       messages: [{ role: 'user', content:
         `You are Grand Maester Pycelle writing a private intelligence report for the small council of King Aegon V Targaryen. The year is 250 AC. The king is reformist and his lords are restless.\n\nBased on this intelligence, write one flowing paragraph (5-7 sentences) on the state of the realm. Be specific. Name names. Be slightly ominous.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph.`
