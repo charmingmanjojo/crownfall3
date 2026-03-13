@@ -328,6 +328,26 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 /* ── MODAL ── */
 .modal-bg{display:none;position:fixed;inset:0;background:rgba(3,1,0,.92);z-index:500;align-items:center;justify-content:center;overflow-y:auto}
 .modal-bg.open{display:flex}
+/* ── DEBUG PANEL ── */
+#debug-modal{z-index:9999}
+.debug-wrap{background:rgba(8,12,28,.97);border:1px solid rgba(180,100,20,.4);width:560px;max-width:96vw;max-height:88vh;overflow-y:auto;padding:28px;position:relative}
+.debug-title{font-family:'Cinzel',serif;font-size:16px;color:rgba(220,150,60,.9);letter-spacing:.15em;margin-bottom:4px}
+.debug-sub{font-size:11px;font-style:italic;color:rgba(100,140,200,.4);margin-bottom:22px}
+.debug-section{margin-bottom:22px;border-top:1px solid rgba(60,90,150,.12);padding-top:16px}
+.debug-section:first-of-type{border-top:none;padding-top:0}
+.debug-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.25em;color:rgba(180,100,20,.7);text-transform:uppercase;margin-bottom:10px;display:block}
+.debug-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+.debug-input{background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:5px 0;outline:none;flex:1;min-width:80px}
+.debug-input:focus{border-bottom-color:rgba(180,100,20,.6)}
+.debug-select{background:rgba(8,12,28,.9);border:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;padding:5px 8px;outline:none;flex:1}
+.debug-btn{background:transparent;border:1px solid rgba(180,100,20,.35);color:rgba(220,150,60,.8);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;padding:6px 14px;cursor:pointer;text-transform:uppercase;transition:all .18s;white-space:nowrap}
+.debug-btn:hover{background:rgba(180,100,20,.1);border-color:rgba(220,150,60,.6)}
+.debug-btn.danger{border-color:rgba(180,40,20,.3);color:rgba(200,80,60,.7)}
+.debug-btn.danger:hover{background:rgba(180,40,20,.1);border-color:rgba(200,80,60,.5)}
+.debug-feedback{font-size:11px;font-style:italic;color:rgba(100,180,100,.6);margin-top:6px;min-height:16px}
+.debug-cond-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px}
+.debug-close{position:absolute;top:14px;right:16px;background:transparent;border:none;color:rgba(100,140,200,.3);font-size:18px;cursor:pointer;line-height:1}
+.debug-close:hover{color:var(--dim)}
 .modal-box{max-width:560px;width:100%;margin:20px;background:rgba(10,7,3,.98);border:1px solid rgba(100,78,35,.2);padding:30px 26px;position:relative}
 .modal-close{position:absolute;top:13px;right:14px;background:transparent;border:none;color:var(--dim);font-size:18px;cursor:pointer}
 .modal-close:hover{color:var(--text)}
@@ -634,6 +654,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <button class="tb-btn" onclick="openSheet()">Character</button>
       <button class="tb-btn" onclick="goChars()">Characters</button>
       <button class="tb-btn danger" onclick="confirmNewChar()">New Char</button>
+      <button class="tb-btn" onclick="openDebug()" title="Stress Test Panel" style="border-color:rgba(180,100,20,.4);color:rgba(220,150,60,.8)">⚙ Debug</button>
     </div>
   </div>
   <div class="game-cols">
@@ -1671,6 +1692,8 @@ async function loadChar(id) {
     gold: data.gold || 100,
     conditions: data.conditions || [],
     reputation: data.reputation || [],
+    pending_npc_events: data.pending_npc_events || [],
+    turn_count: data.turn_count || 0,
   };
 
   if (data.dead) {
@@ -2558,6 +2581,8 @@ async function act(text) {
       mountStatDisplay();
     }
     if (cs.growth) { S.char.growth = cs.growth; }
+    if (cs.turn_count != null) { S.char.turn_count = cs.turn_count; }
+    if (cs.pending_npc_events) { S.char.pending_npc_events = cs.pending_npc_events; }
     if (cs.reputation) {
       const prevRepCount = (S.char.reputation || []).length;
       S.char.reputation = cs.reputation;
@@ -2589,6 +2614,8 @@ async function act(text) {
   }
 
   // NPC memories are shown via the Known Persons panel (click for full history)
+  // Handle any matured pending NPC events — show as toasts
+  if (resp.firedEvents?.length) handleFiredEvents(resp.firedEvents);
 
   removeLoading();
 
@@ -3224,6 +3251,249 @@ function startScenePolling() {
   scenePollingInterval = setInterval(pollSceneInvites, 20000);
   clockPollingInterval  = setInterval(fetchRealmClock, 60000);
 }
+// ══════════════════════════════════════════════════════
+// DEBUG / STRESS TEST PANEL
+// ══════════════════════════════════════════════════════
+const DEBUG_CONDITIONS = [
+  // Illness
+  {id:'autumn_fever',label:'Autumn Fever',type:'illness'},
+  {id:'consumption',label:'Consumption',type:'illness'},
+  {id:'grey_plague',label:'Grey Plague',type:'illness'},
+  {id:'flux',label:'The Flux',type:'illness'},
+  {id:'pox',label:'Pox',type:'illness'},
+  {id:'shivers',label:'The Shivers',type:'illness'},
+  {id:'wound_fever',label:'Wound Fever',type:'illness'},
+  {id:'childbed_fever',label:'Childbed Fever',type:'illness'},
+  {id:'infected_wound',label:'Infected Wound',type:'illness'},
+  {id:'milk_of_poppy_sickness',label:'Milk of Poppy Sickness',type:'illness'},
+  // Injury
+  {id:'broken_arm',label:'Broken Arm',type:'injury'},
+  {id:'broken_leg',label:'Broken Leg',type:'injury'},
+  {id:'lost_eye',label:'Lost Eye',type:'injury'},
+  {id:'lost_hand',label:'Lost Hand',type:'injury'},
+  {id:'battle_wound',label:'Battle Wound',type:'injury'},
+  {id:'deep_wound',label:'Deep Wound',type:'injury'},
+  {id:'scarred_face',label:'Scarred Face',type:'injury'},
+  {id:'burn_wounds',label:'Burn Wounds',type:'injury'},
+  {id:'arrow_wound',label:'Arrow Wound',type:'injury'},
+  // Pregnancy
+  {id:'with_child_early',label:'With Child (Early)',type:'pregnancy'},
+  {id:'with_child_late',label:'With Child (Late)',type:'pregnancy'},
+  {id:'recovering_childbirth',label:'Recovering from Childbirth',type:'pregnancy'},
+  // Mental
+  {id:'grief_stricken',label:'Grief-Stricken',type:'mental'},
+  {id:'broken_spirit',label:'Broken Spirit',type:'mental'},
+  {id:'haunted',label:'Haunted',type:'mental'},
+  {id:'melancholy',label:'Melancholy',type:'mental'},
+  {id:'manic',label:'Manic',type:'mental'},
+  // Addiction
+  {id:'milk_of_poppy',label:'Milk of Poppy Dependency',type:'addiction'},
+  {id:'strongwine',label:'Strongwine Dependency',type:'addiction'},
+  // Supernatural
+  {id:'dragon_dreams',label:'Dragon Dreams',type:'supernatural'},
+  {id:'greensight',label:'Greensight',type:'supernatural'},
+  {id:'prophetic_dreams',label:'Prophetic Dreams',type:'supernatural'},
+  {id:'shadow_touched',label:'Shadow Touched',type:'supernatural'},
+  {id:'fire_resistant',label:'Fire Resistant',type:'supernatural'},
+  // Social
+  {id:'bastard_born',label:'Bastard Born (attributed)',type:'social'},
+  {id:'scandal_known',label:'Scandal Known',type:'social'},
+  {id:'betrothal_broken',label:'Betrothal Broken',type:'social'},
+  {id:'blood_debt_owed',label:'Blood Debt Owed',type:'social'},
+  {id:'exiled',label:'Exiled',type:'social'},
+  {id:'disinherited',label:'Disinherited',type:'social'},
+  {id:'imprisoned',label:'Imprisoned',type:'social'},
+  {id:'hostage',label:'Hostage',type:'social'},
+];
+
+function openDebug() {
+  if (!S.char) { showToast('Debug', 'Load a character first.'); return; }
+  // Populate stats inputs
+  const grid = document.getElementById('db-stats-grid');
+  grid.innerHTML = ['martial','diplomacy','intrigue','stewardship','learning'].map(stat => `
+    <div>
+      <div style="font-family:'Cinzel',serif;font-size:8px;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:4px">${stat}</div>
+      <input class="debug-input" id="db-stat-${stat}" type="number" min="1" max="10"
+        value="${(S.char.stats || {})[stat] || 2}" style="width:100%"/>
+    </div>`).join('');
+  // Populate condition dropdown
+  const sel = document.getElementById('db-cond-id');
+  sel.innerHTML = DEBUG_CONDITIONS.map(c =>
+    `<option value="${c.id}" data-type="${c.type}">[${c.type}] ${c.label}</option>`
+  ).join('');
+  refreshDebugState();
+  document.getElementById('debug-modal').classList.add('open');
+}
+
+function closeDebug() { document.getElementById('debug-modal').classList.remove('open'); }
+
+function refreshDebugState() {
+  // Active conditions
+  const conds = S.char?.conditions || [];
+  const condEl = document.getElementById('db-active-conds');
+  if (conds.length) {
+    condEl.innerHTML = conds.map(c =>
+      `<span style="display:inline-block;margin:2px 4px 2px 0;padding:2px 7px;border:1px solid rgba(60,90,150,.2);font-size:10px">
+        ${esc(c.label)} <span style="color:rgba(180,100,20,.6)">sev ${c.severity}</span>
+        <span style="cursor:pointer;color:rgba(180,60,40,.5);margin-left:4px" onclick="debugRemoveCondition('${c.id}')">✕</span>
+      </span>`
+    ).join('');
+  } else {
+    condEl.textContent = 'None';
+  }
+  // Pending events
+  const pending = S.char?.pending_npc_events || [];
+  const pendEl = document.getElementById('db-pending-list');
+  if (pending.length) {
+    pendEl.innerHTML = pending.map((ev, i) =>
+      `<div style="margin:3px 0">${esc(ev.npc)} — ${esc(ev.pendingEvent)} (fires in ${ev.resolvesAfter} turn${ev.resolvesAfter===1?'':'s'})
+        <span style="cursor:pointer;color:rgba(180,60,40,.5);margin-left:6px" onclick="debugRemovePending(${i})">✕</span>
+      </div>`
+    ).join('');
+  } else {
+    pendEl.textContent = 'None scheduled';
+  }
+  // Gold
+  document.getElementById('db-gold').value = S.char?.gold || 0;
+}
+
+async function debugPatch(fields, feedbackId, successMsg) {
+  const fb = document.getElementById(feedbackId);
+  fb.style.color = 'rgba(100,180,100,.6)';
+  fb.textContent = 'Saving...';
+  try {
+    const res = await fetch(PROXY_URL + '/saveChar', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        characterId: S.charId,
+        fields,
+        userToken: S.session?.access_token,
+      }),
+    });
+    if (!res.ok) throw new Error('Save failed');
+    // Update local state
+    Object.assign(S.char, fields);
+    fb.textContent = successMsg || '✓ Saved';
+    refreshDebugState();
+    // Re-render relevant panels
+    if (fields.gold != null) updateGoldDisplay(fields.gold, 0);
+    if (fields.stats) mountStatDisplay();
+    if (fields.conditions) renderConditions();
+    setTimeout(() => { fb.textContent = ''; }, 3000);
+  } catch(e) {
+    fb.style.color = 'rgba(180,60,40,.6)';
+    fb.textContent = '✗ ' + e.message;
+  }
+}
+
+async function debugSetGold() {
+  const val = parseInt(document.getElementById('db-gold').value);
+  if (isNaN(val) || val < 0) { document.getElementById('db-gold-fb').textContent = 'Invalid amount'; return; }
+  await debugPatch({ gold: val }, 'db-gold-fb', `✓ Gold set to ${val}`);
+}
+
+async function debugAddGold() {
+  const delta = parseInt(document.getElementById('db-gold-add').value);
+  if (isNaN(delta)) { document.getElementById('db-gold-fb').textContent = 'Invalid amount'; return; }
+  const newGold = Math.max(0, (S.char?.gold || 0) + delta);
+  await debugPatch({ gold: newGold }, 'db-gold-fb', `✓ Gold ${delta >= 0 ? '+' : ''}${delta} → ${newGold}`);
+}
+
+async function debugSetStats() {
+  const stats = { ...(S.char?.stats || {}) };
+  ['martial','diplomacy','intrigue','stewardship','learning'].forEach(stat => {
+    const val = parseInt(document.getElementById('db-stat-' + stat)?.value);
+    if (!isNaN(val)) stats[stat] = Math.max(1, Math.min(10, val));
+  });
+  await debugPatch({ stats }, 'db-stats-fb', '✓ Stats updated');
+}
+
+async function debugAddCondition() {
+  const sel = document.getElementById('db-cond-id');
+  const id   = sel.value;
+  const type = sel.options[sel.selectedIndex]?.dataset?.type || 'illness';
+  const sev  = parseInt(document.getElementById('db-cond-sev').value) || 2;
+  const note = document.getElementById('db-cond-note').value.trim();
+  const def  = DEBUG_CONDITIONS.find(c => c.id === id);
+  if (!def) return;
+
+  const existing = S.char?.conditions || [];
+  if (existing.some(c => c.id === id)) {
+    document.getElementById('db-cond-fb').textContent = 'Condition already active';
+    return;
+  }
+  const newCond = { id, label: def.label, type, severity: sev, onset: S.char?.season || '', note };
+  const conditions = [...existing, newCond];
+  await debugPatch({ conditions }, 'db-cond-fb', `✓ ${def.label} added (severity ${sev})`);
+}
+
+async function debugRemoveCondition(id) {
+  const conditions = (S.char?.conditions || []).filter(c => c.id !== id);
+  S.char.conditions = conditions;
+  renderConditions();
+  await debugPatch({ conditions }, 'db-cond-fb', '✓ Condition removed');
+}
+
+async function debugAddPendingEvent() {
+  const npc    = document.getElementById('db-pev-npc').value.trim();
+  const type   = document.getElementById('db-pev-type').value.trim();
+  const turns  = parseInt(document.getElementById('db-pev-turns').value) || 1;
+  const note   = document.getElementById('db-pev-note').value.trim();
+  if (!npc || !type) { document.getElementById('db-pev-fb').textContent = 'NPC name and event type required'; return; }
+  const pending = [...(S.char?.pending_npc_events || [])];
+  pending.push({ npc, pendingEvent: type, resolvesAfter: turns, data: { note }, createdTurn: S.char?.turn_count || 0 });
+  await debugPatch({ pending_npc_events: pending }, 'db-pev-fb', `✓ Scheduled: ${npc} — ${type} in ${turns} turn(s)`);
+}
+
+async function debugRemovePending(idx) {
+  const pending = (S.char?.pending_npc_events || []).filter((_, i) => i !== idx);
+  await debugPatch({ pending_npc_events: pending }, 'db-pev-fb', '✓ Event removed');
+}
+
+async function debugInject(condId, note) {
+  const def = DEBUG_CONDITIONS.find(c => c.id === condId);
+  if (!def) return;
+  const existing = S.char?.conditions || [];
+  if (existing.some(c => c.id === condId)) { showToast('Debug', def.label + ' already active'); return; }
+  const conditions = [...existing, { id: condId, label: def.label, type: def.type, severity: 2, onset: S.char?.season || '', note }];
+  S.char.conditions = conditions;
+  renderConditions();
+  await debugPatch({ conditions }, 'db-cond-fb', `✓ ${def.label} injected`);
+  openDebug(); // refresh panel
+}
+
+async function debugInjectPending(npc, type, turns, note) {
+  const pending = [...(S.char?.pending_npc_events || [])];
+  pending.push({ npc, pendingEvent: type, resolvesAfter: turns, data: { note }, createdTurn: S.char?.turn_count || 0 });
+  S.char.pending_npc_events = pending;
+  await debugPatch({ pending_npc_events: pending }, 'db-pev-fb', `✓ Scheduled: ${npc} fires in ${turns} turn(s)`);
+  openDebug();
+}
+
+async function debugClearConditions() {
+  await debugPatch({ conditions: [] }, 'db-cond-fb', '✓ All conditions cleared');
+}
+
+async function debugClearPending() {
+  await debugPatch({ pending_npc_events: [] }, 'db-pev-fb', '✓ Pending events cleared');
+}
+
+async function debugResetTurnCount() {
+  S.char.turn_count = 0;
+  await debugPatch({ turn_count: 0 }, 'db-pev-fb', '✓ Turn count reset to 0');
+}
+
+// ── Handle firedEvents returned by server after each act() ──
+// Show them as toasts so the player knows consequences have arrived
+function handleFiredEvents(firedEvents) {
+  if (!Array.isArray(firedEvents) || !firedEvents.length) return;
+  firedEvents.forEach(ev => {
+    const msg = ev.data?.note || ev.pendingEvent.replace(/_/g, ' ');
+    showToast('⏳ ' + esc(ev.npc), msg, 7000);
+  });
+}
+
 function stopScenePolling() {
   if (scenePollingInterval) { clearInterval(scenePollingInterval); scenePollingInterval = null; }
   if (clockPollingInterval)  { clearInterval(clockPollingInterval);  clockPollingInterval  = null; }
@@ -3992,5 +4262,91 @@ function renderFinances() {
     <button class="begin-btn" style="width:auto;padding:8px 20px" onclick="acceptSceneInvite()">Accept</button>
   </div>
 </div>
+<!-- ══ DEBUG / STRESS TEST PANEL ══ -->
+<div class="modal-bg" id="debug-modal">
+  <div class="debug-wrap">
+    <button class="debug-close" onclick="closeDebug()">✕</button>
+    <div class="debug-title">⚙ Stress Test Panel</div>
+    <div class="debug-sub">Direct character state injection — bypasses normal game flow</div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">💰 Gold</span>
+      <div class="debug-row">
+        <input class="debug-input" id="db-gold" type="number" placeholder="Amount to set" style="max-width:160px"/>
+        <button class="debug-btn" onclick="debugSetGold()">Set Gold</button>
+        <input class="debug-input" id="db-gold-add" type="number" placeholder="Amount to add/remove" style="max-width:160px"/>
+        <button class="debug-btn" onclick="debugAddGold()">± Add</button>
+      </div>
+      <div class="debug-feedback" id="db-gold-fb"></div>
+    </div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">⚔ Stats</span>
+      <div id="db-stats-grid" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:8px"></div>
+      <button class="debug-btn" onclick="debugSetStats()">Apply Stats</button>
+      <div class="debug-feedback" id="db-stats-fb"></div>
+    </div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">🩸 Add Condition</span>
+      <div class="debug-row">
+        <select class="debug-select" id="db-cond-id"></select>
+        <select class="debug-select" id="db-cond-sev" style="max-width:90px">
+          <option value="1">Sev 1</option>
+          <option value="2" selected>Sev 2</option>
+          <option value="3">Sev 3</option>
+          <option value="4">Sev 4</option>
+        </select>
+        <button class="debug-btn" onclick="debugAddCondition()">Add</button>
+      </div>
+      <div class="debug-row">
+        <input class="debug-input" id="db-cond-note" placeholder="Note (optional — e.g. 'visions of black fire')"/>
+      </div>
+      <div class="debug-section" style="margin-bottom:8px;padding-top:8px">
+        <span class="debug-lbl" style="font-size:7px">Active Conditions</span>
+        <div id="db-active-conds" style="font-size:11px;font-style:italic;color:rgba(100,140,200,.5)">None</div>
+      </div>
+      <div class="debug-feedback" id="db-cond-fb"></div>
+    </div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">⏳ Pending NPC Events</span>
+      <div class="debug-row">
+        <input class="debug-input" id="db-pev-npc" placeholder="NPC full name (e.g. Mira Flowers)"/>
+        <input class="debug-input" id="db-pev-type" placeholder="Event type (e.g. pregnancy_reveal)"/>
+      </div>
+      <div class="debug-row">
+        <input class="debug-input" id="db-pev-turns" type="number" placeholder="Turns until fire" value="1" style="max-width:120px"/>
+        <input class="debug-input" id="db-pev-note" placeholder="Note for AI (e.g. she is with child)"/>
+        <button class="debug-btn" onclick="debugAddPendingEvent()">Schedule</button>
+      </div>
+      <div id="db-pending-list" style="font-size:11px;font-style:italic;color:rgba(100,140,200,.5);margin-top:6px">None scheduled</div>
+      <div class="debug-feedback" id="db-pev-fb"></div>
+    </div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">🗂 Quick Inject</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="debug-btn" onclick="debugInject('dragon_dreams','Targaryen blood stirring — black fire, shadow wings, the smell of ash')">🔥 Dragon Dreams</button>
+        <button class="debug-btn" onclick="debugInject('greensight','Seeing through the weirwood — flashes of past and future mixed with present')">🌿 Greensight</button>
+        <button class="debug-btn" onclick="debugInject('with_child_early','The signs are there for those who know to look')">🌿 With Child</button>
+        <button class="debug-btn" onclick="debugInject('bastard_born','A child bearing the character\'s features has been born. The mother has named it.')">👶 Bastard Born</button>
+        <button class="debug-btn" onclick="debugInject('milk_of_poppy','Dependency developing — the relief it brings is becoming necessary')">⚗ Milk of Poppy</button>
+        <button class="debug-btn" onclick="debugInject('scandal_known','What was done in private is now spoken of openly in the halls')">💬 Scandal</button>
+        <button class="debug-btn" onclick="debugInjectPending('Mira','pregnancy_reveal',1,'She is with child. She has not said so yet.')">Mira Pregnant →</button>
+      </div>
+    </div>
+
+    <div class="debug-section">
+      <span class="debug-lbl">⚠ Danger Zone</span>
+      <div style="display:flex;gap:8px">
+        <button class="debug-btn danger" onclick="debugClearConditions()">Clear All Conditions</button>
+        <button class="debug-btn danger" onclick="debugClearPending()">Clear Pending Events</button>
+        <button class="debug-btn danger" onclick="debugResetTurnCount()">Reset Turn Count</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
