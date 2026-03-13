@@ -103,7 +103,24 @@ async function handleAct(request, env) {
   // Use a tighter window (10) when hist has content; fall back to 20 for fresh games.
   const histLen = (char.hist || []).length;
   const msgWindow = histLen >= 3 ? 10 : 20;
-  const windowedMsgs = msgs.slice(-msgWindow);
+
+  // For older assistant messages (not the most recent), strip the narrative prose and
+  // replace with just the summary. This prevents the AI from pattern-matching to its own
+  // previous scene descriptions and replaying them.
+  const rawWindow = msgs.slice(-msgWindow);
+  const windowedMsgs = rawWindow.map((m, i) => {
+    // Always keep user messages and the last assistant message intact
+    if (m.role === 'user') return m;
+    if (i === rawWindow.length - 1) return m; // most recent assistant msg kept full
+    // For older assistant messages: extract just the summary from <status> if present
+    const summaryMatch = m.content && m.content.match(/"summary"\s*:\s*"([^"]{0,200})"/);
+    if (summaryMatch) {
+      return { role: 'assistant', content: `[Scene summary: ${summaryMatch[1]}]` };
+    }
+    // Fallback: truncate to first 200 chars of narrative so context isn't lost entirely
+    const narrativeMatch = m.content && m.content.match(/<narrative>([\s\S]{0,200})/);
+    return { role: 'assistant', content: narrativeMatch ? `[Scene: ${narrativeMatch[1].trim()}...]` : '[Scene continued]' };
+  });
 
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -114,7 +131,7 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 700,
+      max_tokens: 850,
       system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: windowedMsgs,
     }),
@@ -1239,12 +1256,14 @@ RULES:
 4. Named NPCs remember what the character has done and act on it accordingly.
 5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
 6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
-7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious. CRITICAL: Choices must be DISTINCT from each other and must NOT repeat or rephrase the action the player just took. If the player just insulted a lord, do not offer "insult him again" as a choice.
+7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious. CRITICAL: Choices must be DISTINCT from each other and must NOT repeat or rephrase the action the player just took. If the player just insulted a lord, do not offer "insult him again" as a choice. Each choice must represent a genuinely different path: one bold, one cautious, one social, one observational — never two choices that achieve the same thing differently.
 8. The world moves without the character. Events happen offstage. Time passes.
 9. Custom player actions get resolved honestly — even if the result is fatal.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
 11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
 12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
+13. VAGUE OR META INPUT: If the player's action is vague, out-of-character, or meta (e.g. "he flirts", "he wishes", "he is a fool", single-word inputs), do NOT replay the current scene. Interpret the intent charitably, pick the most logical story beat, and advance. Never stall or loop.
+14. SCENE LOCK — MOST IMPORTANT ANTI-REPETITION RULE: Once a scene has concluded, it is permanently CLOSED. Do not re-describe it, replay it, or have characters re-experience it under any circumstances. If the STORY SO FAR shows Rodrick already told Lysa about the wrists — that scene is over. The corridor is empty. Time has moved. Write what comes NEXT, not what already happened.
 
 PROTAGONIST BIAS — this is one of the most important rules:
 The player character is NOT the main character of the world. They are one person among
