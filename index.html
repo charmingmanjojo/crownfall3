@@ -718,6 +718,20 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
           <button class="start-btn" onclick="startStory()">Begin Your Story</button>
         </div>
       </div>
+      <!-- Free RP bar — shown only in shared scenes -->
+      <div class="free-rp-bar" id="free-rp-bar">
+        <span style="font-family:'Cinzel',serif;font-size:8px;letter-spacing:.2em;text-transform:uppercase;color:var(--dim)">Scene Mode</span>
+        <button class="free-rp-toggle" id="free-rp-toggle-btn" onclick="toggleFreeRP(true)">💬 Free Roleplay</button>
+        <button class="free-rp-toggle" id="ai-rp-toggle-btn" onclick="toggleFreeRP(false)">⚔ AI Narrated</button>
+        <span id="free-rp-status" style="font-size:10px;font-style:italic;color:rgba(100,140,200,.35)">AI is narrating</span>
+      </div>
+      <div class="free-rp-post" id="free-rp-post">
+        <textarea class="free-rp-ta" id="free-rp-ta" rows="2"
+          placeholder="Write your character&#39;s actions and dialogue... (*asterisks* for actions, quotes for speech)"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendFreeRP()}"
+          oninput="this.style.height='auto';this.style.height=this.scrollHeight+'px'"></textarea>
+        <button class="free-rp-send" onclick="sendFreeRP()">Post</button>
+      </div>
       <div class="choices-panel" id="choices-panel" style="display:none">
         <div class="choices-header">
           <span class="choices-hdr-lbl">What do you do?</span>
@@ -933,6 +947,38 @@ create table if not exists realm_clock (
 );
 insert into realm_clock (id, season) values (1, 'Early Spring, 250 AC')
   on conflict (id) do nothing;
+
+═══════════════════════════════════════════════════════
+FREE RP POSTS — run this too
+═══════════════════════════════════════════════════════
+
+create table if not exists free_rp_posts (
+  id         uuid primary key default gen_random_uuid(),
+  scene_id   uuid references shared_scenes(id) not null,
+  char_id    uuid references characters(id) not null,
+  char_name  text,
+  house      text,
+  body       text,
+  created_at timestamptz default now()
+);
+
+alter table free_rp_posts enable row level security;
+
+create policy "Scene participants can read posts"
+  on free_rp_posts for select
+  using (
+    scene_id in (
+      select id from shared_scenes
+      where initiator_id in (select id from characters where user_id = auth.uid())
+         or guest_id     in (select id from characters where user_id = auth.uid())
+    )
+  );
+
+create policy "Character owners can insert posts"
+  on free_rp_posts for insert
+  with check (
+    char_id in (select id from characters where user_id = auth.uid())
+  );
 
 -- Only the service role (worker) can update this. Anon can read.
 alter table realm_clock enable row level security;
@@ -2556,14 +2602,14 @@ async function act(text) {
     if (cs.lands)  { S.char.lands  = cs.lands;  renderFinances(); }
     if (cs.debts)  { S.char.debts  = cs.debts;  renderFinances(); }
     if (cs.location) {
-      const f = LOCS.find(l =>
-        l.name.toLowerCase().includes(cs.location.toLowerCase()) ||
-        cs.location.toLowerCase().includes(l.name.toLowerCase())
-      );
+      // Match by canonical ID first (server returns IDs), then name fallback
+      const locId = resolveLocClient(cs.location);
+      const f = LOCS.find(l => l.id === locId);
       if (f && f.id !== S.char.location) {
         S.char.location = f.id;
         renderMap();
-        subscribePresence(); // re-subscribe with new location filter
+        subscribePresence();
+        showToast('📍 ' + f.name, 'Arrived in ' + f.region + '.');
       }
     }
     if (cs.npcs)   { S.char.npcs   = cs.npcs;   renderNPCs(); }
@@ -3159,6 +3205,7 @@ function handleSceneUpdate(scene) {
     S.sceneActive = true;
     showToast('Scene', 'The parley begins. You are now in a shared scene.');
     appendSharedSceneBanner();
+    showFreeRPBar(S.invitedCharName);
   }
   if (scene.status === 'ended') {
     leaveSceneLocally('The shared scene has ended.');
@@ -3191,6 +3238,7 @@ function leaveSceneLocally(msg) {
   if (sceneChannel) { sceneChannel.unsubscribe(); sceneChannel = null; }
   document.getElementById('tb-scene-indicator').style.display = 'none';
   document.getElementById('scene-banner')?.remove();
+  hideFreeRPBar();
   showToast('Scene', msg);
   renderWhoIsHere(); // re-render to show invite buttons again
 }
@@ -3237,6 +3285,7 @@ async function acceptSceneInvite() {
   document.getElementById('tb-scene-indicator').style.display = '';
   appendSharedSceneBanner();
   subscribeSharedScene(sceneId);
+  showFreeRPBar();
   showToast('Scene', 'You have joined the shared scene.');
 }
 
@@ -3492,6 +3541,107 @@ function handleFiredEvents(firedEvents) {
     const msg = ev.data?.note || ev.pendingEvent.replace(/_/g, ' ');
     showToast('⏳ ' + esc(ev.npc), msg, 7000);
   });
+}
+
+
+// ══════════════════════════════════════════════════════
+// FREE ROLEPLAY MODE
+// Players in a shared scene can post directly to each other
+// without AI generation — pure player-to-player RP.
+// Messages are stored in a separate free_rp_posts table
+// and delivered via Supabase realtime.
+// ══════════════════════════════════════════════════════
+let freeRPMode   = false;
+let freeRPChannel = null;
+
+function toggleFreeRP(toFree) {
+  if (!S.sharedSceneId) return;
+  freeRPMode = (toFree === undefined) ? !freeRPMode : !!toFree;
+  document.getElementById('free-rp-toggle-btn').classList.toggle('on',  freeRPMode);
+  document.getElementById('ai-rp-toggle-btn').classList.toggle('on',   !freeRPMode);
+  document.getElementById('free-rp-post').classList.toggle('on',        freeRPMode);
+  document.getElementById('choices-panel').style.display = freeRPMode ? 'none' : '';
+  document.getElementById('free-rp-status').textContent  = freeRPMode
+    ? 'Free RP — posts go directly to your scene partner'
+    : 'AI is narrating';
+  if (freeRPMode) {
+    document.getElementById('free-rp-ta').focus();
+    subscribeFreeRP();
+  } else {
+    if (freeRPChannel) { freeRPChannel.unsubscribe(); freeRPChannel = null; }
+    // Show choices again if we have them
+    if (currentChoices?.length) showChoices(currentChoices);
+  }
+}
+
+async function sendFreeRP() {
+  const ta = document.getElementById('free-rp-ta');
+  const text = ta.value.trim();
+  if (!text || !S.sharedSceneId || !S.char) return;
+  ta.value = '';
+  ta.style.height = 'auto';
+
+  // Optimistically render own post immediately
+  appendFreeRPPost(S.char.name, text, true);
+
+  // Store in Supabase free_rp_posts table
+  await sb.from('free_rp_posts').insert({
+    scene_id:   S.sharedSceneId,
+    char_id:    S.charId,
+    char_name:  S.char.name,
+    house:      S.char.house_full || '',
+    body:       text.substring(0, 2000),
+  }).catch(() => {});
+}
+
+function appendFreeRPPost(name, body, isSelf) {
+  const scroll = document.getElementById('story-scroll');
+  if (!scroll) return;
+  const d = document.createElement('div');
+  d.className = 'free-rp-msg';
+  if (isSelf) d.style.borderLeftColor = 'rgba(180,140,60,.2)';
+  // Format: *actions* → italic, "speech" → normal
+  let html = esc(body)
+    .replace(/\*([^*\n]+)\*/g, '<em>$1</em>')
+    .replace(/--/g, '\u2014');
+  d.innerHTML = `<div class="free-rp-msg-name">${esc(name)}</div>
+    <div class="free-rp-msg-body">${html}</div>`;
+  scroll.appendChild(d);
+  scroll.scrollTop = scroll.scrollHeight;
+}
+
+function subscribeFreeRP() {
+  if (freeRPChannel) freeRPChannel.unsubscribe();
+  if (!S.sharedSceneId) return;
+  freeRPChannel = sb.channel('free-rp-' + S.sharedSceneId)
+    .on('postgres_changes', {
+      event: 'INSERT', schema: 'public', table: 'free_rp_posts',
+      filter: 'scene_id=eq.' + S.sharedSceneId,
+    }, payload => {
+      // Don't re-render own posts (already shown optimistically)
+      if (payload.new?.char_id === S.charId) return;
+      appendFreeRPPost(payload.new.char_name, payload.new.body, false);
+    })
+    .subscribe();
+}
+
+// Show/hide free RP bar when entering/leaving shared scenes
+function showFreeRPBar(partnerName) {
+  const bar = document.getElementById('free-rp-bar');
+  if (bar) bar.classList.add('on');
+  freeRPMode = false; // default to AI mode
+  document.getElementById('free-rp-toggle-btn').classList.remove('on');
+  document.getElementById('ai-rp-toggle-btn').classList.add('on');
+  document.getElementById('free-rp-post').classList.remove('on');
+  document.getElementById('free-rp-status').textContent = 'AI is narrating — or switch to Free RP';
+}
+
+function hideFreeRPBar() {
+  const bar = document.getElementById('free-rp-bar');
+  if (bar) bar.classList.remove('on');
+  document.getElementById('free-rp-post').classList.remove('on');
+  if (freeRPChannel) { freeRPChannel.unsubscribe(); freeRPChannel = null; }
+  freeRPMode = false;
 }
 
 function stopScenePolling() {
