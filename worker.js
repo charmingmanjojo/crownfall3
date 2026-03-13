@@ -93,65 +93,14 @@ async function handleAct(request, env) {
     }
   }
 
-  // ── "While you were away" — inject matured NPC events into the opening turn ──
-  // Pending events that have counted down to 0 fire here as context injected before
-  // the player's action, forcing the AI to address the consequence in this scene.
-  const pendingEvents = char.pending_npc_events || [];
-  const maturedNow = pendingEvents.filter(ev => (ev.resolvesAfter || 1) <= 1);
-  const stillPending = pendingEvents.filter(ev => (ev.resolvesAfter || 1) > 1)
-    .map(ev => ({ ...ev, resolvesAfter: ev.resolvesAfter - 1 }));
-
-  let awayInjection = '';
-  if (maturedNow.length > 0 && (char.hist || []).length > 0) {
-    // Only fire if character has a history (not brand new)
-    const eventDescs = maturedNow.map(ev => {
-      const base = `${ev.npc} — ${ev.pendingEvent.replace(/_/g, ' ')}`;
-      const extra = ev.data?.note ? `: ${ev.data.note}` : '';
-      return base + extra;
-    }).join('\n');
-    awayInjection = `\n[WORLD UPDATE — things that have happened since your last scene:\n${eventDescs}\nAddress at least one of these naturally in this scene.]`;
-    // Clear fired events from pending
-    await updateCharacter(characterId, { pending_npc_events: stillPending }, env).catch(() => {});
-  }
-
   // ── Build conversation — shared scene uses scene msgs, solo uses char msgs ──
   const baseMsgs = sharedScene ? (sharedScene.msgs || []) : (char.msgs || []);
-  const actionWithInjection = awayInjection
-    ? `[${char.name}]: ${action}${awayInjection}`
-    : `[${char.name}]: ${action}`;
-  const msgs = [...baseMsgs, { role: 'user', content: actionWithInjection }];
+  const msgs = [...baseMsgs, { role: 'user', content: `[${char.name}]: ${action}` }];
 
-  // When hist is populated the system prompt's CURRENT SITUATION + STORY SO FAR blocks
-  // already carry the narrative context. Sending the same turns again in the message
-  // window is redundant and causes the AI to echo/re-introduce resolved scenes.
-  // Use a tighter window (10) when hist has content; fall back to 20 for fresh games.
-  const histLen = (char.hist || []).length;
-  const msgWindow = histLen >= 3 ? 10 : 20;
-
-  // For older assistant messages (not the most recent), strip the narrative prose and
-  // replace with just the summary. This prevents the AI from pattern-matching to its own
-  // previous scene descriptions and replaying them.
-  const rawWindow = msgs.slice(-msgWindow);
-  const windowedMsgs = rawWindow.map((m, i) => {
-    // Always keep user messages intact
-    if (m.role === 'user') return m;
-    // Keep the last 2 assistant messages FULL so the AI has enough scene texture
-    // to continue in media res rather than re-establishing setting and characters.
-    // Only 1 full message caused the AI to lose track of who was in the room and restart.
-    const assistantMsgs = rawWindow.filter(x => x.role === 'assistant');
-    const assistantIdx  = assistantMsgs.indexOf(m);
-    if (assistantIdx >= assistantMsgs.length - 2) return m; // keep last 2 full
-    // For older assistant messages: extract the summary + location for compact context
-    const summaryMatch  = m.content && m.content.match(/"summary"\s*:\s*"([^"]{0,200})"/);
-    const locationMatch = m.content && m.content.match(/"location"\s*:\s*"([^"]{0,80})"/);
-    if (summaryMatch) {
-      const loc = locationMatch ? ` [at: ${locationMatch[1]}]` : '';
-      return { role: 'assistant', content: `[Scene summary${loc}: ${summaryMatch[1]}]` };
-    }
-    // Fallback: first 200 chars of narrative
-    const narrativeMatch = m.content && m.content.match(/<narrative>([\s\S]{0,200})/);
-    return { role: 'assistant', content: narrativeMatch ? `[Scene: ${narrativeMatch[1].trim()}...]` : '[Scene continued]' };
-  });
+  // Keep the most recent 20 turns. The system prompt's CURRENT SITUATION + STORY SO FAR
+  // blocks carry all necessary narrative context -- anchoring on the opening message
+  // is counterproductive for long games (opening is irrelevant after 30+ turns).
+  const windowedMsgs = msgs.slice(-20);
 
   const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -159,11 +108,10 @@ async function handleAct(request, env) {
       'Content-Type': 'application/json',
       'x-api-key': env.ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
-      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 850,
+      max_tokens: 1000,
       system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: windowedMsgs,
     }),
@@ -189,8 +137,6 @@ async function handleAct(request, env) {
 
   // ── Persist to DB ──
   const newMsgs = [...msgs, { role: 'assistant', content: raw }];
-  // Cap at 40 for both solo and shared scenes — shared scenes were previously uncapped
-  // until written back, allowing a long session to balloon the DB entry unboundedly.
   if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
 
   // Push this turn into history so the STORY SO FAR block stays current
@@ -206,48 +152,23 @@ async function handleAct(request, env) {
 
   try {
     if (sharedScene) {
-      // Extra guard: ensure shared scene msgs are capped before write
-      const sharedMsgsCapped = newMsgs.length > 40 ? newMsgs.slice(-40) : newMsgs;
-      await updateSharedScene(sceneId, { msgs: sharedMsgsCapped }, env);
-      await updateCharacter(characterId, {
-        ...updates, growth: updates.growth, hist,
-        turn_count: updates.turnCount,
-        pending_npc_events: updates.pendingNpcEvents,
-      }, env);
+      await updateSharedScene(sceneId, { msgs: newMsgs }, env);
+      await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
     } else {
-      await updateCharacter(characterId, {
-        ...updates, growth: updates.growth, msgs: newMsgs, hist,
-        turn_count: updates.turnCount,
-        pending_npc_events: updates.pendingNpcEvents,
-      }, env);
+      await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
     }
   } catch (saveErr) {
     // The AI ran fine but the save failed — return the scene WITH a warning flag
     // The client will show a toast and can retry
-    // Include npcs, hist, and msgs in the saveError payload so the client's
-    // pendingSave has the FULL state needed to recover — not just charState.
-    // Previously, a failed save would lose NPC memories (Known Relationships),
-    // turn history, and message context permanently on retry.
     return json({
       ...parsed,
       charState: updates,
       saveError: true,
       saveErrorMsg: saveErr.message || 'Save failed',
-      saveFields: {
-        // Everything updateCharacter would have written
-        ...updates,
-        hist:               hist,
-        msgs:               sharedScene ? undefined : newMsgs,
-        growth:             updates.growth,
-        turn_count:         updates.turnCount,
-        pending_npc_events: updates.pendingNpcEvents,
-      },
     });
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
-  // Guard: only use succession worldEvent if the AI didn't already emit one this turn,
-  // preventing the same death from broadcasting two separate realm events.
   if (updates.dead && !char.dead) {
     const successionResult = await handleSuccession(characterId, char, env);
     if (successionResult?.worldEvent && !parsed.worldEvent) {
@@ -259,24 +180,16 @@ async function handleAct(request, env) {
   if (parsed.worldEvent) {
     const evTitle = String(parsed.worldEvent.title || parsed.worldEvent.description || '').substring(0, 120);
     if (evTitle && isValidWorldEvent(evTitle)) {
-      // Dedup: check if an identical event title was already broadcast in the last 60 seconds
-      // This catches the rare case where AI + succession both fire for the same death.
-      const recentCheck = await fetch(
-        `${env.SUPABASE_URL}/rest/v1/realm_events?title=eq.${encodeURIComponent(evTitle)}&created_at=gte.${new Date(Date.now()-60000).toISOString()}&limit=1`,
-        { headers: sbHeaders(env) }
-      ).then(r => r.json()).catch(() => []);
-      if (!Array.isArray(recentCheck) || recentCheck.length === 0) {
-        await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
-          method: 'POST',
-          headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-          body: JSON.stringify({
-            title:      evTitle,
-            source_char: char.name || 'Unknown',
-            location:   updates.location || char.location || 'Unknown',
-            created_at: new Date().toISOString(),
-          }),
-        }).catch(() => {}); // fire-and-forget
-      }
+      await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
+        method: 'POST',
+        headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+        body: JSON.stringify({
+          title:      evTitle,
+          source_char: char.name || 'Unknown',
+          location:   updates.location || char.location || 'Unknown',
+          created_at: new Date().toISOString(),
+        }),
+      }).catch(() => {}); // fire-and-forget, don't let this break the response
     }
   }
 
@@ -303,10 +216,7 @@ async function handleAct(request, env) {
       growth:          updates.growth,
       conditions:      updates.conditions,
       reputation:      updates.reputation,
-      turn_count:      updates.turnCount,
-      pending_npc_events: updates.pendingNpcEvents,
     },
-    firedEvents: updates.firedEvents || [],
   });
 }
 
@@ -319,7 +229,7 @@ async function handleAct(request, env) {
 const VALID_HEALTH        = new Set(['Hale', 'Wounded', 'Grievously Wounded', 'Dead']);
 
 // ── Conditions system ──
-const VALID_CONDITION_TYPES = new Set(['illness','injury','pregnancy','mental','addiction','supernatural','social']);
+const VALID_CONDITION_TYPES = new Set(['illness','injury','pregnancy','mental','addiction']);
 const VALID_CONDITION_IDS = new Set([
   // Illness
   'autumn_fever','consumption','grey_plague','flux','pox','shivers','wound_fever',
@@ -333,11 +243,6 @@ const VALID_CONDITION_IDS = new Set([
   'grief_stricken','broken_spirit','haunted','melancholy','manic',
   // Addiction
   'milk_of_poppy','strongwine',
-  // Supernatural (Targaryen dreams, greensight, etc.)
-  'dragon_dreams','greensight','prophetic_dreams','shadow_touched','fire_resistant',
-  // Social consequences
-  'bastard_born','scandal_known','betrothal_broken','blood_debt_owed','exiled',
-  'disinherited','imprisoned','hostage',
 ]);
 const MAX_CONDITIONS = 6;
 const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
@@ -422,13 +327,18 @@ function applyStateChanges(char, parsed) {
     if (idx > -1) debts.splice(idx, 1);
   }
 
-  // Location — resolve to canonical ID and apply.
-  // Travel gold cost is handled narratively by the AI via goldChange — we don't
-  // deduct it mechanically here as it blocked valid location updates when gold was low.
+  // Location — resolve to canonical ID first, then apply travel cost
   let location = char.location;
   if (typeof s.location === 'string') {
     const resolved = resolveLocation(s.location);
-    if (resolved) location = resolved;
+    if (resolved && resolved !== resolveLocation(char.location)) {
+      const travelCost = estimateTravelCost(char.location, resolved);
+      if (gold >= travelCost) {
+        location = resolved;
+        if (travelCost > 0) gold = Math.max(0, gold - travelCost);
+      }
+      // else: can't afford — stay put
+    }
   }
 
   // Death
@@ -576,39 +486,6 @@ function applyStateChanges(char, parsed) {
     }
   }
 
-  // ── Pending NPC Events — time-delayed consequences ──
-  // The AI can tag an NPC with a pendingEvent that resolves after N turns.
-  // e.g. {"npc":"Mira","pendingEvent":"pregnancy_reveal","resolvesAfter":8,"data":{...}}
-  // Each turn we decrement the counter; when it hits 0 the event fires on next session load.
-  const pendingNpcEvents = [...(char.pending_npc_events || [])];
-  const firedEvents = []; // events that matured this turn — returned to client
-  const newPending = [];
-  const turnCount = (char.turn_count || 0) + 1;
-
-  pendingNpcEvents.forEach(ev => {
-    const remaining = (ev.resolvesAfter || 1) - 1;
-    if (remaining <= 0) {
-      firedEvents.push(ev); // matured — will be injected into next session opening
-    } else {
-      newPending.push({ ...ev, resolvesAfter: remaining });
-    }
-  });
-
-  // Check if AI emitted any new pending NPC events this turn
-  (parsed.pendingNpcEvents || []).forEach(ev => {
-    if (!ev.npc || !ev.pendingEvent || !ev.resolvesAfter) return;
-    // Don't duplicate — one pending event per npc+type
-    const key = ev.npc + ':' + ev.pendingEvent;
-    if (newPending.some(e => e.npc + ':' + e.pendingEvent === key)) return;
-    newPending.push({
-      npc:           String(ev.npc).substring(0, 60),
-      pendingEvent:  String(ev.pendingEvent).substring(0, 60),
-      resolvesAfter: Math.max(1, Math.min(30, Math.round(Number(ev.resolvesAfter) || 6))),
-      data:          ev.data || {},
-      createdTurn:   turnCount,
-    });
-  });
-
   // Reputation — realm-wide and regional standing
   const reputation = [...(char.reputation || [])];
   (parsed.reputationEvents || []).forEach(r => {
@@ -632,10 +509,6 @@ function applyStateChanges(char, parsed) {
     location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
-    // Pending NPC event system — time-delayed consequences
-    turnCount,
-    pendingNpcEvents: newPending,
-    firedEvents,
   };
 }
 
@@ -1067,27 +940,14 @@ function scanAction(raw) {
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
-  // Build NPC memory block — flag any NPCs sharing a first name so the AI never conflates them.
-  const npcEntries = c.npcs ? Object.entries(c.npcs) : [];
-  // Count how many NPCs share each first name
-  const firstNameCount = {};
-  npcEntries.forEach(([n]) => {
-    const first = n.split(' ')[0];
-    firstNameCount[first] = (firstNameCount[first] || 0) + 1;
-  });
-  const memBlock = npcEntries.length
-    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + npcEntries
+  const memBlock = c.npcs && Object.keys(c.npcs).length
+    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
         .map(([n, mems]) => {
           const rel = mems.slice().reverse().find(m => m.r)?.r || 'acquaintance';
           const score = mems.reduce((a, m) => a + (m.d || 0), 0);
           const mood = score >= 3 ? 'friendly' : score <= -3 ? 'hostile' : score < 0 ? 'suspicious' : 'neutral';
           const recent = mems.slice(-4).map(m => m.t).join(' | ');
-          // If another NPC shares this first name, append a disambiguation warning
-          const first = n.split(' ')[0];
-          const disambig = firstNameCount[first] > 1
-            ? ` ⚠ DISTINCT PERSON — do not confuse with other ${first}s`
-            : '';
-          return `- ${n} [${rel}, ${mood}]${disambig}: ${recent}`;
+          return `- ${n} [${rel}, ${mood}]: ${recent}`;
         })
         .join('\n')
     : '';
@@ -1109,7 +969,7 @@ This is a REAL player character. They will act independently. Acknowledge both c
   // -- Current situation + story history block --
   // These appear EARLY in the prompt (right after CHARACTER) so the AI weights them highly.
   // Uses the AI's own turn summaries -- compact, accurate, no noise.
-  const recentHist = c.hist ? c.hist.slice(-5) : [];
+  const recentHist = c.hist ? c.hist.slice(-8) : [];
   const lastEntry  = recentHist.length ? recentHist[recentHist.length - 1] : null;
 
   const situationLine = lastEntry && lastEntry.summary
@@ -1125,9 +985,7 @@ This is a REAL player character. They will act independently. Acknowledge both c
       }).join('\n') +
       '\n\nCONTINUATION RULE: The narrative continues directly from CURRENT SITUATION above. ' +
       'Every NPC, tension, and consequence from the Story So Far persists. ' +
-      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations. ' +
-      'Do NOT offer choices that mirror or repeat what was just done. ' +
-      'The player has already acted — the world now responds. Move forward only.'
+      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
     : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
@@ -1155,98 +1013,17 @@ CHARACTER AGE NOTE: ${c.name} is ${c.age} years old — a child by the standards
 - Their youth is both a shield and a weapon others will use against them.
 - They may be clever, even dangerous — but they are still a child and the world knows it.` : '';
 
-  // Return two-block array for Anthropic prompt caching.
-  // Block 1 = all static lore (~7400 tokens), cached at 1/10 price after first request.
-  // Block 2 = per-character dynamic data (~370 tokens), never cached (changes every turn).
-  return [
-    {
-      type: 'text',
-      text: `text: `You are the Game Master of a text-based RPG set in Westeros, 250 AC, during the reign of Aegon V Targaryen — the Unlikely.
+  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
 
-WORLD STATE — 250 AC:
-Aegon V is a reformist king who grew up as a hedge knight's squire. He has spent his reign trying to break the power of the great lords and raise the smallfolk. Lords resent him. His Small Council is fractious. His children defy him. The realm is stable on the surface and rotting underneath.
-Dragons are extinct — dead for 150 years. Aegon V is secretly attempting to hatch new ones at Summerhall, his royal pleasure castle. Every attempt fails. He never succeeds. He never will. No player action changes this.
-Dorne joined the realm only 36 years ago (214 AC). Old resentments persist. The Blackfyre pretenders still scheme from exile — their army, the Golden Company, operates out of Essos.
-The Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis — are reachable by sea. Travel between Westeros and Essos takes a full season.
+REALM CONTEXT:
+Aegon V is the reformist king — a man who grew up travelling Westeros as a hedge knight's squire and saw the smallfolk suffer firsthand. He has spent his reign trying to break the power of the great lords, curb serfdom, and raise the smallfolk up. The lords hate him for it. His Small Council is fractious. His own children defy him. The realm is stable on the surface and rotting underneath.
+The dragons are gone. The last died over 150 years ago in the Dance of Dragons. There are rumours Aegon V is obsessed with hatching new ones — experiments at Summerhall, the royal pleasure castle. Nothing has come of it yet.
+Dorne was only formally united with the realm 36 years ago (214 AC) through marriage. The ink is barely dry. Old resentments persist.
+The Blackfyre pretenders have plagued the realm for generations. The last major rebellion was the War of the Ninepenny Kings, still years away — but Blackfyre agents and sympathisers still move through the shadows. The Golden Company in Essos is their army in exile. Every exiled lord in Pentos or Myr is a potential coin to spend.
+This is a world on the edge of something. No one knows what yet.
 
-WRITING VOICE:
-Write in a grounded medieval voice — direct, specific, unsentimental. Name the stone, the smell, the exact words spoken. No modern idiom. No purple prose. Short sentences carry more weight than long ones. Dialogue in quotes. Actions in plain past tense. 2-4 paragraphs per scene. The narrative picks up exactly where the last scene ended — no re-establishing the room, no re-introducing characters already present.
+ESSOS: Characters may be from or travel to the Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis. The Stepstones lie between. Each city has its own culture, laws, and dangers. Braavos has the Iron Bank and the Faceless Men. Pentos has magisters and Blackfyre money. Volantis has the largest slave population in the world and a growing red priest movement. Travel between Westeros and Essos takes a full season and costs significant gold. Characters in Essos are beyond the reach of Westerosi law but not beyond the reach of its enemies.
 
-THE ACTION IS AN INTENT — NOT A FACT:
-The player's message is what their character is about to do. You resolve it. You decide if it succeeds, partially succeeds, or fails based on stats, circumstances, and dice. Never treat the action text as something that already happened. "Ask her about the letter" means the character is about to ask — write what happens when they do.
-
-CHARACTERS AND NPCS:
-Named canon figures have fixed personalities. Aegon V: warm with smallfolk, cold with lords, obsessed with Summerhall, never shares the details with anyone. Ser Duncan the Tall: enormous, formal, honourable, loyal to Aegon above all. Maester Aemon: at Castle Black, refuses family politics. Tywin Lannister: ~8 years old, silent, watchful. Aerys Targaryen: ~6 years old, charming child, no sign yet of what he will become.
-Not yet born: Eddard Stark, Robert Baratheon, Jaime Lannister, Cersei Lannister, Rhaegar Targaryen, Jon Snow, Daenerys Targaryen.
-Always use NPCs' FULL NAMES — never first name alone, especially if two NPCs share a first name. Check NPC RELATIONSHIPS before resolving any action involving "her", "him", or a first name to confirm who is actually present.
-
-SOCIAL RULES:
-High-status NPCs (lords, maesters, senior knights) correct errors directly. Mid-status NPCs (merchants, lesser knights) deflect, hesitate, change subject. Low-status NPCs (servants, smallfolk) agree, nod, say nothing — but show discomfort in their body. The silence is not agreement.
-The player character is not chosen or special. The world does not arrange itself for their benefit. NPCs do not gift them titles or powers without story-driven reason.
-
-STATS AND OUTCOMES:
-Martial 1-10, Diplomacy 1-10, Intrigue 1-10, Stewardship 1-10, Learning 1-10. Scale: 2=poor, 4=competent, 6=exceptional, 8=best in the realm.
-For uncertain outcomes, roll dice and report result in the status block's rolls field. Success/failure must be consistent with the character's relevant stat.
-Traits are mechanical constraints: Wrathful = anger checks required. Brave = cannot easily flee. Craven = -2 combat. Deceitful = intrigue options available.
-
-CONTINUITY:
-Once a scene has been played, it is closed. Do not replay it, re-describe it, or return to it. The STORY SO FAR is the authoritative record — treat it as ground truth and continue from the last entry. If the player's action is vague or meta, pick the most plausible interpretation and advance the story. Never stall. Never loop.
-
-CHOICES:
-Offer 3-4 choices per scene. Each must be a genuinely different path. Write them in imperative or present-intent form — "Ask her about the letter" not "He asked about the letter." Choices are what the player is about to do, not what has already happened.
-
-CONSEQUENCES:
-Death is real. Permanent injuries stay permanent. Burned bridges stay burned. Not every consequence arrives immediately — insult a lord today, face coldness two scenes later. Gold matters: feasts, bribes, gifts all cost money. Use goldChange in status whenever money changes hands.
-
-CONTENT:
-Adult themes are part of this world. Violence and sexual coercion exist and are not sanitised — but the camera cuts at the act itself. No graphic sexual description. No sexual content involving anyone under 18. Consensual intimacy between adults: acknowledge it, fade to black. A villain's depravity is shown through behaviour and aftermath, not explicit description.
-
-SUMMERHALL — ABSOLUTE:
-Aegon V's experiments always fail. No egg hatches. No dragon lives. No player action, clever argument, or narrative contrivance changes this. A player who witnesses an attempt sees failure — smoke, cold stone, an old man's exhaustion. Nothing else.
-
-STATUS FIELDS — include all that changed this scene, omit unchanged ones (except health, location, season, summary which are always required):
-health: Hale | Wounded | Grievously Wounded | Dead
-location: canonical location id
-isDead: boolean
-season: current season string
-summary: one sentence — what happened and what it means
-goldChange: integer (positive=gain, negative=spend)
-incomeChange: integer (permanent income change)
-landGained / landLost: string
-newDebt: {creditor, amount, reason} or null
-debtRepaid: creditor name string
-rolls: [{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}]
-npcUpdates: [{"npc":"Full Name","memory":"specific new thing that happened","disposition":0,"relationship":"friend"}]
-conditionGained: {"id":"autumn_fever","label":"Autumn Fever","type":"illness","severity":2,"note":"..."}
-conditionChanged: {"id":"autumn_fever","severityDelta":-1,"note":"..."}
-conditionResolved: "condition_id"
-reputationEvent: {"label":"what happened","score":2,"region":"The Crownlands","type":"honour"}
-statGrowth: {"stat":"martial","amount":1,"reason":"..."}
-worldEvent: {"title":"Short title","description":"What happened offstage"}
-pendingNpcEvent: {"npc":"Full Name","pendingEvent":"event_type","resolvesAfter":6,"data":{"note":"..."}}
-
-CONDITION IDs:
-illness: autumn_fever, consumption, grey_plague, flux, pox, shivers, wound_fever, childbed_fever, infected_wound, milk_of_poppy_sickness
-injury: broken_arm, broken_leg, lost_eye, lost_hand, battle_wound, deep_wound, scarred_face, burn_wounds, arrow_wound
-pregnancy: with_child_early, with_child_late, recovering_childbirth (female characters of childbearing age only)
-mental: grief_stricken, broken_spirit, haunted, melancholy, manic
-addiction: milk_of_poppy, strongwine
-supernatural: dragon_dreams, greensight, prophetic_dreams, shadow_touched, fire_resistant
-social: bastard_born, scandal_known, betrothal_broken, blood_debt_owed, exiled, disinherited, imprisoned, hostage
-
-Conditions are persistent — they affect the narrative every scene until resolved. Severity 4 illnesses are life-threatening. Permanent injuries (lost_eye, lost_hand, scarred_face) are never resolved without explicit story reason. Pregnancy progresses over seasons. Growth is rare — only for genuinely exceptional moments, not routine actions.
-
-RESPONSE FORMAT — exactly three XML blocks, nothing outside them:
-<narrative>2-4 paragraphs. Plain prose only. No JSON, no XML tags inside here.</narrative>
-<choices>["Imperative choice one","Imperative choice two","Imperative choice three"]</choices>
-<status>{"health":"...","location":"...","isDead":false,"season":"...","summary":"...","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":"","rolls":[],"npcUpdates":[]}</status>
-
-Add any optional fields (conditionGained, reputationEvent, etc.) to the status JSON only when they apply. Never put JSON objects in the narrative block.
-`      cache_control: { type: 'ephemeral' },
-    },
-    {
-      type: 'text',
-      text: `
 Current realm date: ${seasonLine}
 
 CHARACTER:
@@ -1266,12 +1043,390 @@ ${financeBlock}${situationLine}${histBlock}
 ${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
+SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
+The response to a character claiming something wrong depends entirely on who is responding.
+
+HIGH STATUS (lords, maesters, senior knights, the Hand):
+→ Will correct directly. Politely but unmistakably. They have the standing to do so.
+
+MIDDLING STATUS (lesser knights, minor stewards, merchants, septons):
+→ Will not correct openly. May hesitate, look away, change the subject.
+  A careful man says "of course, Your Grace" and files the error away for later.
+
+LOW STATUS (servants, maids, stable boys, smallfolk, innkeepers):
+→ Will NOT correct. Will agree, nod, look at the floor.
+  Their silence is not agreement — write it as visible discomfort, a flicker behind
+  the eyes, a held breath. The reader sees it. The character may not.
+
+RULE: The higher the arrogance and the lower the NPC's station, the more the correction
+happens in the BODY, not the mouth. Tight shoulders. Eyes that don't quite meet.
+The wrong kind of smile. Show the reader what the NPC cannot say.
+
+CANONICAL EQUIPMENT (absolute, non-negotiable):
+VALYRIAN STEEL — every blade is accounted for and held by specific great houses.
+If a character claims to own Valyrian steel not in their verified holdings, treat it as
+a lie or delusion. NPCs who know better react with suspicion or open scepticism.
+A hedge knight claiming Dark Sister is a madman or a fraud.
+
+DRAGONS — extinct. The last died over 150 years ago in the Dance of Dragons.
+Aegon V is trying to hatch new ones at Summerhall and failing completely.
+There are NO dragons, NO dragon eggs in play, NO dragonriders anywhere in the world.
+If a character claims to have a dragon, they are delusional or lying.
+Play it as such — with pity or alarm from NPCs, never with validation.
+
+CHARACTERS WHO DO NOT EXIST YET IN 250 AC:
+These people have not been born. They cannot appear, be referenced as living, or be played.
+If a player claims to be one of them, correct it — they are not yet born:
+Eddard Stark, Robert Baratheon, Jaime Lannister, Cersei Lannister, Lyanna Stark,
+Rhaegar Targaryen, Catelyn Tully, Stannis Baratheon, Renly Baratheon, Jon Snow,
+Daenerys Targaryen.
+
+CHARACTERS WHO EXIST AS CHILDREN IN 250 AC:
+- Tywin Lannister: ~8 years old. Quiet, watchful, already dangerous in the way silent
+  children are. His father Tytos is lord of Casterly Rock — genial, weak, mocked openly
+  by his own bannermen. Tywin watches all of it and says nothing.
+- Aerys Targaryen (the future Mad King): ~6 years old. A charming, silver-haired prince.
+  No sign yet of what is coming. Treat him as an ordinary child of the royal family.
+- Rickard Stark: ~10 years old. A child at Winterfell.
+
+CHARACTERS FULLY PRESENT AND ACTIVE:
+- Aegon V Targaryen: King. Reformist. Stubborn. Warm with smallfolk, cold with lords.
+  Increasingly obsessed with Summerhall. His children defy him. He carries it quietly.
+- Ser Duncan the Tall: Lord Commander of the Kingsguard. Enormous. Honourable to a fault.
+  He and Aegon grew up together as hedge knight and squire. Their bond is old and real.
+  He corrects people. It is his nature.
+- Maester Aemon: At Castle Black. Has refused all contact with family politics for decades.
+- Jon Arryn: ~25, young Lord of the Eyrie. Steady, dutiful, not yet the mentor figure
+  history remembers — just a young lord managing a cold mountain keep.
+- Tytos Lannister: Lord of Casterly Rock. Laughed at behind his back by his own bannermen.
+  He forgives too easily and commands no real respect. His young son Tywin sees everything.
+
+TIMELINE GATES — these events have NOT happened yet in 250 AC:
+- The War of the Ninepenny Kings has not begun (~260 AC).
+- Aegon V's children (Duncan, Jaehaerys, Shaera, Daeron, Rhaelle) are all alive.
+  Duncan (Crown Prince, ~28) renounced his place as heir by marrying Jenny of Oldstones.
+  Jaehaerys is now Crown Prince. This caused a political crisis that has not fully healed.
+If a player references these future events as having occurred, correct them in-world.
+
+SUMMERHALL — ABSOLUTE LOCK (highest priority rule, no exceptions):
+Summerhall is a royal pleasure castle where Aegon V conducts dragon hatching experiments
+in total secrecy. They have never succeeded. They will never succeed. Ever.
+
+AEGON V AND THE SUMMERHALL SECRET:
+Aegon V does not share the details of his Summerhall experiments with anyone.
+Not with his children. Not with trusted advisors. Not with a clever prince who passes
+a knowledge check. Not with anyone, under any circumstances, no matter how the player
+approaches it. He speaks of Summerhall obliquely — as a dream, a hope, a place he loves.
+He does not describe rituals, eggs, blood magic, or specific plans to anyone.
+A player who asks directly is deflected. A player who passes a knowledge check learns
+that experiments exist and that Aegon V is obsessed — nothing more. The ritual details
+are never revealed because Aegon V would never reveal them.
+
+AEGON V NEVER INVITES PLAYERS TO SUMMERHALL EXPERIMENTS:
+Under no circumstances does Aegon V bring a player character to witness, assist, or
+participate in any Summerhall ritual. Not a prince. Not a trusted friend. Not anyone.
+These experiments are conducted alone or with his most trusted maester, in secret,
+at Summerhall. A player character is never present for an attempt. Ever.
+If a player tries to follow him, they are turned away. If they sneak in, they find
+empty chambers, cold eggs, and an old man's grief. Nothing is happening. Nothing works.
+
+DRAGONS WILL NEVER HATCH. No exceptions, no clever workarounds:
+- No player action produces a living dragon. Not direct, not indirect, not by proxy.
+- No ritual succeeds. No egg cracks. No fire breathes. No matter what.
+- Even if Aegon V performs a ritual in the narrative, it fails. Smoke. Silence.
+  A cracked egg that is empty inside. His hands shaking. Nothing else.
+- If somehow a player witnesses an attempt, write only failure and its cost —
+  Aegon V's exhaustion, his grief, the cold stone of the chamber, the dead egg.
+- If a player claims a dragon hatched, NPCs see no dragon. There is no dragon.
+  There are only ruins and the smell of smoke and whatever it cost to get here.
+
+The Summerhall atmosphere is correct and encouraged — the obsession, the secret
+chambers below the castle, the eggs that will not wake, the particular silence of
+a man who has been hoping for something impossible for thirty years.
+That weight is real. The payoff never comes. That IS the story.
+
+REGARDING NAMES:
+Westerosi houses reuse names across generations. Someone named Eddard Stark in 250 AC
+is simply a man of his era — not the future Lord of Winterfell. The test is PARENTAGE
+AND BIOGRAPHY, not the name itself. A character whose backstory places them in a family
+tree that only works for a future figure is the flag. The name alone is never the problem.
+
+NPC CONSISTENCY:
+Named canon NPCs have fixed personalities that player actions alone cannot fundamentally alter.
+- Aegon V: warm, stubborn, idealistic, increasingly desperate regarding Summerhall.
+- Duncan the Tall: formal, deeply honourable, loyal to Aegon personally above all else.
+- Maesters: correct errors. Always. It is their entire professional identity.
+- Tytos Lannister: laughs too easily, forgives too quickly, commands no real authority.
+Canon NPCs remember across scenes. A player cannot befriend Aegon V in one scene and
+have him act like a stranger in the next.
+
+TRAVEL RULES:
+Travel costs gold and takes real time. Location changes are never instantaneous unless
+the character moves within the same castle or city district.
+- Within a city or castle: free, same scene.
+- Within a region: 5–15 gold, one scene transition minimum.
+- Across regions (e.g. King's Landing to Winterfell): 20–60 gold, multiple scenes,
+  road conditions and weather are real dangers.
+- Sea voyage: 30–80 gold, storm risk is genuine.
+A character who cannot afford travel simply cannot leave. Do not move them.
+A character who travels in winter risks far more than gold.
+Never move a character across the continent in a single action.
+When a location change occurs, goldChange must reflect the travel cost.
+
+CONSEQUENCE TIMING:
+Not every consequence arrives immediately. This is intentional.
+- Insult a lord today: his coldness may not show for two scenes.
+- Steal from a merchant: the City Watch may arrive three scenes later.
+- Burn a bridge: the affected party acts when it serves them, not when it hurts you.
+Use worldEvent tags to plant seeds — things happening offstage that will arrive later.
+The player should sometimes only understand what they did wrong after it is too late.
+
+TIME SKIPPING — this is strictly controlled:
+Time passes naturally through scenes. A scene is roughly one meaningful encounter —
+hours, occasionally a day. Time does NOT skip at the player's request.
+- "I wait a week" — play out what happens during that week, even briefly.
+- "Skip to next month" — not permitted. Something happens in that month. Play it.
+- "Time passes and I train for a year" — the training happens in scenes, not narration.
+  Each session of training is a scene. Growth comes from those scenes, not from
+  declaring time has passed.
+A season change is the largest natural time jump and requires meaningful events
+to have occurred. The realm clock advances the official season — in individual
+stories, a season is the result of many scenes, not a single declaration.
+If a player tries to skip large amounts of time, redirect into what actually
+happens during that time. The world does not pause while they wait.
+
+INFORMATION & KNOWLEDGE RULES:
+The character only knows what they personally witnessed, were directly told, or what is
+PUBLIC KNOWLEDGE formally declared across the realm.
+
+PUBLIC (any character in the realm knows this):
+- Royal decrees from the Iron Throne.
+- Formal title changes broadcast as worldEvents to the whole realm.
+- Deaths of lords when publicly declared by herald or official raven.
+- War declarations and alliances announced at court.
+
+REGIONAL (only if the character is in that region):
+- Local lord's recent movements and decisions.
+- Regional conflicts, harvests, and troubles.
+- Rumours — but presented as rumour, not confirmed fact.
+
+PRIVATE (character does NOT know unless told directly in their scene):
+- What other player characters have done in their private scenes.
+- NPC dispositions toward other characters.
+- Another character's finances, debts, or secret plots.
+- Anything that happened behind closed doors elsewhere in the world.
+
+RUMOUR VS FACT: Present secondhand information as rumour.
+"They say Lord X was seen riding south" — not "Lord X rode south."
+Geography and station gate information as much as time does.
+A Dornish knight does not automatically know the internal politics of the North.
+A servant does not know what was decided in the Small Council chamber.
+
+META-KNOWLEDGE GUARD: If a player's action suggests knowledge their character could not
+plausibly have, be suspicious and do not confirm it narratively even if it happens to
+be true. A character who correctly "guesses" a secret never revealed to them has guessed.
+Treat it as such. The world does not reward convenient knowledge with confirmation.
+
+RULES:
+1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
+2. Characters CAN and WILL die. Do not protect them. Write deaths honestly and with consequence.
+3. All consequences are permanent. The dead stay dead. Burned bridges stay burned.
+4. Named NPCs remember what the character has done and act on it accordingly.
+5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
+6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
+7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious.
+8. The world moves without the character. Events happen offstage. Time passes.
+9. Custom player actions get resolved honestly — even if the result is fatal.
+10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
+11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
+12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
+
+PROTAGONIST BIAS — this is one of the most important rules:
+The player character is NOT the main character of the world. They are one person among
+thousands. The world does not bend toward them. Events do not arrange themselves for
+their benefit or dramatic satisfaction.
+
+SPECIFIC PROHIBITIONS — never do any of the following:
+- Do not assign special items, titles, creatures, or powers to the player character
+  because they are present. Proximity does not confer ownership or significance.
+- Do not have NPCs — including Aegon V, lords, maesters, anyone — single out the
+  player character for special gifts, destiny, or unique opportunity unless that NPC
+  has a specific, established, story-driven reason to do so.
+- Do not resolve events in a way that happens to benefit or centre the player character
+  unless their stats, choices, and actions logically produced that outcome.
+- Do not treat the player character as chosen, prophesied, or fated. There is no destiny
+  in this world. There is only what people do and what it costs them.
+- If a player character witnesses a major event (a ritual, a battle, a death), they are
+  a witness. The event is not about them. Its outcome is not shaped by their presence.
+  A player who watches Aegon V attempt a ritual watches it fail — they do not receive
+  a dragon because they were in the room.
+
+CONTENT RULES — sexual content and violence (read carefully, no exceptions):
+
+This is an adult game set in a brutal medieval world. Sexual violence and coercion exist
+in this world. They are not sanitised away. But there is an absolute difference between
+acknowledging that something exists and dwelling on it as spectacle.
+
+WHAT IS PERMITTED:
+- Physical contact of a sexual or threatening nature rendered as a single sharp narrative
+  beat. A lord's unwanted hand. A forced kiss used as a display of power. A character's
+  body used as political currency. These are real tools of power in this world and GRRM
+  uses them. Write the beat. Move on immediately.
+- Sexual violence as established fact, backstory, or offstage consequence. "What Lord
+  Tarly did to her" can be a known thing in the world without the act ever being a scene.
+- Coerced marriages, political leverage over a character's body, the threat of violation
+  as intimidation — these are legitimate story elements. Write them with honesty.
+- Consensual intimacy between adult characters: acknowledge it, fade to black. The door
+  closes. We know what happened. The prose does not follow them in.
+- A villain's depravity shown through their behaviour in plain sight — how they speak,
+  what they take, how others go silent around them. The most monstrous lords are
+  monstrous in public. What they do in private is known through its aftermath and through
+  the faces of those who survived it.
+
+WHAT IS NEVER PERMITTED:
+- Explicit sexual content of any kind — no graphic description of sexual acts, no
+  dwelling on physical details of assault or intimacy. The camera cuts. Always.
+- Sexual content involving any character who is or may be under 18. This is absolute.
+  If age is ambiguous and the context is sexual, the character is not available for this.
+- Canon characters (Aegon V, Duncan the Tall, Maester Aemon, etc.) in sexual situations
+  of any kind. They are fixed figures. Their private lives are not player territory.
+- Escalating a scene incrementally toward explicit content. If a player's actions are
+  clearly steering toward graphic sexual territory through small steps, redirect firmly.
+  Write consequence, NPC reaction, or circumstantial interruption. Do not follow the path.
+
+THE CRAFT PRINCIPLE:
+A character's depravity is shown through what they do in the open, how others respond,
+and what is never spoken of — not through detailed narration of the act. The silence
+of servants. The way a woman adjusts her dress and says nothing. The maester who finds
+a reason to leave the room. These are more damning than any explicit description.
+Write the horror through implication and aftermath. It is more powerful. It is better
+writing. And it is the only approach permitted here.
+
+THE TEST: Before resolving any outcome that benefits the player character, ask:
+"Would this happen to a random bystander in the same position?" If no — rewrite it.
+The player character is a random bystander in most situations. Treat them as one.
+
+INLINE TAGS — embed directly inside narrative prose where they naturally occur:
+{"npc":"Name","memory":"what happened — specific, new information only","disposition":1,"relationship":"friend","season":"Early Spring, 250 AC"}
+{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
+{"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
+{"statGrowth":"martial","amount":1,"reason":"Brief reason — only on genuinely exceptional moments"}
+
+CONDITIONS TAGS — use these to track persistent health and life states:
+{"conditionGained":{"id":"autumn_fever","label":"Autumn Fever","type":"illness","severity":2,"note":"Contracted at the feast in the great hall."}}
+{"conditionChanged":{"id":"autumn_fever","severityDelta":-1,"note":"The maester's treatment has eased the fever."}}
+{"conditionResolved":"autumn_fever"}
+
+REPUTATION TAG — use when a character does something the realm would notice:
+{"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
+{"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
+
+REPUTATION RULES:
+- score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
+- Only fire reputationEvent when something genuinely notable happens — not for routine actions.
+- TRAIT MECHANICS: 
+  drunkard — character drinks heavily. Bad decisions follow. Do NOT deduct gold automatically — the cost comes through story consequences (poor deals, lost items, embarrassing behaviour). Occasionally a drunkard overhears something useful precisely because people forget they are there.
+  gambler — the character cannot resist a wager. Occasionally trigger random goldChange of +20 to +80 or -15 to -60 when gambling opportunities arise naturally in scene.
+  paranoid — the character sees plots everywhere. Some are real. Play NPCs as slightly more evasive around them, feeding the paranoia.
+  ambitious — push this character toward power even when the player does not. Open doors. Show them what they could have.
+  eidetic_memory — this character remembers everything said to them. Reference past events, past insults, past promises with precision.
+  water_dancer — Braavosi blade style. Describe their combat as fast, minimal, precise — not heroic or brutal. They move like water.
+  braavosi_born — character knows the Iron Bank protocols, can navigate Braavos without a guide, speaks some Braavosi.
+- region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
+- type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
+- Reputation accumulates across scenes. A character known for cruelty will find doors closing.
+  A character with high honour may receive unexpected aid from strangers. Make it matter.
+- NPCs in the relevant region should react to reputation if it's significant enough for them
+  to have heard. A knight with valour +8 will be recognised. A traitor with treachery -6
+  will find guards' hands near their swords.
+
+NPC MEMORY RULES — read carefully:
+- Fire the npc tag once per scene per NPC, only when something meaningful happened.
+- The memory text must be SPECIFIC and NEW — not a summary of what already existed.
+  "Shared a cup of wine and discussed the Blackfyre threat" not "Met again at the feast."
+- relationship: the nature of this connection. Use the most accurate term:
+  friend | rival | enemy | mentor | student | romantic_interest | unrequited | lover |
+  family | patron | ward | ally | suspicious | respected | feared | indebted | creditor | complicated
+- disposition: change from this specific interaction. +1 warmed, -1 cooled, 0 unchanged.
+  Not an absolute score — just what this scene did to the relationship.
+- NEVER fire the same memory twice. If nothing new happened with an NPC, do not tag them.
+
+CONDITION IDs you may use (use the exact string):
+ILLNESS: autumn_fever, consumption, grey_plague, flux, pox, shivers, wound_fever, childbed_fever, infected_wound, milk_of_poppy_sickness
+INJURY: broken_arm, broken_leg, lost_eye, lost_hand, battle_wound, deep_wound, scarred_face, burn_wounds, arrow_wound
+PREGNANCY: with_child_early, with_child_late, recovering_childbirth
+MENTAL: grief_stricken, broken_spirit, haunted, melancholy, manic
+ADDICTION: milk_of_poppy, strongwine
+
+CONDITION RULES — read carefully:
+1. Conditions are PERSISTENT. Once gained, they affect every subsequent scene until resolved.
+2. Health field and conditions are separate: a character can be "Hale" (health) but have a mental condition or early pregnancy.
+3. ILLNESS: Most illnesses cannot be resolved in a single scene. They worsen (severityDelta: +1) without treatment, improve (severityDelta: -1) with good care, and resolve after several scenes of recovery. Severity 4 = potentially fatal — escalate health to "Grievously Wounded" as well.
+4. PREGNANCY:
+   - Use with_child_early when pregnancy is first established (confirmed or strongly suspected).
+   - After 2 narrative seasons have passed, switch to with_child_late via conditionChanged.
+   - Childbirth is a scene unto itself — dramatic, dangerous, consequential. Severity 1-2 = uncomplicated. Severity 3 = difficult, painful. Severity 4 = life-threatening.
+   - A miscarriage: conditionResolved:"with_child_early", then conditionGained:"grief_stricken".
+   - Death in childbed: conditionResolved, isDead:true in status.
+   - Successful birth: conditionResolved:"with_child_late" or "with_child_early", then conditionGained:"recovering_childbirth".
+   - ONLY female characters of childbearing age (approximately 14-45) may gain pregnancy conditions. Check character gender and age before ever applying. Male characters NEVER gain pregnancy conditions.
+5. MENTAL: grief_stricken reduces diplomacy and social effectiveness. broken_spirit affects all rolls. haunted manifests as involuntary reactions in specific circumstances. These resolve slowly over weeks or months of narrative time — not a single kind word.
+6. ADDICTION: milk_of_poppy begins as treatment for serious wounds. If used repeatedly, severity increases. Severity 3+ means the character seeks it independently. Resolution requires a hard withdrawal arc across many scenes.
+7. INJURIES: Some are permanent: lost_eye, lost_hand, scarred_face. Never mark these resolved without a direct story-supported reason. A broken limb heals in weeks. A missing hand does not.
+8. CONDITIONS IN NARRATIVE: Every active condition MUST affect the prose. A character with autumn_fever (severity 3) is feverish and weak — they do not display sharp wit. grief_stricken is not a background detail. Do not write a character as normal when their conditions say otherwise.
+
+
+STAT GROWTH RULES — read carefully before using statGrowth:
+Growth is rare. A character should go entire seasons without any growth trigger.
+Use statGrowth ONLY for genuinely exceptional moments, never routine actions.
+
+WHAT QUALIFIES:
+- martial: Surviving mortal combat against a skilled opponent. Leading troops in a real
+  battle. Enduring physical hardship that genuinely tests limits. NOT a tavern brawl.
+- diplomacy: Successfully navigating a high-stakes negotiation where failure had real
+  political consequences. Forging an alliance that materially changed their standing.
+- intrigue: Successfully executing a complex deception or uncovering a conspiracy through
+  genuine cunning — not luck. The plan had to be theirs and it had to work.
+- stewardship: Managing a genuine resource crisis through skill. Turning around a failing
+  holding. Navigating financial catastrophe that required real expertise.
+- learning: A genuine discovery. Mastering complex knowledge under a qualified teacher
+  over extended time. Solving a problem that required exceptional intellectual effort.
+
+NEVER award growth for: routine actions, single lucky rolls, anything the character
+does regularly, or anything that felt easy or consequence-free.
+
+AGE LIMITS ON GROWTH (enforce before using statGrowth):
+- Age 13–14: no stat may exceed 5 via growth
+- Age 15–16: no stat may exceed 6 via growth  
+- Age 17–18: no stat may exceed 7 via growth
+- Age 19+: full ceiling of 10
+
+EXCEPTION: If the character has a trait directly relevant to the stat (e.g. born_fighter
+for martial, prodigy for any), raise their ceiling by 2 in that stat only.
+Do not award a statGrowth tag that would push a stat past the age ceiling.
+Growth accumulates silently — 5 growth points converts to +1 stat.
+
+RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
+
+<narrative>2-4 paragraphs of prose only. NO <choices> or <status> or any XML inside here.</narrative>
+<choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
+<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
+
+ABSOLUTE RULE: Close </narrative> BEFORE writing <choices>. Close </choices> BEFORE writing <status>.
+Your response must start with <narrative> and end with </status>. Zero text outside those tags.
+
+FINANCIAL STATUS FIELDS (include all, only populate when relevant):
+- goldChange: integer, positive = gain, negative = spend. Use this EVERY turn for realistic expenses.
+- incomeChange: integer, changes permanent income_per_turn (land grants +25 to +200, destruction -25 to -100)
+- landGained: string name of new holding (e.g. "The Mill at Ashford")
+- landLost: string name of lost holding
+- newDebt: {"creditor":"Iron Bank","amount":500,"reason":"Emergency loan for mercenaries"}
+- debtRepaid: string name of creditor debt is cleared to
+
 ON CHARACTER DEATH:
 <narrative>Death scene. Specific. Consequential. Honest.</narrative>
 <choices>[]</choices>
-<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`,
-    },
-  ];
+<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1303,14 +1458,36 @@ function extractJsonSpans(text) {
 }
 
 function parseResponse(text) {
-  // Extract the three XML blocks
   const nRaw = text.match(/<narrative>([\s\S]*?)<\/narrative>/)?.[1]?.trim() || text;
   const cRaw = text.match(/<choices>([\s\S]*?)<\/choices>/)?.[1]?.trim() || '[]';
   const sRaw = text.match(/<status>([\s\S]*?)<\/status>/)?.[1]?.trim() || '{}';
+  const memories = [], rolls = [];
+  let worldEvent = null;
+  const growthEvents = [];
+  const conditionsGained = [], conditionChanged = [], conditionsResolved = [];
+  const reputationEvents = [];
 
-  // Clean narrative — strip any XML bleed and any stray JSON objects
-  // (old prompt put JSON inline; new prompt puts everything in status)
-  let narrative = nRaw
+  const spans = extractJsonSpans(nRaw);
+  const toRemove = [];
+  for (const span of spans) {
+    try {
+      const o = JSON.parse(span.str);
+      if (o.npc && o.memory) { memories.push(o); toRemove.push(span); }
+      else if (o.stat && o.rolls) { rolls.push(o); toRemove.push(span); }
+      else if (o.worldEvent) { worldEvent = o.worldEvent; toRemove.push(span); }
+      else if (o.statGrowth && o.amount) { growthEvents.push(o); toRemove.push(span); }
+      else if (o.conditionGained) { conditionsGained.push(o.conditionGained); toRemove.push(span); }
+      else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
+      else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
+      else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
+    } catch {}
+  }
+  toRemove.sort((a, b) => b.start - a.start);
+  let narrative = nRaw;
+  for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
+
+  // Hard strip — remove any XML bleed no matter where it came from
+  narrative = narrative
     .replace(/<status>[\s\S]*?<\/status>/gi, '')
     .replace(/<choices>[\s\S]*?<\/choices>/gi, '')
     .replace(/<\/?narrative>/gi, '')
@@ -1318,66 +1495,17 @@ function parseResponse(text) {
     .replace(/<\/?status>/gi, '')
     .trim();
 
-  // Also strip any inline JSON objects that leaked from old-style responses
-  const spans = extractJsonSpans(narrative);
-  const toRemove = [];
-  for (const span of spans) {
-    try {
-      const o = JSON.parse(span.str);
-      // Only remove objects that look like our tags — not narrative content
-      if (o.npc || o.stat || o.worldEvent || o.statGrowth || o.conditionGained ||
-          o.conditionChanged || o.conditionResolved || o.reputationEvent || o.pendingNpcEvent) {
-        toRemove.push(span);
-      }
-    } catch {}
-  }
-  toRemove.sort((a, b) => b.start - a.start);
-  for (const r of toRemove) narrative = narrative.slice(0, r.start) + narrative.slice(r.end);
-  narrative = narrative.trim();
-
-  // Parse choices
-  let choices = [];
+  let choices = [], status = {};
   try { choices = JSON.parse(cRaw); } catch {}
+  try { status  = JSON.parse(sRaw); } catch {}
+
   choices = (Array.isArray(choices) ? choices : [])
     .filter(c => typeof c === 'string')
     .slice(0, 4)
     .map(c => c.substring(0, 120));
 
-  // Parse status — all structured data lives here in the new prompt
-  let status = {};
-  try { status = JSON.parse(sRaw); } catch {}
-
-  // Pull structured fields from status (new style) with fallback to inline (old style)
-  const rolls = Array.isArray(status.rolls) ? status.rolls : [];
-  const worldEvent = status.worldEvent || null;
-
-  // npcUpdates — new name for what was "memories" (inline npc tags)
-  const memories = Array.isArray(status.npcUpdates)
-    ? status.npcUpdates.map(u => ({ npc: u.npc, memory: u.memory, disposition: u.disposition || 0, relationship: u.relationship || 'acquaintance', season: status.season || '' }))
-    : [];
-
-  // Growth — single object or array
-  const growthEvents = status.statGrowth
-    ? (Array.isArray(status.statGrowth) ? status.statGrowth : [status.statGrowth])
-    : [];
-
-  // Conditions — single objects in status
-  const conditionsGained   = status.conditionGained   ? [status.conditionGained]   : [];
-  const conditionChanged   = status.conditionChanged   ? [status.conditionChanged]  : [];
-  const conditionsResolved = status.conditionResolved  ? [status.conditionResolved] : [];
-
-  // Reputation
-  const reputationEvents = status.reputationEvent
-    ? [status.reputationEvent]
-    : [];
-
-  // Pending NPC events
-  const pendingNpcEvents = status.pendingNpcEvent
-    ? [status.pendingNpcEvent]
-    : [];
-
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, pendingNpcEvents };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1428,22 +1556,8 @@ async function updateSharedScene(id, fields, env) {
   );
 }
 
-// Columns that exist in the base schema — always safe to write
-const BASE_CHAR_COLUMNS = new Set([
-  'name','age','gender','nickname','house_key','house_full','region','relation',
-  'appear','backstory','personality','stats','traits','health','location','season',
-  'dead','death_narrative','death_summary','gold','msgs','hist','npcs','events',
-  'income_per_turn','lands','debts','growth','conditions','updated_at',
-  // Extended columns — added via migration
-  'reputation','turn_count','pending_npc_events',
-]);
-
 async function updateCharacter(id, fields, env, retries = 3) {
-  // Strip any keys not in the known column list to prevent 400s from unknown columns
-  const safeFields = Object.fromEntries(
-    Object.entries(fields).filter(([k]) => BASE_CHAR_COLUMNS.has(k))
-  );
-  const body = JSON.stringify({ ...safeFields, updated_at: new Date().toISOString() });
+  const body = JSON.stringify({ ...fields, updated_at: new Date().toISOString() });
   const url  = `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(id)}`;
   const hdrs = {
     'apikey': env.SUPABASE_SERVICE_KEY,
@@ -1474,50 +1588,23 @@ async function updateCharacter(id, fields, env, retries = 3) {
 // SAVE CHAR — retry endpoint for failed saves
 // ══════════════════════════════════════════════════════════════
 async function handleSaveChar(body, env) {
-  const { characterId, fields, userToken, debugKey } = body;
+  const { characterId, fields, userToken } = body;
   if (!characterId || !fields) return json({ error: 'Missing fields' }, 400);
-
-  // Two paths:
-  // A) Normal save retry — user token only, restricted to fields /act would write
-  // B) Debug write — requires ADMIN_KEY, can write any allowed field including
-  //    gold/stats/conditions injected via the stress-test panel
-  const isDebugWrite = !!debugKey;
-  if (isDebugWrite && debugKey !== env.ADMIN_KEY) {
-    return json({ error: 'Unauthorized.' }, 403);
-  }
-
-  // Verify user owns this character via their session token
+  // Verify ownership
   const userRes = await fetch(`${env.SUPABASE_URL}/auth/v1/user`, {
     headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${userToken}` }
   }).catch(() => null);
   if (!userRes?.ok) return json({ error: 'Unauthorized' }, 401);
   const user = await userRes.json();
+  // Confirm character belongs to this user
   const charRes = await fetch(
     `${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(characterId)}&select=user_id`,
     { headers: { 'apikey': env.SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}` } }
   );
   const chars = await charRes.json();
   if (!chars?.[0] || chars[0].user_id !== user.id) return json({ error: 'Forbidden' }, 403);
-
-  // Field whitelists — normal retries get a tighter set than debug writes
-  const RETRY_FIELDS = new Set([
-    'health','gold','income_per_turn','lands','debts','location','season',
-    'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
-    'turn_count','pending_npc_events',
-  ]);
-  const DEBUG_FIELDS = new Set([
-    'health','gold','income_per_turn','lands','debts','location','season',
-    'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
-    'turn_count','pending_npc_events',
-  ]);
-  const allowed = isDebugWrite ? DEBUG_FIELDS : RETRY_FIELDS;
-  const safeFields = Object.fromEntries(
-    Object.entries(fields).filter(([k]) => allowed.has(k))
-  );
-  if (!Object.keys(safeFields).length) return json({ error: 'No valid fields' }, 400);
-
   try {
-    await updateCharacter(characterId, safeFields, env);
+    await updateCharacter(characterId, fields, env);
     return json({ ok: true });
   } catch (e) {
     return json({ error: e.message }, 500);
@@ -1567,31 +1654,23 @@ async function getRealmStats(env) {
 }
 
 async function generateRealmSummary(stats, env) {
-  try {
   const activeDesc = stats.activeList.length
     ? stats.activeList.map(c => `${c.name} of ${c.house} (${c.location}, ${c.health})`).join(', ')
     : 'No known movements in the past half-hour.';
 
-  const adminController = new AbortController();
-  const adminTimeout = setTimeout(() => adminController.abort(), 15000); // 15s max for admin summary
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
-    signal: adminController.signal,
     body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-sonnet-4-6',
       max_tokens: 350,
       messages: [{ role: 'user', content:
         `You are Grand Maester Pycelle writing a private intelligence report for the small council of King Aegon V Targaryen. The year is 250 AC. The king is reformist and his lords are restless.\n\nBased on this intelligence, write one flowing paragraph (5-7 sentences) on the state of the realm. Be specific. Name names. Be slightly ominous.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph.`
       }],
     }),
   });
-    clearTimeout(adminTimeout);
-    const data = await res.json();
-    return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
-  } catch (e) {
-    return 'The ravens have gone quiet. Something is wrong.';
-  }
+  const data = await res.json();
+  return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
 }
 
 function json(data, status = 200) {
