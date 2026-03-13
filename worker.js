@@ -158,6 +158,8 @@ async function handleAct(request, env) {
 
   // ── Persist to DB ──
   const newMsgs = [...msgs, { role: 'assistant', content: raw }];
+  // Cap at 40 for both solo and shared scenes — shared scenes were previously uncapped
+  // until written back, allowing a long session to balloon the DB entry unboundedly.
   if (newMsgs.length > 40) newMsgs.splice(0, newMsgs.length - 40);
 
   // Push this turn into history so the STORY SO FAR block stays current
@@ -173,7 +175,9 @@ async function handleAct(request, env) {
 
   try {
     if (sharedScene) {
-      await updateSharedScene(sceneId, { msgs: newMsgs }, env);
+      // Extra guard: ensure shared scene msgs are capped before write
+      const sharedMsgsCapped = newMsgs.length > 40 ? newMsgs.slice(-40) : newMsgs;
+      await updateSharedScene(sceneId, { msgs: sharedMsgsCapped }, env);
       await updateCharacter(characterId, { ...updates, growth: updates.growth, hist }, env);
     } else {
       await updateCharacter(characterId, { ...updates, growth: updates.growth, msgs: newMsgs, hist }, env);
@@ -190,6 +194,8 @@ async function handleAct(request, env) {
   }
 
   // ── Succession — runs when a character dies, fires a worldEvent ──
+  // Guard: only use succession worldEvent if the AI didn't already emit one this turn,
+  // preventing the same death from broadcasting two separate realm events.
   if (updates.dead && !char.dead) {
     const successionResult = await handleSuccession(characterId, char, env);
     if (successionResult?.worldEvent && !parsed.worldEvent) {
@@ -201,16 +207,24 @@ async function handleAct(request, env) {
   if (parsed.worldEvent) {
     const evTitle = String(parsed.worldEvent.title || parsed.worldEvent.description || '').substring(0, 120);
     if (evTitle && isValidWorldEvent(evTitle)) {
-      await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
-        method: 'POST',
-        headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
-        body: JSON.stringify({
-          title:      evTitle,
-          source_char: char.name || 'Unknown',
-          location:   updates.location || char.location || 'Unknown',
-          created_at: new Date().toISOString(),
-        }),
-      }).catch(() => {}); // fire-and-forget, don't let this break the response
+      // Dedup: check if an identical event title was already broadcast in the last 60 seconds
+      // This catches the rare case where AI + succession both fire for the same death.
+      const recentCheck = await fetch(
+        `${env.SUPABASE_URL}/rest/v1/realm_events?title=eq.${encodeURIComponent(evTitle)}&created_at=gte.${new Date(Date.now()-60000).toISOString()}&limit=1`,
+        { headers: sbHeaders(env) }
+      ).then(r => r.json()).catch(() => []);
+      if (!Array.isArray(recentCheck) || recentCheck.length === 0) {
+        await fetch(`${env.SUPABASE_URL}/rest/v1/realm_events`, {
+          method: 'POST',
+          headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+          body: JSON.stringify({
+            title:      evTitle,
+            source_char: char.name || 'Unknown',
+            location:   updates.location || char.location || 'Unknown',
+            created_at: new Date().toISOString(),
+          }),
+        }).catch(() => {}); // fire-and-forget
+      }
     }
   }
 
@@ -1692,13 +1706,17 @@ async function getRealmStats(env) {
 }
 
 async function generateRealmSummary(stats, env) {
+  try {
   const activeDesc = stats.activeList.length
     ? stats.activeList.map(c => `${c.name} of ${c.house} (${c.location}, ${c.health})`).join(', ')
     : 'No known movements in the past half-hour.';
 
+  const adminController = new AbortController();
+  const adminTimeout = setTimeout(() => adminController.abort(), 15000); // 15s max for admin summary
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': env.ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
+    signal: adminController.signal,
     body: JSON.stringify({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 350,
@@ -1707,8 +1725,12 @@ async function generateRealmSummary(stats, env) {
       }],
     }),
   });
-  const data = await res.json();
-  return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
+    clearTimeout(adminTimeout);
+    const data = await res.json();
+    return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
+  } catch (e) {
+    return 'The ravens have gone quiet. Something is wrong.';
+  }
 }
 
 function json(data, status = 200) {
