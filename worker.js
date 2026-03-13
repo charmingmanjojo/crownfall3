@@ -192,11 +192,22 @@ async function handleAct(request, env) {
   } catch (saveErr) {
     // The AI ran fine but the save failed — return the scene WITH a warning flag
     // The client will show a toast and can retry
+    // Include npcs, hist, and msgs in the saveError payload so the client's
+    // pendingSave has the FULL state needed to recover — not just charState.
+    // Previously, a failed save would lose NPC memories (Known Relationships),
+    // turn history, and message context permanently on retry.
     return json({
       ...parsed,
       charState: updates,
       saveError: true,
       saveErrorMsg: saveErr.message || 'Save failed',
+      saveFields: {
+        // Everything updateCharacter would have written
+        ...updates,
+        hist:    hist,
+        msgs:    sharedScene ? undefined : newMsgs,  // msgs only on solo saves
+        growth:  updates.growth,
+      },
     });
   }
 
@@ -1692,8 +1703,21 @@ async function handleSaveChar(body, env) {
   );
   const chars = await charRes.json();
   if (!chars?.[0] || chars[0].user_id !== user.id) return json({ error: 'Forbidden' }, 403);
+
+  // Whitelist only the fields that a retry save is allowed to write.
+  // This prevents a client from overwriting arbitrary columns and ensures
+  // npcs/hist/msgs from a failed turn are correctly recovered.
+  const ALLOWED = new Set([
+    'health','gold','income_per_turn','lands','debts','location','season',
+    'dead','npcs','events','stats','growth','conditions','reputation','hist','msgs',
+  ]);
+  const safeFields = Object.fromEntries(
+    Object.entries(fields).filter(([k]) => ALLOWED.has(k))
+  );
+  if (!Object.keys(safeFields).length) return json({ error: 'No valid fields' }, 400);
+
   try {
-    await updateCharacter(characterId, fields, env);
+    await updateCharacter(characterId, safeFields, env);
     return json({ ok: true });
   } catch (e) {
     return json({ error: e.message }, 500);
