@@ -108,12 +108,8 @@ async function handleAct(request, env) {
       const base = `${ev.npc} — ${ev.pendingEvent.replace(/_/g, ' ')}`;
       const extra = ev.data?.note ? `: ${ev.data.note}` : '';
       return base + extra;
-    }).join('
-');
-    awayInjection = `
-[WORLD UPDATE — things that have happened since your last scene:
-${eventDescs}
-Address at least one of these naturally in this scene.]`;
+    }).join('\n');
+    awayInjection = `\n[WORLD UPDATE — things that have happened since your last scene:\n${eventDescs}\nAddress at least one of these naturally in this scene.]`;
     // Clear fired events from pending
     await updateCharacter(characterId, { pending_npc_events: stillPending }, env).catch(() => {});
   }
@@ -426,18 +422,13 @@ function applyStateChanges(char, parsed) {
     if (idx > -1) debts.splice(idx, 1);
   }
 
-  // Location — resolve to canonical ID first, then apply travel cost
+  // Location — resolve to canonical ID and apply.
+  // Travel gold cost is handled narratively by the AI via goldChange — we don't
+  // deduct it mechanically here as it blocked valid location updates when gold was low.
   let location = char.location;
   if (typeof s.location === 'string') {
     const resolved = resolveLocation(s.location);
-    if (resolved && resolved !== resolveLocation(char.location)) {
-      const travelCost = estimateTravelCost(char.location, resolved);
-      if (gold >= travelCost) {
-        location = resolved;
-        if (travelCost > 0) gold = Math.max(0, gold - travelCost);
-      }
-      // else: can't afford — stay put
-    }
+    if (resolved) location = resolved;
   }
 
   // Death
@@ -1299,17 +1290,16 @@ Canon NPCs remember across scenes. A player cannot befriend Aegon V in one scene
 have him act like a stranger in the next.
 
 TRAVEL RULES:
-Travel costs gold and takes real time. Location changes are never instantaneous unless
-the character moves within the same castle or city district.
+Travel takes real time and carries real risk. Location changes are never instantaneous
+unless the character moves within the same castle or city district.
 - Within a city or castle: free, same scene.
-- Within a region: 5–15 gold, one scene transition minimum.
-- Across regions (e.g. King's Landing to Winterfell): 20–60 gold, multiple scenes,
-  road conditions and weather are real dangers.
-- Sea voyage: 30–80 gold, storm risk is genuine.
-A character who cannot afford travel simply cannot leave. Do not move them.
-A character who travels in winter risks far more than gold.
+- Within a region: one scene transition minimum, road and weather dangers apply.
+- Across regions (e.g. King's Landing to Winterfell): multiple scenes, genuine hazards.
+- Sea voyage: storm risk is real, takes at least one full scene.
+A character who travels in winter risks far more than they expect.
 Never move a character across the continent in a single action.
-When a location change occurs, goldChange must reflect the travel cost.
+Travel is a story, not a teleport. Play the road, the weather, who they meet.
+Always update the location field in status when a character arrives somewhere new.
 
 CONSEQUENCE TIMING:
 Not every consequence arrives immediately. This is intentional.
@@ -1388,7 +1378,7 @@ CHOICE TENSE — ABSOLUTE RULE: Choices MUST be written in the imperative or pre
 9. Custom player actions get resolved honestly — even if the result is fatal.
 15. WHEN RESOLVING A CHOSEN ACTION: The choice text is the player's INTENT. It has not happened yet. You resolve it — dice, NPC reactions, consequences — in the narrative. Do not treat the choice text as established fact or skip to outcomes. "Ask her how she has spent her day" means Rodrick is about to ask. Write what happens when he does.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
-11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
+11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and favours all cost money. Use goldChange in every status when money changes hands. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized. Do NOT deduct gold for travel — that is handled separately.
 12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
 13. VAGUE OR META INPUT: If the player's action is vague, out-of-character, or meta (e.g. "he flirts", "he wishes", "he is a fool", single-word inputs), do NOT replay the current scene. Interpret the intent charitably, pick the most logical story beat, and advance. Never stall or loop.
 14. SCENE LOCK — MOST IMPORTANT ANTI-REPETITION RULE: Once a scene has concluded, it is permanently CLOSED. Do not re-describe it, replay it, or have characters re-experience it under any circumstances. If the STORY SO FAR shows Rodrick already told Lysa about the wrists — that scene is over. The corridor is empty. Time has moved. Write what comes NEXT, not what already happened.
