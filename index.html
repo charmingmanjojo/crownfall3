@@ -230,9 +230,17 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 @keyframes pulse{0%,80%,100%{opacity:0}40%{opacity:1}}
 .appear{animation:appear .45s ease forwards}
 @keyframes appear{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.start-wrap{padding:52px 20px;text-align:center}
+.start-wrap{padding:40px 24px 52px;text-align:center;max-width:520px;margin:0 auto}
 .start-btn{background:transparent;border:1px solid rgba(180,140,60,.3);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.22em;padding:13px 40px;cursor:pointer;transition:all .22s;text-transform:uppercase}
 .start-btn:hover{background:rgba(180,140,60,.07);border-color:var(--gold)}
+.start-prompt-wrap{margin-bottom:22px;text-align:left}
+.start-prompt-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.22em;color:rgba(180,140,60,.45);text-transform:uppercase;margin-bottom:8px;display:block}
+.start-prompt-ta{width:100%;background:rgba(10,8,4,.55);border:1px solid rgba(180,140,60,.18);color:var(--parchment);font-family:'IM Fell English',serif;font-size:13px;line-height:1.6;padding:11px 14px;resize:none;box-sizing:border-box;transition:border-color .2s}
+.start-prompt-ta::placeholder{color:rgba(180,140,60,.22);font-style:italic}
+.start-prompt-ta:focus{outline:none;border-color:rgba(180,140,60,.4)}
+.start-prompt-count{font-size:9px;color:rgba(100,140,200,.28);text-align:right;letter-spacing:.06em;margin-top:3px}
+.start-toggle-lbl{font-size:11px;color:rgba(180,140,60,.35);font-family:'IM Fell English',serif;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin-bottom:18px}
+.start-toggle-lbl:hover{color:rgba(180,140,60,.6)}
 .choices-panel{border-top:1px solid var(--border);padding:12px 16px 14px;flex-shrink:0;background:rgba(4,8,20,.6)}
 .choices-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
 .choices-hdr-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.22em;color:rgba(100,140,200,.5);text-transform:uppercase}
@@ -677,6 +685,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     <div class="center-col">
       <div class="story-scroll" id="story-scroll">
         <div id="story-start" class="start-wrap">
+          <span class="start-toggle-lbl" id="start-prompt-toggle" onclick="toggleStartPrompt()">✦ set the opening scene yourself</span>
+          <div id="start-prompt-wrap" class="start-prompt-wrap" style="display:none">
+            <label class="start-prompt-lbl" for="start-prompt-ta">Where does your story begin?</label>
+            <textarea id="start-prompt-ta" class="start-prompt-ta" rows="4" maxlength="500"
+              placeholder="Describe the scene you want to open in. Be specific — name a place, a person present, a tension already in motion. Leave blank to let the maester decide."
+              oninput="document.getElementById('start-prompt-count').textContent=this.value.length+'/500'"></textarea>
+            <div id="start-prompt-count" class="start-prompt-count">0/500</div>
+          </div>
           <button class="start-btn" onclick="startStory()">Begin Your Story</button>
         </div>
       </div>
@@ -1547,7 +1563,8 @@ async function submitAuth() {
     return;
   }
 
-  S.user = result.data.user;
+  S.user    = result.data.user;
+  S.session = result.data.session;
   await loadCharList();
 }
 
@@ -1593,12 +1610,14 @@ async function loadCharList() {
           <div class="char-card-status">${esc(c.region||'')} · ${esc(c.season||'250 AC')} · ${c.dead?'Deceased':c.health||'Hale'}</div>
         </div>
         <div class="char-card-actions">
-          ${!c.dead ? `<button class="char-action-btn" onclick="event.stopPropagation();openEditChar('${c.id}')">Edit</button>` : ''}
-          <button class="char-action-btn danger" onclick="event.stopPropagation();confirmDeleteChar('${c.id}','${esc(c.name)}')">Remove</button>
+          ${!c.dead ? '<button class="char-action-btn js-edit-char">Edit</button>' : ''}
+          <button class="char-action-btn danger js-del-char">Remove</button>
         </div>
       `;
       if (!c.dead) div.onclick = () => loadChar(c.id);
       else div.onclick = () => viewDeadChar(c.id);
+      div.querySelector('.js-edit-char')?.addEventListener('click', e => { e.stopPropagation(); openEditChar(c.id); });
+      div.querySelector('.js-del-char').addEventListener('click', e => { e.stopPropagation(); confirmDeleteChar(c.id, c.name); });
       list.appendChild(div);
     });
   }
@@ -1718,9 +1737,11 @@ function goChars() {
   currentScene = null; currentChoices = [];
   S.busy = false; hideChoices();
   // Clean up realtime subscriptions and polling to avoid leaks
-  if (scenePollingInterval) { clearInterval(scenePollingInterval); scenePollingInterval = null; }
-  if (presenceChannel) { try { presenceChannel.unsubscribe(); } catch(e){} presenceChannel = null; }
-  if (ravenChannel)    { try { ravenChannel.unsubscribe();    } catch(e){} ravenChannel = null; }
+  if (scenePollingInterval)  { clearInterval(scenePollingInterval); scenePollingInterval = null; }
+  if (presenceChannel)       { try { presenceChannel.unsubscribe();       } catch(e){} presenceChannel = null; }
+  if (ravenChannel)          { try { ravenChannel.unsubscribe();           } catch(e){} ravenChannel = null; }
+  if (sceneChannel)          { try { sceneChannel.unsubscribe();           } catch(e){} sceneChannel = null; }
+  if (realmEventsChannel)    { try { realmEventsChannel.unsubscribe();     } catch(e){} realmEventsChannel = null; }
   if (S.user) loadCharList();
   else go('auth');
 }
@@ -2421,9 +2442,29 @@ let currentScene = null;
 let pendingSave  = null;  // holds unsaved charState if DB write failed
 let currentChoices = [];
 
+function toggleStartPrompt() {
+  const wrap   = document.getElementById('start-prompt-wrap');
+  const toggle = document.getElementById('start-prompt-toggle');
+  const visible = wrap.style.display !== 'none';
+  wrap.style.display   = visible ? 'none' : '';
+  toggle.textContent   = visible ? '✦ set the opening scene yourself' : '✦ let the maester decide';
+  if (!visible) setTimeout(() => document.getElementById('start-prompt-ta')?.focus(), 50);
+}
+
 async function startStory() {
+  const customText = (document.getElementById('start-prompt-ta')?.value || '').trim();
   document.getElementById('story-start').style.display = 'none';
-  await act('Begin the story. Open mid-scene — a specific place, a specific tension already developing, at least one named NPC who matters immediately. Do not open in safety.');
+
+  // The GM directive is always appended so constraints are never lost even if
+  // the player provides their own opening — their text sets the scene,
+  // the suffix tells the AI how to execute it.
+  const gmSuffix = 'Open mid-scene — a specific place, a specific tension already developing, at least one named NPC who matters immediately. Do not open in safety. Do not summarise backstory.';
+
+  const openingAction = customText
+    ? `Begin the story with this opening: ${customText}\n\n${gmSuffix}`
+    : `Begin the story. ${gmSuffix}`;
+
+  await act(openingAction);
 }
 
 async function act(text) {
@@ -2486,7 +2527,11 @@ async function act(text) {
         l.name.toLowerCase().includes(cs.location.toLowerCase()) ||
         cs.location.toLowerCase().includes(l.name.toLowerCase())
       );
-      if (f) { S.char.location = f.id; renderMap(); }
+      if (f && f.id !== S.char.location) {
+        S.char.location = f.id;
+        renderMap();
+        subscribePresence(); // re-subscribe with new location filter
+      }
     }
     if (cs.npcs)   { S.char.npcs   = cs.npcs;   renderNPCs(); }
     if (cs.events) { S.char.events = cs.events;  renderEvents(); }
@@ -2765,10 +2810,11 @@ function showToast(title, message, duration, onClick) {
   toastTimer = setTimeout(() => { t.style.display = 'none'; toastClickHandler = null; }, duration || 5000);
 }
 // Allow clicking the toast to trigger the callback (e.g. retry save)
-document.addEventListener('DOMContentLoaded', () => {
+// Wire toast click immediately -- script runs after DOM is parsed so element exists
+(function() {
   const t = document.getElementById('toast');
   if (t) t.addEventListener('click', () => { if (toastClickHandler) { toastClickHandler(); toastClickHandler = null; } });
-});
+})();
 
 function showSpinner(txt) {
   document.getElementById('spinner-txt').textContent = txt || 'Loading';
@@ -2879,7 +2925,8 @@ window.addEventListener('load', async () => {
   // Check existing session
   const { data: { session } } = await sb.auth.getSession();
   if (session?.user) {
-    S.user = session.user;
+    S.user    = session.user;
+    S.session = session;
     await loadCharList();
   } else {
     go('auth');
@@ -2892,10 +2939,19 @@ window.addEventListener('load', async () => {
 // ── Supabase auth state listener ──
 sb.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT') {
-    S.user = null; S.char = null; S.charId = null;
+    S.user = null; S.session = null; S.char = null; S.charId = null;
     S.sharedSceneId = null; S.sceneActive = false; S.busy = false;
     currentScene = null; currentChoices = [];
+    if (scenePollingInterval)  { clearInterval(scenePollingInterval); scenePollingInterval = null; }
+    if (presenceChannel)       { try { presenceChannel.unsubscribe();       } catch(e){} presenceChannel = null; }
+    if (ravenChannel)          { try { ravenChannel.unsubscribe();           } catch(e){} ravenChannel = null; }
+    if (sceneChannel)          { try { sceneChannel.unsubscribe();           } catch(e){} sceneChannel = null; }
+    if (realmEventsChannel)    { try { realmEventsChannel.unsubscribe();     } catch(e){} realmEventsChannel = null; }
     go('auth');
+  } else if (session) {
+    // Keep session token fresh (handles TOKEN_REFRESHED automatically)
+    S.session = session;
+    if (!S.user) S.user = session.user;
   }
 });
 
@@ -3171,8 +3227,13 @@ async function subscribePresence() {
   if (!S.char || !S.charId) return;
   await refreshPresence();
   if (presenceChannel) presenceChannel.unsubscribe();
-  presenceChannel = sb.channel('presence-' + S.charId)
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'characters' }, () => {
+  // Filter to current location — avoids receiving every character update in the whole game
+  const loc = S.char.location || '';
+  presenceChannel = sb.channel('presence-' + S.charId + '-' + loc)
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'characters',
+      filter: `location=eq.${loc}`
+    }, () => {
       refreshPresence();
     })
     .subscribe();
@@ -3200,14 +3261,24 @@ function renderWhoIsHere() {
     return;
   }
   el.innerHTML = here.map(c => `
-    <div class="who-card">
+    <div class="who-card" data-char-id="${esc(c.id)}">
       <img class="who-sigil" src="${ICONS[c.house_key]||ICONS.none}" alt=""/>
       <div style="flex:1">
         <div class="who-name">${esc(c.name)}</div>
         <div class="who-sub">${esc(c.house_full||'No House')} · ${esc(c.health||'Hale')}</div>
       </div>
-      ${S.sharedSceneId ? '' : `<button class="scene-invite-btn" onclick="inviteToScene('${c.id}','${esc(c.name)}')" title="Invite to shared scene">⚔</button>`}
+      ${S.sharedSceneId ? '' : '<button class="scene-invite-btn js-invite-btn" title="Invite to shared scene">⚔</button>'}
     </div>`).join('');
+
+  // Wire invite buttons safely - avoids injecting charName into inline JS
+  if (!S.sharedSceneId) {
+    el.querySelectorAll('.js-invite-btn').forEach((btn, i) => {
+      const card = btn.closest('.who-card');
+      const cid  = card?.dataset.charId;
+      const cobj = here[i];
+      if (cid && cobj) btn.addEventListener('click', () => inviteToScene(cid, cobj.name));
+    });
+  }
 }
 
 // ══════════════════════════════════════════════════════
@@ -3320,9 +3391,12 @@ async function searchCharsForRaven(q) {
       .ilike('name', `%${q}%`)
       .limit(6);
     if (!data || !data.length) { res.innerHTML = '<div class="raven-char-result" style="color:rgba(100,78,35,.4)">No characters found.</div>'; res.style.display='block'; return; }
-    res.innerHTML = data.map(c => `<div class="raven-char-result" onclick="selectRavenTarget('${c.id}','${esc(c.name)}')">
+    res.innerHTML = data.map(c => `<div class="raven-char-result" data-id="${esc(c.id)}" data-name="${esc(c.name)}">
       ${esc(c.name)} <span style="color:var(--dim);font-size:10px">· ${esc(c.house_full||'No House')}</span>
     </div>`).join('');
+    res.querySelectorAll('.raven-char-result[data-id]').forEach(el => {
+      el.addEventListener('click', () => selectRavenTarget(el.dataset.id, el.dataset.name));
+    });
     res.style.display = 'block';
   }, 300);
 }
