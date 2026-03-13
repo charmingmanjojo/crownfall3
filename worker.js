@@ -1,8 +1,11 @@
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-};
+function getCORS(env) {
+  const origin = env?.ALLOWED_ORIGIN || '*';
+  return {
+    'Access-Control-Allow-Origin': origin,
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+  };
+}
 
 // ── Simple in-memory rate limiter (resets on worker cold-start)
 // For stricter production limits, swap to Cloudflare KV or Durable Objects.
@@ -24,8 +27,8 @@ function checkRateLimit(key) {
 // ══════════════════════════════════════════════════════════════
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-    if (request.method !== 'POST')   return new Response('Method not allowed', { status: 405, headers: CORS });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: getCORS(env) });
+    if (request.method !== 'POST')   return new Response('Method not allowed', { status: 405, headers: getCORS(env) });
 
     const path = new URL(request.url).pathname;
     if (path === '/act')          return handleAct(request, env);
@@ -85,9 +88,17 @@ async function handleAct(request, env) {
   if (sceneId) {
     sharedScene = await getSharedScene(sceneId, env);
     if (sharedScene && sharedScene.status === 'active') {
-      const guestId = sharedScene.initiator_id === characterId
-        ? sharedScene.guest_id : sharedScene.initiator_id;
-      guestChar = guestId ? await getCharacter(guestId, env) : null;
+      // Auto-expire scenes idle for more than 4 hours
+      const SCENE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
+      const lastActivity = new Date(sharedScene.updated_at || sharedScene.created_at || 0).getTime();
+      if (Date.now() - lastActivity > SCENE_TIMEOUT_MS) {
+        await updateSharedScene(sceneId, { status: 'expired' }, env);
+        sharedScene = null;
+      } else {
+        const guestId = sharedScene.initiator_id === characterId
+          ? sharedScene.guest_id : sharedScene.initiator_id;
+        guestChar = guestId ? await getCharacter(guestId, env) : null;
+      }
     } else {
       sharedScene = null;
     }
@@ -111,7 +122,7 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 1500,
       system: buildSystemPrompt(char, realmSeason, guestChar),
       messages: windowedMsgs,
     }),
@@ -379,7 +390,7 @@ function applyStateChanges(char, parsed) {
   const npcs = { ...(char.npcs || {}) };
   (parsed.memories || []).forEach(m => {
     if (!m.npc || typeof m.npc !== 'string') return;
-    const key = m.npc.substring(0, 60);
+    const key = m.npc.trim().toLowerCase().substring(0, 60);
     if (!npcs[key]) npcs[key] = [];
 
     const newText = String(m.memory || '').substring(0, MAX_NPC_MEMORY_LEN);
@@ -493,14 +504,25 @@ function applyStateChanges(char, parsed) {
     const score = Math.max(-5, Math.min(5, Math.round(Number(r.score) || 0)));
     if (score === 0) return; // no-op
     const region = typeof r.region === 'string' ? r.region.substring(0, 60) : 'The Realm';
-    reputation.push({
-      label:  r.label.substring(0, 120),   // what happened / what people say
-      score,                                 // -5 to +5
-      region,                                // where this rep applies
-      s: season,                             // when it happened
-      type: ['honour','valour','cruelty','treachery','generosity','cunning','piety','infamy']
-              .includes(r.type) ? r.type : 'honour',
+    // Dedup: skip if a very similar rep event was already logged recently
+    const newLabel = r.label.toLowerCase().replace(/[^a-z0-9 ]/g, '');
+    const newWords = newLabel.split(' ').filter(Boolean);
+    const isDupRep = reputation.slice(-5).some(ex => {
+      const exWords = (ex.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(Boolean);
+      if (!newWords.length || !exWords.length) return false;
+      const shared = newWords.filter(w => exWords.includes(w)).length;
+      return (shared / Math.max(newWords.length, exWords.length)) > 0.55;
     });
+    if (!isDupRep) {
+      reputation.push({
+        label:  r.label.substring(0, 120),
+        score,
+        region,
+        s: season,
+        type: ['honour','valour','cruelty','treachery','generosity','cunning','piety','infamy']
+                .includes(r.type) ? r.type : 'honour',
+      });
+    }
     if (reputation.length > 20) reputation.shift();
   });
 
@@ -940,13 +962,22 @@ function scanAction(raw) {
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
-  const memBlock = c.npcs && Object.keys(c.npcs).length
-    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
+  // Cap to 20 most recently interacted NPCs to control prompt size
+  const npcEntries = c.npcs ? Object.entries(c.npcs) : [];
+  const recentNpcs = npcEntries
+    .sort((a, b) => {
+      const aLast = a[1][a[1].length - 1];
+      const bLast = b[1][b[1].length - 1];
+      return (bLast?.s || '').localeCompare(aLast?.s || '');
+    })
+    .slice(0, 20);
+  const memBlock = recentNpcs.length
+    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + recentNpcs
         .map(([n, mems]) => {
           const rel = mems.slice().reverse().find(m => m.r)?.r || 'acquaintance';
           const score = mems.reduce((a, m) => a + (m.d || 0), 0);
           const mood = score >= 3 ? 'friendly' : score <= -3 ? 'hostile' : score < 0 ? 'suspicious' : 'neutral';
-          const recent = mems.slice(-4).map(m => m.t).join(' | ');
+          const recent = mems.slice(-3).map(m => m.t).join(' | ');
           return `- ${n} [${rel}, ${mood}]: ${recent}`;
         })
         .join('\n')
@@ -997,6 +1028,15 @@ This is a REAL player character. They will act independently. Acknowledge both c
     : totalRepScore >= 2 ? 'Known' : totalRepScore <= -10 ? 'Infamous' : totalRepScore <= -5 ? 'Notorious'
     : totalRepScore <= -2 ? 'Mistrusted' : 'Unknown';
 
+  // Pre-existing relationships set at character creation
+  const preRelBlock = (c.pre_relationships && c.pre_relationships.length)
+    ? '\nPRE-EXISTING RELATIONSHIPS (established before this story began):\n' +
+      c.pre_relationships.map(r =>
+        `- ${r.name} [${r.type}]: ${r.description}`
+      ).join('\n') +
+      '\nThese relationships exist from turn one. The AI must honour them as established fact.'
+    : '';
+
   const lands = (c.lands || []);
   const debts = (c.debts || []);
   const financeBlock = `
@@ -1042,7 +1082,7 @@ Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}${situationLine}${histBlock}
-${memBlock}${repBlock}${guestBlock}
+${preRelBlock}${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
@@ -1680,6 +1720,6 @@ async function generateRealmSummary(stats, env) {
   return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
 }
 
-function json(data, status = 200) {
-  return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+function json(data, status = 200, env = null) {
+  return new Response(JSON.stringify(data), { status, headers: { ...getCORS(env), 'Content-Type': 'application/json' } });
 }
