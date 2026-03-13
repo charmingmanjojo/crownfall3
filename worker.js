@@ -128,6 +128,7 @@ async function handleAct(request, env) {
       'Content-Type': 'application/json',
       'x-api-key': env.ANTHROPIC_KEY,
       'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'prompt-caching-2024-07-31',
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
@@ -1035,7 +1036,13 @@ CHARACTER AGE NOTE: ${c.name} is ${c.age} years old — a child by the standards
 - Their youth is both a shield and a weapon others will use against them.
 - They may be clever, even dangerous — but they are still a child and the world knows it.` : '';
 
-  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
+  // Return two-block array for Anthropic prompt caching.
+  // Block 1 = all static lore (~7400 tokens), cached at 1/10 price after first request.
+  // Block 2 = per-character dynamic data (~370 tokens), never cached (changes every turn).
+  return [
+    {
+      type: 'text',
+      text: `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, fifth of his name, called the Unlikely.
 
 REALM CONTEXT:
 Aegon V is the reformist king — a man who grew up travelling Westeros as a hedge knight's squire and saw the smallfolk suffer firsthand. He has spent his reign trying to break the power of the great lords, curb serfdom, and raise the smallfolk up. The lords hate him for it. His Small Council is fractious. His own children defy him. The realm is stable on the surface and rotting underneath.
@@ -1045,25 +1052,6 @@ The Blackfyre pretenders have plagued the realm for generations. The last major 
 This is a world on the edge of something. No one knows what yet.
 
 ESSOS: Characters may be from or travel to the Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis. The Stepstones lie between. Each city has its own culture, laws, and dangers. Braavos has the Iron Bank and the Faceless Men. Pentos has magisters and Blackfyre money. Volantis has the largest slave population in the world and a growing red priest movement. Travel between Westeros and Essos takes a full season and costs significant gold. Characters in Essos are beyond the reach of Westerosi law but not beyond the reach of its enemies.
-
-Current realm date: ${seasonLine}
-
-CHARACTER:
-Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
-House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
-Current Location: ${c.location}
-Appearance: ${c.appear || 'Not described'}
-Backstory: ${c.backstory || 'Unknown'}
-Personality: ${c.personality || 'Unknown'}
-Traits: ${(c.traits || []).join(', ') || 'None'}
-Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy || 2} Intrigue:${(c.stats || {}).intrigue || 2} Stewardship:${(c.stats || {}).stewardship || 2} Learning:${(c.stats || {}).learning || 2}
-Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
-Health: ${c.health}
-Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
-Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
-${financeBlock}${situationLine}${histBlock}
-${memBlock}${repBlock}${guestBlock}
-${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
 The response to a character claiming something wrong depends entirely on who is responding.
@@ -1446,11 +1434,37 @@ FINANCIAL STATUS FIELDS (include all, only populate when relevant):
 - landLost: string name of lost holding
 - newDebt: {"creditor":"Iron Bank","amount":500,"reason":"Emergency loan for mercenaries"}
 - debtRepaid: string name of creditor debt is cleared to
+`,
+      cache_control: { type: 'ephemeral' },
+    },
+    {
+      type: 'text',
+      text: `
+Current realm date: ${seasonLine}
+
+CHARACTER:
+Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
+House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
+Current Location: ${c.location}
+Appearance: ${c.appear || 'Not described'}
+Backstory: ${c.backstory || 'Unknown'}
+Personality: ${c.personality || 'Unknown'}
+Traits: ${(c.traits || []).join(', ') || 'None'}
+Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy || 2} Intrigue:${(c.stats || {}).intrigue || 2} Stewardship:${(c.stats || {}).stewardship || 2} Learning:${(c.stats || {}).learning || 2}
+Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
+Health: ${c.health}
+Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
+Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
+${financeBlock}${situationLine}${histBlock}
+${memBlock}${repBlock}${guestBlock}
+${ageGuard}
 
 ON CHARACTER DEATH:
 <narrative>Death scene. Specific. Consequential. Honest.</narrative>
 <choices>[]</choices>
-<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`;
+<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>`,
+    },
+  ];
 }
 
 // ══════════════════════════════════════════════════════════════
