@@ -2511,7 +2511,9 @@ async function act(text) {
 
   // ── Save error — DB write failed but scene ran fine ──
   if (resp.saveError) {
-    pendingSave = { charState: resp.charState };
+    // Store the full saveFields (includes npcs, hist, msgs) so retry recovers everything.
+    // Previously only charState was stored, which lost Known Relationships and history.
+    pendingSave = { charState: resp.charState, fields: resp.saveFields || resp.charState };
     showToast('⚠ Autosave Failed', 'Your progress this turn was not saved. Tap to retry.', 8000, () => retrySave());
   } else {
     pendingSave = null;
@@ -2664,7 +2666,7 @@ async function retrySave() {
       body: JSON.stringify({
         action: 'saveChar',
         characterId: S.charId,
-        fields: pendingSave.charState,
+        fields: pendingSave.fields || pendingSave.charState,
         userToken: S.session?.access_token,
       }),
     });
