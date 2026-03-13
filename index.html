@@ -687,9 +687,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         </div>
         <div class="choices-grid" id="choices-grid"></div>
         <div class="custom-row" id="custom-row" style="display:none">
-          <textarea id="custom-ta" class="custom-area" rows="2"
-            placeholder="Describe exactly what you do."
-            onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCustom()}"></textarea>
+          <div style="flex:1;display:flex;flex-direction:column;gap:3px">
+            <textarea id="custom-ta" class="custom-area" rows="2"
+              maxlength="600"
+              placeholder="Describe exactly what you do."
+              oninput="document.getElementById('custom-ta-count').textContent=this.value.length+'/600'"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCustom()}"></textarea>
+            <div id="custom-ta-count" style="font-size:9px;color:rgba(100,140,200,.28);text-align:right;letter-spacing:.06em">0/600</div>
+          </div>
           <button class="act-btn" onclick="sendCustom()">Act</button>
         </div>
       </div>
@@ -2594,7 +2599,7 @@ function scrollBottom() { setTimeout(() => { const el=ss(); el.scrollTop=el.scro
 async function retrySave() {
   if (!pendingSave || !S.charId) return;
   try {
-    const res = await fetch(WORKER_URL, {
+    const res = await fetch(PROXY_URL + '/saveChar', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2742,14 +2747,28 @@ function openSheet() {
 function closeSheet() { document.getElementById('sheet-modal').classList.remove('open'); }
 
 let toastTimer;
-function showToast(npc, memory) {
-  document.getElementById('toast-lbl').textContent = npc + ' will remember this';
-  document.getElementById('toast-msg').textContent = memory;
-  const t = document.getElementById('toast');
+let toastClickHandler = null;
+function showToast(title, message, duration, onClick) {
+  const lbl = document.getElementById('toast-lbl');
+  const msg = document.getElementById('toast-msg');
+  const t   = document.getElementById('toast');
+  // If the title looks like an NPC name (no special chars, reasonably short), keep the framing.
+  // Otherwise just show title as-is.
+  const npcFramed = title && title.length < 40 && !/[⚜☠▲▼⚔✓✗✦⚠🤒🩸🌿🌑⚗💰]/.test(title)
+    && !['Scene','Growth','Realm','Error','Saved','Saving','A raven arrives'].includes(title);
+  lbl.textContent = npcFramed ? title + ' will remember this' : title;
+  msg.textContent = message;
   t.style.display = 'block';
+  t.style.cursor  = onClick ? 'pointer' : '';
+  toastClickHandler = onClick || null;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t.style.display = 'none', 5000);
+  toastTimer = setTimeout(() => { t.style.display = 'none'; toastClickHandler = null; }, duration || 5000);
 }
+// Allow clicking the toast to trigger the callback (e.g. retry save)
+document.addEventListener('DOMContentLoaded', () => {
+  const t = document.getElementById('toast');
+  if (t) t.addEventListener('click', () => { if (toastClickHandler) { toastClickHandler(); toastClickHandler = null; } });
+});
 
 function showSpinner(txt) {
   document.getElementById('spinner-txt').textContent = txt || 'Loading';
@@ -2760,54 +2779,6 @@ function hideSpinner() { document.getElementById('spinner').classList.remove('sh
 // ══════════════════════════════════════════════════════
 // API
 // ══════════════════════════════════════════════════════
-function buildSystemPrompt() {
-  const c = S.char;
-  const startLocName = LOCS.find(l => l.id === c.location)?.name || c.location;
-  const memBlock = Object.keys(c.npcs||{}).length
-    ? '\nNPC MEMORIES:\n' + Object.entries(c.npcs).map(([n,mems]) => `- ${n}: ${mems.slice(-3).map(m=>m.t).join(' | ')}`).join('\n')
-    : '';
-
-  return `You are the Game Master of a Game of Thrones RPG set in 250 AC during the reign of Aegon V Targaryen, the Unlikely.
-
-CHARACTER:
-Name: ${c.name}${c.nickname?' ("'+c.nickname+'")':''} | Age: ${c.age}${c.gender?' | '+c.gender:''} 
-House: ${c.house_full} | Region: ${c.region} | Position: ${c.relation}
-Current Location: ${startLocName}
-Appearance: ${c.appear||'Not described'} 
-Backstory: ${c.backstory||'Unknown'} 
-Personality: ${c.personality||'Unknown'}
-Traits: ${(c.traits||[]).map(traitLabel).join(', ')||'None'}
-Martial:${(c.stats||{}).martial||3} Diplomacy:${(c.stats||{}).diplomacy||3} Intrigue:${(c.stats||{}).intrigue||3} Stewardship:${(c.stats||{}).stewardship||3} Learning:${(c.stats||{}).learning||3}
-Health: ${c.health} | Gold: ${c.gold||100} dragons
-${memBlock}
-
-RULES:
-1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
-2. Characters CAN and WILL die. Do not protect them. Write deaths honestly and with consequence.
-3. All consequences are permanent. The dead stay dead. Burned bridges stay burned.
-4. Named NPCs remember what the character has done and act on it accordingly.
-5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
-6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
-7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious.
-8. The world moves without the character. Events happen offstage. Time passes.
-9. Custom player actions get resolved honestly — even if the result is fatal.
-10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
-
-INLINE TAGS — embed directly inside narrative prose where they naturally occur:
-{"npc":"Name","memory":"what they remember about this interaction","disposition":1}   (disposition: -3 hostile → +3 friendly)
-{"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome text"}
-{"worldEvent":{"title":"Short title","description":"What happened in the wider world"}}
-
-RESPONSE FORMAT — use this exactly, nothing else:
-<narrative>2-4 paragraphs of prose. Inline tags embedded naturally.</narrative>
-<choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
-<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence of current situation.","goldChange":0}</status>
-
-ON CHARACTER DEATH:
-<narrative>Death scene. Specific. Consequential. Honest.</narrative>
-<choices>[]</choices>
-<status>{"health":"Dead","location":"...","isDead":true,"season":"...","summary":"How ${c.name} died and what it meant.","goldChange":0}</status>`;
-}
 
 async function callAct(action, sceneId) {
   const controller = new AbortController();
@@ -3410,11 +3381,13 @@ async function sendRaven() {
 // ══════════════════════════════════════════════════════
 // CHRONICLE — inscribe great deeds
 // ══════════════════════════════════════════════════════
+let inscribeBusy = false;
 async function inscribeDeed() {
-  if (!S.char || !S.charId || !currentScene) return;
-  const excerpt = currentScene.narrative?.substring(0, 400) + (currentScene.narrative?.length > 400 ? '…' : '');
-  const season = S.char.season || 'Unknown, 250 AC';
-  const locName = LOCS.find(l => l.id === S.char.location)?.name || S.char.location;
+  if (!S.char || !S.charId || !currentScene || inscribeBusy) return;
+  inscribeBusy = true;
+  // Visually mark all inscribe buttons as in-progress
+  document.querySelectorAll('.inscribe-btn').forEach(b => { b.disabled = true; b.textContent = '✦ Inscribing…'; });
+  const excerpt = (currentScene.narrative || '').substring(0, 400) + ((currentScene.narrative || '').length > 400 ? '…' : '');
 
   let inscribeError = null;
   try {
@@ -3422,15 +3395,23 @@ async function inscribeDeed() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId:            S.user.id,
-        characterId:       S.charId,
-        narrativeExcerpt:  excerpt,
+        userId:           S.user.id,
+        characterId:      S.charId,
+        narrativeExcerpt: excerpt,
       }),
     });
-    if (!res.ok) { const e = await res.json().catch(()=>({})); inscribeError = e.error || 'Failed'; }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); inscribeError = e.error || 'Failed'; }
   } catch(e) { inscribeError = e.message; }
 
-  showToast('Chronicle', inscribeError ? 'Failed to inscribe.' : 'This deed has been inscribed in the chronicles.');
+  inscribeBusy = false;
+  if (inscribeError) {
+    document.querySelectorAll('.inscribe-btn').forEach(b => { b.disabled = false; b.textContent = '✦ Inscribe this deed in the chronicles'; });
+    showToast('Chronicle', 'Failed to inscribe: ' + inscribeError);
+  } else {
+    // Permanently mark as inscribed so it can't be clicked again
+    document.querySelectorAll('.inscribe-btn').forEach(b => { b.disabled = true; b.textContent = '✦ Inscribed'; b.style.opacity = '.4'; });
+    showToast('Chronicle', 'This deed has been inscribed in the chronicles.');
+  }
 }
 
 // ══════════════════════════════════════════════════════
