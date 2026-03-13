@@ -2738,7 +2738,10 @@ function showChoices(choices) {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
     btn.textContent = c;
-    btn.onclick = () => act(c);
+    btn.onclick = () => {
+      if (S.busy) return;
+      act(c);
+    };
     grid.appendChild(btn);
   });
 }
