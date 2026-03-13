@@ -112,10 +112,14 @@ async function handleAct(request, env) {
     // Always keep user messages and the last assistant message intact
     if (m.role === 'user') return m;
     if (i === rawWindow.length - 1) return m; // most recent assistant msg kept full
-    // For older assistant messages: extract just the summary from <status> if present
+    // For older assistant messages: extract the summary from <status>.
+    // Also extract location so the AI knows where this scene took place —
+    // this prevents conflating NPCs who appear in different locations.
     const summaryMatch = m.content && m.content.match(/"summary"\s*:\s*"([^"]{0,200})"/);
+    const locationMatch = m.content && m.content.match(/"location"\s*:\s*"([^"]{0,80})"/);
     if (summaryMatch) {
-      return { role: 'assistant', content: `[Scene summary: ${summaryMatch[1]}]` };
+      const loc = locationMatch ? ` [at: ${locationMatch[1]}]` : '';
+      return { role: 'assistant', content: `[Scene summary${loc}: ${summaryMatch[1]}]` };
     }
     // Fallback: truncate to first 200 chars of narrative so context isn't lost entirely
     const narrativeMatch = m.content && m.content.match(/<narrative>([\s\S]{0,200})/);
@@ -975,14 +979,27 @@ function scanAction(raw) {
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
 function buildSystemPrompt(c, realmSeason, guestChar) {
-  const memBlock = c.npcs && Object.keys(c.npcs).length
-    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
+  // Build NPC memory block — flag any NPCs sharing a first name so the AI never conflates them.
+  const npcEntries = c.npcs ? Object.entries(c.npcs) : [];
+  // Count how many NPCs share each first name
+  const firstNameCount = {};
+  npcEntries.forEach(([n]) => {
+    const first = n.split(' ')[0];
+    firstNameCount[first] = (firstNameCount[first] || 0) + 1;
+  });
+  const memBlock = npcEntries.length
+    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + npcEntries
         .map(([n, mems]) => {
           const rel = mems.slice().reverse().find(m => m.r)?.r || 'acquaintance';
           const score = mems.reduce((a, m) => a + (m.d || 0), 0);
           const mood = score >= 3 ? 'friendly' : score <= -3 ? 'hostile' : score < 0 ? 'suspicious' : 'neutral';
           const recent = mems.slice(-4).map(m => m.t).join(' | ');
-          return `- ${n} [${rel}, ${mood}]: ${recent}`;
+          // If another NPC shares this first name, append a disambiguation warning
+          const first = n.split(' ')[0];
+          const disambig = firstNameCount[first] > 1
+            ? ` ⚠ DISTINCT PERSON — do not confuse with other ${first}s`
+            : '';
+          return `- ${n} [${rel}, ${mood}]${disambig}: ${recent}`;
         })
         .join('\n')
     : '';
@@ -1258,9 +1275,15 @@ RULES:
 4. Named NPCs remember what the character has done and act on it accordingly.
 5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
 6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
-7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious. CRITICAL: Choices must be DISTINCT from each other and must NOT repeat or rephrase the action the player just took. If the player just insulted a lord, do not offer "insult him again" as a choice. Each choice must represent a genuinely different path: one bold, one cautious, one social, one observational — never two choices that achieve the same thing differently.
+7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious. CRITICAL: Choices must be DISTINCT from each other and must NOT repeat or rephrase the action the player just took. Each choice must represent a genuinely different path: one bold, one cautious, one social, one observational — never two choices that achieve the same thing differently.
+
+CHOICE TENSE — ABSOLUTE RULE: Choices MUST be written in the imperative or present-intent form. They are things the player is ABOUT TO DO, not things that have already happened.
+   CORRECT: "Ask her how she has spent her day" / "Leave the hall without a word" / "Press her on why she is really here"
+   WRONG:   "Rodrick found her in the great hall and shared a brief kiss" / "Rodrick told Lysa plainly he finds her company easier"
+   A choice written in past tense as an established fact is a critical error — it creates a false history when selected. Every choice must read as an intention, not a narrated outcome.
 8. The world moves without the character. Events happen offstage. Time passes.
 9. Custom player actions get resolved honestly — even if the result is fatal.
+15. WHEN RESOLVING A CHOSEN ACTION: The choice text is the player's INTENT. It has not happened yet. You resolve it — dice, NPC reactions, consequences — in the narrative. Do not treat the choice text as established fact or skip to outcomes. "Ask her how she has spent her day" means Rodrick is about to ask. Write what happens when he does.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
 11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
 12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
@@ -1376,6 +1399,11 @@ NPC MEMORY RULES — read carefully:
 - disposition: change from this specific interaction. +1 warmed, -1 cooled, 0 unchanged.
   Not an absolute score — just what this scene did to the relationship.
 - NEVER fire the same memory twice. If nothing new happened with an NPC, do not tag them.
+- FULL NAME REQUIRED: Always use the NPC's full name in the npc tag (e.g. "Lysa Flint" not "Lysa").
+  If two NPCs share a first name (e.g. Lysa Flint and Lysa Glover), never refer to either by
+  first name alone — in the tag, in the narrative, or in dialogue attribution. The distinction
+  must be maintained throughout the scene. When the player's action says "her" or uses a first
+  name only, check NPC RELATIONSHIPS above to confirm which person is present in the current scene.
 
 CONDITION IDs you may use (use the exact string):
 ILLNESS: autumn_fever, consumption, grey_plague, flux, pox, shivers, wound_fever, childbed_fever, infected_wound, milk_of_poppy_sickness
