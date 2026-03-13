@@ -109,19 +109,22 @@ async function handleAct(request, env) {
   // previous scene descriptions and replaying them.
   const rawWindow = msgs.slice(-msgWindow);
   const windowedMsgs = rawWindow.map((m, i) => {
-    // Always keep user messages and the last assistant message intact
+    // Always keep user messages intact
     if (m.role === 'user') return m;
-    if (i === rawWindow.length - 1) return m; // most recent assistant msg kept full
-    // For older assistant messages: extract the summary from <status>.
-    // Also extract location so the AI knows where this scene took place —
-    // this prevents conflating NPCs who appear in different locations.
-    const summaryMatch = m.content && m.content.match(/"summary"\s*:\s*"([^"]{0,200})"/);
+    // Keep the last 2 assistant messages FULL so the AI has enough scene texture
+    // to continue in media res rather than re-establishing setting and characters.
+    // Only 1 full message caused the AI to lose track of who was in the room and restart.
+    const assistantMsgs = rawWindow.filter(x => x.role === 'assistant');
+    const assistantIdx  = assistantMsgs.indexOf(m);
+    if (assistantIdx >= assistantMsgs.length - 2) return m; // keep last 2 full
+    // For older assistant messages: extract the summary + location for compact context
+    const summaryMatch  = m.content && m.content.match(/"summary"\s*:\s*"([^"]{0,200})"/);
     const locationMatch = m.content && m.content.match(/"location"\s*:\s*"([^"]{0,80})"/);
     if (summaryMatch) {
       const loc = locationMatch ? ` [at: ${locationMatch[1]}]` : '';
       return { role: 'assistant', content: `[Scene summary${loc}: ${summaryMatch[1]}]` };
     }
-    // Fallback: truncate to first 200 chars of narrative so context isn't lost entirely
+    // Fallback: first 200 chars of narrative
     const narrativeMatch = m.content && m.content.match(/<narrative>([\s\S]{0,200})/);
     return { role: 'assistant', content: narrativeMatch ? `[Scene: ${narrativeMatch[1].trim()}...]` : '[Scene continued]' };
   });
@@ -1270,6 +1273,12 @@ Treat it as such. The world does not reward convenient knowledge with confirmati
 
 RULES:
 1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
+
+CONTINUITY OF SCENE — CRITICAL:
+If a scene is already in progress (characters present, location established, action underway), the narrative MUST open mid-action — in media res. Do NOT re-establish the setting, re-describe the room, re-introduce characters already present, or re-state the situation.
+- WRONG: "The great hall smelled of tallow and woodsmoke. Lord Stark sat at the high table..." (when Rodrick is already standing in that hall)
+- RIGHT: Pick up exactly where the last beat ended. If Rodrick just spoke out of turn, open with the silence that follows — or with Lord Stark's eyes finding him.
+A scene has ONE establishing description. Everything after that is continuation. Treat the player's history as a running scene, not a series of fresh openings.
 2. Characters CAN and WILL die. Do not protect them. Write deaths honestly and with consequence.
 3. All consequences are permanent. The dead stay dead. Burned bridges stay burned.
 4. Named NPCs remember what the character has done and act on it accordingly.
