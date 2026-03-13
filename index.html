@@ -211,6 +211,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .hist-block{margin-bottom:24px;opacity:.38}
 .hist-choice{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.17em;color:rgba(100,140,200,.5);display:block;margin-bottom:8px}
 .hist-choice::before{content:"↳  "}
+.hist-summary{font-size:12px;font-style:italic;color:rgba(180,155,90,.45);line-height:1.55}
 .prose{font-size:15px;line-height:1.88;color:var(--text)}
 .prose p{margin-bottom:.9em}
 .prose p:first-child::first-letter{font-family:'Cinzel',serif;font-size:44px;float:left;line-height:.82;margin:5px 7px -3px 0;color:var(--gold)}
@@ -1936,7 +1937,7 @@ function validateCharacterBio(text) {
 // DELETE CHARACTER
 // ══════════════════════════════════════════════════════
 async function confirmDeleteChar(charId, charName) {
-  if (!confirm('Remove ' + charName + ' from the realm?\n\nThis cannot be undone. Their deeds in the chronicle will remain.')) return;
+  if (!confirm(`Remove ${charName.replace(/[\n\r]/g, ' ')} from the realm?\n\nThis cannot be undone. Their deeds in the chronicle will remain.`)) return;
   const { error } = await sb.from('characters').delete().eq('id', charId).eq('user_id', S.user.id);
   if (error) { showToast('Error', 'Could not remove character.'); return; }
   showToast('Realm', charName + ' has been struck from the rolls.');
@@ -2472,11 +2473,18 @@ async function act(text) {
   S.busy = true;
   hideChoices();
 
-  // Optimistically show the user's action in history
+  // Optimistically show the user's action in history (server will overwrite with real data)
   if (currentScene) {
     S.char.hist = S.char.hist || [];
-    S.char.hist.push({ narrative: currentScene.narrative, choice: text, rolls: currentScene.rolls || [] });
-    if (S.char.hist.length > 28) S.char.hist.shift();
+    const optimisticSummary = currentScene.status?.summary || '';
+    S.char.hist.push({
+      choice:  text,
+      summary: optimisticSummary,
+      // keep narrative as fallback for any pre-patch entries already in hist
+      narrative: optimisticSummary ? undefined : currentScene.narrative,
+      rolls:   currentScene.rolls || [],
+    });
+    if (S.char.hist.length > 30) S.char.hist.shift();
   }
   renderHistory();
   appendLoading();
@@ -2599,27 +2607,31 @@ function ss() { return document.getElementById('story-scroll'); }
 
 function renderHistory() {
   const el = ss(); el.innerHTML = '';
-  if (currentScene?.status?.summary) {
-    const s = document.createElement('div');
-    s.className = 'scene-summary';
-    s.textContent = currentScene.status.summary;
-    el.appendChild(s);
-  }
   (S.char?.hist||[]).forEach(h => {
     const d = document.createElement('div');
     d.className = 'hist-block';
+    // New entries have h.summary; old entries (pre-patch) may have h.narrative
+    const body = h.summary
+      ? `<div class="hist-summary">${esc(h.summary)}</div>`
+      : `<div class="prose">${proseHTML(h.narrative)}</div>`;
     d.innerHTML = `<span class="hist-choice">${esc(h.choice)}</span>
       ${(h.rolls||[]).map(diceHTML).join('')}
-      <div class="prose">${proseHTML(h.narrative)}</div>
+      ${body}
       <hr class="scene-hr"/>`;
     el.appendChild(d);
   });
 }
 
 function appendScene(p) {
+  // Reset inscribe state for the new scene
+  inscribeBusy = false;
   const d = document.createElement('div'); d.className = 'appear';
-  d.innerHTML = `${(p.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(p.narrative)}</div>
-    <button class="inscribe-btn" onclick="inscribeDeed()">✦ Inscribe this deed in the chronicles</button>`;
+  const btn = document.createElement('button');
+  btn.className = 'inscribe-btn';
+  btn.textContent = '✦ Inscribe this deed in the chronicles';
+  btn.addEventListener('click', inscribeDeed);
+  d.innerHTML = `${(p.rolls||[]).map(diceHTML).join('')}<div class="prose">${proseHTML(p.narrative)}</div>`;
+  d.appendChild(btn);
   ss().appendChild(d);
 }
 
@@ -2752,6 +2764,7 @@ function restoreScene() {
   const last = [...(S.char.msgs||[])].reverse().find(m => m.role === 'assistant');
   if (!last) { go('game'); return; }
   const parsed = parseResp(last.content);
+  parsed.narrative = stripXML(parsed.narrative || ''); // guard against XML bleed in stored msgs
   currentScene = parsed; currentChoices = parsed.choices || [];
   go('game');
   setTimeout(() => {
@@ -3348,7 +3361,7 @@ function renderRavenInbox() {
     return;
   }
   el.innerHTML = ravenInbox.map(r => `
-    <div class="raven-item ${r.is_read?'':'unread'}" onclick="readRaven('${r.id}')">
+    <div class="raven-item ${r.is_read?'':'unread'}" data-id="${esc(r.id)}">
       <div class="raven-item-from">
         ${!r.is_read?'<div class="raven-unread-dot"></div>':''}
         ${esc(r.from_char_name||'Unknown')}
@@ -3356,6 +3369,9 @@ function renderRavenInbox() {
       <div class="raven-item-sub">${esc(r.subject||'(no subject)')}</div>
       <div class="raven-item-preview">${esc((r.body||'').substring(0,80))}${(r.body||'').length>80?'…':''}</div>
     </div>`).join('');
+  el.querySelectorAll('.raven-item[data-id]').forEach(div => {
+    div.addEventListener('click', () => readRaven(div.dataset.id));
+  });
 }
 
 async function readRaven(id) {
