@@ -270,7 +270,27 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .start-prompt-count{font-size:9px;color:rgba(100,140,200,.28);text-align:right;letter-spacing:.06em;margin-top:3px}
 .start-toggle-lbl{font-size:11px;color:rgba(180,140,60,.35);font-family:'IM Fell English',serif;font-style:italic;cursor:pointer;text-decoration:underline;text-underline-offset:3px;display:block;margin-bottom:18px}
 .start-toggle-lbl:hover{color:rgba(180,140,60,.6)}
-.choices-panel{border-top:1px solid var(--border);padding:12px 16px 14px;flex-shrink:0;background:rgba(4,8,20,.6)}
+/* ── PLAYER AGENCY INPUT SYSTEM ── */
+.input-mode-btn{background:transparent;border:1px solid rgba(60,90,150,.2);color:rgba(100,140,200,.45);font-family:'Cinzel',serif;font-size:8px;letter-spacing:.14em;padding:3px 10px;cursor:pointer;transition:all .18s;text-transform:uppercase}
+.input-mode-btn:hover{border-color:rgba(180,140,60,.3);color:rgba(180,140,60,.7)}
+.input-mode-btn.on{border-color:rgba(180,140,60,.45);color:var(--gold);background:rgba(180,140,60,.06)}
+.agency-input-wrap{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.agency-input-hint{font-size:10px;font-style:italic;color:rgba(100,140,200,.4);line-height:1.4}
+.agency-ta{width:100%;background:rgba(255,255,255,.025);border:1px solid rgba(180,140,60,.15);border-left:2px solid rgba(180,140,60,.3);color:var(--text);font-family:'IM Fell English',Georgia,serif;font-size:14px;line-height:1.55;padding:9px 12px;outline:none;resize:none;min-height:58px;transition:border-color .2s}
+.agency-ta:focus{border-color:rgba(180,140,60,.4);border-left-color:var(--gold)}
+.agency-ta::placeholder{color:rgba(100,140,200,.3);font-style:italic}
+.say-ta{border-left-color:rgba(100,200,140,.3);font-style:italic}
+.say-ta:focus{border-left-color:rgba(100,200,140,.7)}
+.agency-footer{display:flex;justify-content:space-between;align-items:center}
+.agency-count{font-size:9px;color:rgba(100,140,200,.25);letter-spacing:.06em}
+.say-btn{border-color:rgba(100,200,140,.3)!important;color:rgba(100,200,140,.7)!important}
+.say-btn:hover{border-color:rgba(100,200,140,.6)!important;color:rgba(140,220,160,.9)!important;background:rgba(100,200,140,.05)!important}
+.say-tone-row{display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding-top:4px;border-top:1px solid rgba(60,90,150,.1)}
+.say-tone-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.18em;color:rgba(100,140,200,.35);text-transform:uppercase;flex-shrink:0}
+.tone-btn{background:transparent;border:1px solid rgba(60,90,150,.15);color:rgba(100,140,200,.4);font-family:'Cinzel',serif;font-size:7px;letter-spacing:.12em;padding:2px 7px;cursor:pointer;transition:all .16s;text-transform:uppercase}
+.tone-btn:hover{border-color:rgba(180,140,60,.25);color:rgba(180,140,60,.6)}
+.tone-btn.on{border-color:rgba(180,140,60,.4);color:var(--gold);background:rgba(180,140,60,.05)}
+.choices-panel{border-top:1px solid var(--border);padding:10px 16px 13px;flex-shrink:0;background:rgba(4,8,20,.6)}
 .choices-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
 .choices-hdr-lbl{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.22em;color:rgba(100,140,200,.5);text-transform:uppercase}
 .custom-toggle{background:transparent;border:none;font-family:'IM Fell English',serif;font-size:11px;font-style:italic;color:rgba(100,140,200,.45);cursor:pointer;text-decoration:underline;text-underline-offset:3px}
@@ -811,19 +831,64 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <div class="choices-panel" id="choices-panel" style="display:none">
         <div class="choices-header">
           <span class="choices-hdr-lbl">What do you do?</span>
-          <button class="custom-toggle" id="toggle-custom" onclick="flipCustom()">write your own action</button>
-        </div>
-        <div class="choices-grid" id="choices-grid"></div>
-        <div class="custom-row" id="custom-row" style="display:none">
-          <div style="flex:1;display:flex;flex-direction:column;gap:3px">
-            <textarea id="custom-ta" class="custom-area" rows="2"
-              maxlength="600"
-              placeholder="Describe exactly what you do."
-              oninput="document.getElementById('custom-ta-count').textContent=this.value.length+'/600'"
-              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendCustom()}"></textarea>
-            <div id="custom-ta-count" style="font-size:9px;color:rgba(100,140,200,.28);text-align:right;letter-spacing:.06em">0/600</div>
+          <div style="display:flex;gap:6px;align-items:center">
+            <button class="input-mode-btn on" id="mode-btn-choose" onclick="setInputMode('choose')" title="Pick from generated choices">⚔ Choose</button>
+            <button class="input-mode-btn" id="mode-btn-act" onclick="setInputMode('act')" title="Describe an action">✦ Act</button>
+            <button class="input-mode-btn" id="mode-btn-say" onclick="setInputMode('say')" title="Speak as your character">💬 Speak</button>
           </div>
-          <button class="act-btn" onclick="sendCustom()">Act</button>
+        </div>
+
+        <!-- CHOOSE MODE: generated choices -->
+        <div id="input-mode-choose">
+          <div class="choices-grid" id="choices-grid"></div>
+          <div style="text-align:center;margin-top:6px">
+            <button class="custom-toggle" onclick="setInputMode('act')">or describe your own action ›</button>
+          </div>
+        </div>
+
+        <!-- ACT MODE: free action input -->
+        <div id="input-mode-act" style="display:none">
+          <div class="agency-input-wrap">
+            <div class="agency-input-hint">Describe exactly what your character does — movement, attack, investigation, anything.</div>
+            <textarea id="act-ta" class="agency-ta" rows="2" maxlength="600"
+              placeholder="e.g. I draw my sword and step between Ser Harys and the door."
+              oninput="agencyCount('act-ta','act-count')"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgency('act')}"></textarea>
+            <div class="agency-footer">
+              <span id="act-count" class="agency-count">0/600</span>
+              <div style="display:flex;gap:5px">
+                <button class="custom-toggle" onclick="setInputMode('choose')">‹ back</button>
+                <button class="act-btn" onclick="sendAgency('act')">Act</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- SAY MODE: speak in character -->
+        <div id="input-mode-say" style="display:none">
+          <div class="agency-input-wrap">
+            <div class="agency-input-hint">Speak as your character — the GM will write the scene around your exact words.</div>
+            <textarea id="say-ta" class="agency-ta say-ta" rows="2" maxlength="400"
+              placeholder='e.g. "Your grandfather burned our mill, Bracken. Did you think I forgot?"'
+              oninput="agencyCount('say-ta','say-count')"
+              onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAgency('say')}"></textarea>
+            <div class="agency-footer">
+              <span id="say-count" class="agency-count">0/400</span>
+              <div style="display:flex;gap:5px">
+                <button class="custom-toggle" onclick="setInputMode('choose')">‹ back</button>
+                <button class="act-btn say-btn" onclick="sendAgency('say')">Speak</button>
+              </div>
+            </div>
+            <div class="say-tone-row">
+              <span class="say-tone-lbl">Tone:</span>
+              <button class="tone-btn on" data-tone="neutral" onclick="setTone(this)">Neutral</button>
+              <button class="tone-btn" data-tone="cold" onclick="setTone(this)">Cold</button>
+              <button class="tone-btn" data-tone="threatening" onclick="setTone(this)">Threatening</button>
+              <button class="tone-btn" data-tone="diplomatic" onclick="setTone(this)">Diplomatic</button>
+              <button class="tone-btn" data-tone="mocking" onclick="setTone(this)">Mocking</button>
+              <button class="tone-btn" data-tone="pleading" onclick="setTone(this)">Pleading</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -3113,38 +3178,69 @@ function showChoices(choices) {
   const grid  = document.getElementById('choices-grid');
   panel.style.display = '';
   grid.innerHTML = '';
-  S.customMode = false;
-  document.getElementById('custom-row').style.display = 'none';
-  document.getElementById('toggle-custom').textContent = 'write your own action';
-  grid.style.display = 'grid';
+  setInputMode('choose');
   choices.forEach(c => {
     const btn = document.createElement('button');
     btn.className = 'choice-btn';
     btn.textContent = c;
-    btn.onclick = () => {
-      if (S.busy) return;
-      act(c);
-    };
+    btn.onclick = () => { if (S.busy) return; act(c); };
     grid.appendChild(btn);
   });
 }
 
 function hideChoices() { document.getElementById('choices-panel').style.display = 'none'; }
 
-function flipCustom() {
-  S.customMode = !S.customMode;
-  document.getElementById('custom-row').style.display   = S.customMode ? 'flex' : 'none';
-  document.getElementById('choices-grid').style.display = S.customMode ? 'none' : 'grid';
-  document.getElementById('toggle-custom').textContent  = S.customMode ? 'use generated choices' : 'write your own action';
-  if (S.customMode) document.getElementById('custom-ta').focus();
+// ── Player Agency Input System ──
+let currentTone = 'neutral';
+let currentInputMode = 'choose';
+
+function setInputMode(mode) {
+  currentInputMode = mode;
+  ['choose','act','say'].forEach(m => {
+    document.getElementById('input-mode-' + m).style.display = m === mode ? '' : 'none';
+    document.getElementById('mode-btn-' + m)?.classList.toggle('on', m === mode);
+  });
+  // Auto-focus the textarea when switching to act/say
+  if (mode === 'act') setTimeout(() => document.getElementById('act-ta')?.focus(), 40);
+  if (mode === 'say') setTimeout(() => document.getElementById('say-ta')?.focus(), 40);
 }
 
-function sendCustom() {
-  const v = document.getElementById('custom-ta').value.trim();
-  if (!v || S.busy) return;
-  document.getElementById('custom-ta').value = '';
-  act(v);
+function setTone(btn) {
+  document.querySelectorAll('.tone-btn').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  currentTone = btn.dataset.tone;
 }
+
+function agencyCount(taId, countId) {
+  const ta = document.getElementById(taId);
+  const ct = document.getElementById(countId);
+  if (ta && ct) ct.textContent = ta.value.length + '/' + ta.maxLength;
+}
+
+function sendAgency(mode) {
+  if (S.busy) return;
+  if (mode === 'act') {
+    const v = document.getElementById('act-ta').value.trim();
+    if (!v) return;
+    document.getElementById('act-ta').value = '';
+    agencyCount('act-ta', 'act-count');
+    act(v);
+  } else if (mode === 'say') {
+    const v = document.getElementById('say-ta').value.trim();
+    if (!v) return;
+    document.getElementById('say-ta').value = '';
+    agencyCount('say-ta', 'say-count');
+    // Wrap the speech with tone context so the GM knows how it's delivered
+    const toneNote = currentTone !== 'neutral' ? ` [tone: ${currentTone}]` : '';
+    // Format: the player's exact words in quotes, with tone hint
+    // The AI is instructed to use these words verbatim in the scene
+    act(`[DIALOGUE${toneNote}] "${v}"`);
+  }
+}
+
+// Keep sendCustom as a legacy alias so nothing breaks
+function sendCustom() { sendAgency('act'); }
+function flipCustom() { setInputMode(currentInputMode === 'choose' ? 'act' : 'choose'); }
 
 function restoreScene() {
   const last = [...(S.char.msgs||[])].reverse().find(m => m.role === 'assistant');
