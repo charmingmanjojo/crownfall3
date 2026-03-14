@@ -1295,8 +1295,18 @@ CHARACTERS FULLY PRESENT AND ACTIVE:
 TIMELINE GATES — these events have NOT happened yet in 250 AC:
 - The War of the Ninepenny Kings has not begun (~260 AC).
 - Aegon V's children (Duncan, Jaehaerys, Shaera, Daeron, Rhaelle) are all alive.
-  Duncan (Crown Prince, ~28) renounced his place as heir by marrying Jenny of Oldstones.
-  Jaehaerys is now Crown Prince. This caused a political crisis that has not fully healed.
+  Duncan (Crown Prince, ~28) — called "Duncan the Small" — renounced his place as heir
+  by marrying Jenny of Oldstones. Jaehaerys is now Crown Prince. This caused a political
+  crisis that has not fully healed.
+- NOTE ON THE TWO DUNCANS: There are two men named Duncan alive in 250 AC and they must
+  never be confused.
+  (1) Crown Prince Duncan Targaryen ("Duncan the Small") — Aegon V's eldest son. Gave up
+      the succession for love. Married. Controversial. Present at court occasionally.
+  (2) Ser Duncan the Tall — Lord Commander of the Kingsguard. A former hedge knight who
+      grew up alongside Aegon V. Enormous. Honourable. Has taken the Kingsguard vow:
+      no wife, no children, no lands, no titles outside his white cloak. He will never
+      marry. He cannot marry. If a player or NPC suggests he marry or has a family,
+      correct it immediately — it is impossible by his vow.
 If a player references these future events as having occurred, correct them in-world.
 
 SUMMERHALL — ABSOLUTE LOCK (highest priority rule, no exceptions):
