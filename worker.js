@@ -114,6 +114,7 @@ export default {
     if (path === '/admin/tournaments')         return handleAdminTournaments(request, env);
     if (path === '/tournament/enter')          return handleTournamentEnter(request, env);
     if (path === '/tournament/list')           return handleTournamentList(request, env);
+    if (path === '/recap')                     return handleRecap(request, env);
     return json({ error: 'Not found' }, 404);
   }
 };
@@ -2383,4 +2384,56 @@ async function handleTournamentEnter(request, env) {
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
+}
+
+// ══════════════════════════════════════════════════════════════
+// /recap — generate a short story-so-far summary
+// Body: { userId, characterId }
+// Reads hist from DB, calls Claude, returns { text }.
+// Never modifies game state.
+// ══════════════════════════════════════════════════════════════
+async function handleRecap(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const { userId, characterId } = body;
+  if (!userId || !characterId) return json({ error: 'Missing fields' }, 400);
+  if (!checkRateLimit('recap:' + userId)) return json({ error: 'Too many requests.' }, 429);
+
+  const char = await getCharacter(characterId, env);
+  if (!char || char.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+
+  const hist = Array.isArray(char.hist) ? char.hist : [];
+  if (!hist.length) return json({ error: 'No history yet — play a few turns first.' }, 400);
+
+  const lines = hist.slice(-12).map((h, i) => {
+    const act = h.choice ? h.choice.substring(0, 80) : '(action)';
+    const sum = (h.summary || '').substring(0, 160);
+    return `${i + 1}. [${act}] ${sum}`;
+  }).join('\n');
+
+  const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': env.ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `You are a medieval chronicler writing a brief recap for a Game of Thrones RPG.\n\nCharacter: ${char.name}\nSeason: ${char.season || 'Early Spring, 250 AC'}\nHealth: ${char.health || 'Hale'}\n\nRecent turns (oldest first):\n${lines}\n\nWrite 3-5 sentences in second person ("You have...") summarising what has happened. Be specific — names, places, consequences. No padding.`,
+      }],
+    }),
+  });
+
+  if (!aiRes.ok) return json({ error: 'AI error ' + aiRes.status }, 500);
+  const data = await aiRes.json();
+  const text = data.content?.[0]?.text || '';
+  if (!text) return json({ error: 'Empty response from AI' }, 500);
+
+  return json({ text });
 }
