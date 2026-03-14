@@ -3335,6 +3335,63 @@ function appendError(msg) {
 
 function scrollBottom() { setTimeout(() => { const el=ss(); el.scrollTop=el.scrollHeight; }, 80); }
 
+// ── Recap — summarise recent history inline without burning a full AI turn ──
+async function requestRecap() {
+  if (S.busy) return;
+  const hist = S.char?.hist || [];
+  if (!hist.length) {
+    appendError('No history yet — play a few turns first.');
+    return;
+  }
+  const btn = document.getElementById('recap-btn');
+  if (btn) { btn.disabled = true; btn.textContent = '↺ …'; }
+
+  // Build a plain-text summary from the stored turn summaries
+  const lines = hist.slice(-12).map((h, i) => {
+    const act = h.choice ? h.choice.substring(0, 80) : '(action)';
+    const sum = h.summary || h.narrative?.replace(/\n+/g,' ').substring(0, 140) || '';
+    return `${i + 1}. [${act}] ${sum}`;
+  }).join('\n');
+
+  const charName = S.char?.name || 'the character';
+  const season   = S.char?.season || 'unknown season';
+
+  appendLoading();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 400,
+        messages: [{
+          role: 'user',
+          content: `You are a medieval chronicler writing a brief recap for a Game of Thrones RPG.\n\nCharacter: ${charName}\nSeason: ${season}\nHealth: ${S.char?.health || 'Hale'}\n\nRecent turns (oldest first):\n${lines}\n\nWrite a 3–5 sentence recap in second person ("You have...") summarising what has happened recently. Be specific, use names and places. Keep it tight — this is a memory aid, not a story retelling.`,
+        }],
+      }),
+    });
+    removeLoading();
+    if (!res.ok) throw new Error('API error ' + res.status);
+    const data = await res.json();
+    const text = data.content?.[0]?.text || '';
+    if (!text) throw new Error('Empty response');
+
+    // Render as a distinct recap block in the story scroll
+    const d = document.createElement('div');
+    d.className = 'appear';
+    d.style.cssText = 'border-left:2px solid rgba(100,140,200,.25);padding:10px 14px;margin:8px 0;background:rgba(5,10,28,.4)';
+    d.innerHTML = `<div style="font-family:'Cinzel',serif;font-size:8px;letter-spacing:.22em;color:rgba(100,140,200,.5);text-transform:uppercase;margin-bottom:7px">↺ Story So Far</div>
+      <div style="font-size:13px;font-style:italic;color:rgba(160,200,240,.75);line-height:1.7">${proseHTML(text)}</div>`;
+    ss().appendChild(d);
+    scrollBottom();
+  } catch(e) {
+    removeLoading();
+    appendError('Recap failed: ' + e.message);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '↺ Recap'; }
+  }
+}
+
 // ── Retry a failed save ──
 async function retrySave() {
   if (!pendingSave || !S.charId) return;
