@@ -334,6 +334,16 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .rep-entry-score{font-style:normal;margin-left:4px}
 .rep-entry-score.pos{color:rgba(100,180,80,.7)}
 .rep-entry-score.neg{color:rgba(180,80,60,.7)}
+/* ── COIN DISPLAY ── */
+.coin-gd{color:#e8c870;font-family:'Cinzel',serif;font-size:13px}
+.coin-ss{color:#b0c8d8;font-family:'Cinzel',serif;font-size:12px}
+.coin-cp{color:#c87840;font-family:'Cinzel',serif;font-size:11px}
+.coin-lbl{font-size:9px;opacity:.7;letter-spacing:.04em}
+#g-gold{font-family:'Cinzel',serif;font-size:12px;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.gold-flash-up{animation:gf-up .9s ease}
+.gold-flash-dn{animation:gf-dn .9s ease}
+@keyframes gf-up{0%{filter:brightness(1)}40%{filter:brightness(1.8) saturate(1.5)}100%{filter:brightness(1)}}
+@keyframes gf-dn{0%{filter:brightness(1)}40%{filter:brightness(.55) saturate(.4)}100%{filter:brightness(1)}}
 .ticker{height:30px;display:flex;align-items:center;gap:10px;padding:0 16px;border-top:1px solid rgba(100,78,35,.1);background:rgba(0,0,0,.38);flex-shrink:0}
 .ticker-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.22em;color:var(--gold);text-transform:uppercase;flex-shrink:0}
 .ticker-txt{font-size:11px;font-style:italic;color:rgba(100,78,35,.5);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
@@ -2466,8 +2476,8 @@ function mountGame() {
   document.getElementById('tb-season').textContent = c.season || 'Early Spring, 250 AC';
   document.getElementById('g-name').textContent = c.name;
   document.getElementById('g-sub').textContent = (c.house_full||'No House') + (c.relation ? ' · ' + c.relation : '');
-  document.getElementById('g-gold').textContent = '💰 ' + (c.gold||100) + ' dragons';
-  updateGoldDisplay(c.gold || 100, 0);
+  document.getElementById('g-gold').innerHTML = '🪙 ' + formatCurrency(c.gold || 0);
+  updateGoldDisplay(c.gold || 0, 0);
   renderFinances();
   mountStatDisplay();
 
@@ -3743,14 +3753,14 @@ async function debugPatch(fields, feedbackId, successMsg) {
 async function debugSetGold() {
   const val = parseInt(document.getElementById('db-gold').value);
   if (isNaN(val) || val < 0) { document.getElementById('db-gold-fb').textContent = 'Invalid amount'; return; }
-  await debugPatch({ gold: val }, 'db-gold-fb', `✓ Gold set to ${val}`);
+  await debugPatch({ gold: val }, 'db-gold-fb', `✓ Wealth set to ${formatCurrencyPlain(val)}`);
 }
 
 async function debugAddGold() {
   const delta = parseInt(document.getElementById('db-gold-add').value);
   if (isNaN(delta)) { document.getElementById('db-gold-fb').textContent = 'Invalid amount'; return; }
   const newGold = Math.max(0, (S.char?.gold || 0) + delta);
-  await debugPatch({ gold: newGold }, 'db-gold-fb', `✓ Gold ${delta >= 0 ? '+' : ''}${delta} → ${newGold}`);
+  await debugPatch({ gold: newGold }, 'db-gold-fb', `✓ ${delta >= 0 ? '+' : ''}${formatCurrencyPlain(Math.abs(delta))} → ${formatCurrencyPlain(newGold)}`);
 }
 
 async function debugSetStats() {
@@ -3957,7 +3967,7 @@ function stopScenePolling() {
 // TUTORIAL
 // ══════════════════════════════════════════════════════
 let tutPage = 0;
-const TUT_PAGES = 5;
+const TUT_PAGES = 6;
 
 function openTutorial() {
   document.getElementById('tutorial-modal').style.display = 'flex';
@@ -4410,28 +4420,72 @@ function scheduleRavenCalls() {
 // ══════════════════════════════════════════════════════
 // FINANCES
 // ══════════════════════════════════════════════════════
+// ── Westerosi currency constants (mirror of worker) ──
+const GD_IN_CP = 11760;
+const SS_IN_CP = 56;
+const CS_IN_CP = 8;
+const CG_IN_CP = 4;
+
+function formatCurrency(cp) {
+  if (typeof cp !== 'number' || !isFinite(cp)) cp = 0;
+  cp = Math.max(0, Math.round(cp));
+  const gd = Math.floor(cp / GD_IN_CP); cp -= gd * GD_IN_CP;
+  const ss = Math.floor(cp / SS_IN_CP); cp -= ss * SS_IN_CP;
+  const cs = Math.floor(cp / CS_IN_CP); cp -= cs * CS_IN_CP;
+  const cg = Math.floor(cp / CG_IN_CP); cp -= cg * CG_IN_CP;
+  const parts = [];
+  if (gd) parts.push(`<span class="coin-gd">${gd}<span class="coin-lbl"> gd</span></span>`);
+  if (ss) parts.push(`<span class="coin-ss">${ss}<span class="coin-lbl"> ss</span></span>`);
+  if (cs) parts.push(`<span class="coin-cp">${cs}<span class="coin-lbl"> ★</span></span>`);
+  if (cg) parts.push(`<span class="coin-cp">${cg}<span class="coin-lbl"> gr</span></span>`);
+  if (cp) parts.push(`<span class="coin-cp">${cp}<span class="coin-lbl"> cp</span></span>`);
+  return parts.length ? parts.join(' ') : '<span class="coin-cp">0<span class="coin-lbl"> cp</span></span>';
+}
+
+function formatCurrencyPlain(cp) {
+  if (typeof cp !== 'number' || !isFinite(cp)) cp = 0;
+  cp = Math.max(0, Math.round(cp));
+  const gd = Math.floor(cp / GD_IN_CP); cp -= gd * GD_IN_CP;
+  const ss = Math.floor(cp / SS_IN_CP); cp -= ss * SS_IN_CP;
+  const cs = Math.floor(cp / CS_IN_CP); cp -= cs * CS_IN_CP;
+  const cg = Math.floor(cp / CG_IN_CP); cp -= cg * CG_IN_CP;
+  const parts = [];
+  if (gd) parts.push(gd + ' gd');
+  if (ss) parts.push(ss + ' ss');
+  if (cs) parts.push(cs + ' cs');
+  if (cg) parts.push(cg + ' gr');
+  if (cp) parts.push(cp + ' cp');
+  return parts.join(', ') || '0 cp';
+}
+
 let goldFlashTimer;
 function updateGoldDisplay(amount, delta) {
-  const el = document.getElementById('g-gold');
+  const el  = document.getElementById('g-gold');
   const inc = document.getElementById('g-income');
   if (!el) return;
 
-  el.textContent = '💰 ' + amount + ' dragon' + (amount !== 1 ? 's' : '');
+  // Server may send gold_display string directly; otherwise compute
+  el.innerHTML = '🪙 ' + formatCurrency(amount);
 
-  // Flash colour on change
   if (delta !== 0) {
     el.classList.remove('gold-flash-up', 'gold-flash-dn');
-    void el.offsetWidth; // reflow
+    void el.offsetWidth;
     el.classList.add(delta > 0 ? 'gold-flash-up' : 'gold-flash-dn');
     clearTimeout(goldFlashTimer);
-    goldFlashTimer = setTimeout(() => el.classList.remove('gold-flash-up', 'gold-flash-dn'), 800);
+    goldFlashTimer = setTimeout(() => el.classList.remove('gold-flash-up', 'gold-flash-dn'), 900);
+
+    // Show coin delta toast for significant transactions
+    const absDelta = Math.abs(delta);
+    if (absDelta >= SS_IN_CP) { // only toast if at least 1 silver stag
+      const sign = delta > 0 ? '+' : '−';
+      showToast(delta > 0 ? '💰 Coin Received' : '💸 Coin Spent', sign + ' ' + formatCurrencyPlain(absDelta));
+    }
   }
 
-  // Income line
   const ipt = S.char?.income_per_turn || 0;
   if (inc) {
     if (ipt > 0) {
-      inc.textContent = '+' + ipt + ' per season';
+      inc.innerHTML = '+' + formatCurrencyPlain(ipt) + ' per season';
       inc.style.display = '';
     } else {
       inc.style.display = 'none';
@@ -4466,7 +4520,7 @@ function renderFinances() {
       debtsEl.innerHTML = '<div style="font-family:\'Cinzel\',serif;font-size:8px;letter-spacing:.2em;color:rgba(180,60,40,.5);text-transform:uppercase;margin:8px 0 5px">Debts</div>'
         + debts.map(d => `<div class="fin-debt">
             <span class="fin-debt-name">${esc(d.creditor)}</span>
-            <span class="fin-debt-amt">${d.amount}gd</span>
+            <span class="fin-debt-amt">${formatCurrencyPlain(d.amount)}</span>
           </div>`).join('');
     } else {
       debtsEl.innerHTML = '';
@@ -4558,10 +4612,11 @@ function renderFinances() {
       <div class="tutorial-orn">— ✦ — A Brief Counsel for the Newly Arrived — ✦ —</div>
       <div class="tutorial-tabs">
         <button class="tut-tab on" onclick="tutTab(0)">The Basics</button>
-        <button class="tut-tab" onclick="tutTab(1)">Travel</button>
-        <button class="tut-tab" onclick="tutTab(2)">Shared Scenes</button>
-        <button class="tut-tab" onclick="tutTab(3)">Ravens</button>
-        <button class="tut-tab" onclick="tutTab(4)">The Chronicle</button>
+        <button class="tut-tab" onclick="tutTab(1)">Coin &amp; Trade</button>
+        <button class="tut-tab" onclick="tutTab(2)">Travel</button>
+        <button class="tut-tab" onclick="tutTab(3)">Shared Scenes</button>
+        <button class="tut-tab" onclick="tutTab(4)">Ravens</button>
+        <button class="tut-tab" onclick="tutTab(5)">The Chronicle</button>
       </div>
     </div>
 
@@ -4581,80 +4636,103 @@ function renderFinances() {
           <div class="tut-tip">The AI resolves custom actions honestly, even if the result is fatal. Think before you act.</div>
         </div>
         <div class="tut-section">
-          <div class="tut-head">Gold & Stats</div>
-          <div class="tut-p">Your stats — <em>Martial, Diplomacy, Intrigue, Stewardship, Learning</em> — shape every outcome. The AI rolls dice for uncertain moments. High stats tip the odds; low stats do not make things impossible, just more dangerous.</div>
-          <div class="tut-p"><em>Gold is real.</em> Feasts, bribes, travel, and mercenaries all cost money. If you run out, you go into debt. Debts have consequences.</div>
+          <div class="tut-head">Stats &amp; Growth</div>
+          <div class="tut-p">Your stats — <em>Martial, Diplomacy, Intrigue, Stewardship, Learning</em> — shape every outcome. The AI rolls dice for uncertain moments. Stats grow slowly through genuinely exceptional deeds — not routine actions.</div>
+          <div class="tut-p">Proper address matters. Call a lord "my lord." Call a knight "Ser." Get it wrong in front of the wrong person and the room will know.</div>
         </div>
       </div>
 
-      <!-- PAGE 1: TRAVEL -->
+      <!-- PAGE 1: COIN & TRADE -->
       <div class="tut-panel" id="tut-1">
         <div class="tut-section">
+          <div class="tut-head">The Currency of Westeros</div>
+          <div class="tut-p">Westeros uses a tiered coin system. Your wealth is shown in the sidebar, broken down by denomination:</div>
+          <div class="tut-p" style="line-height:2">
+            <span class="coin-gd" style="font-size:15px">◈ Gold Dragons</span><span style="color:var(--dim);font-size:11px"> (gd)</span> — coin of lords and great merchants. One gold dragon keeps a smallfolk family for a year.<br>
+            <span class="coin-ss" style="font-size:14px">◈ Silver Stags</span><span style="color:var(--dim);font-size:11px"> (ss)</span> — 210 to the Gold Dragon. A week's labour, a night at a decent inn, a cheap horse.<br>
+            <span class="coin-cp" style="font-size:13px">◈ Copper Pennies, Stars &amp; Groats</span><span style="color:var(--dim);font-size:11px"> (cp)</span> — coin of daily life. A loaf of bread. A mug of ale.
+          </div>
+          <div class="tut-tip">1 Gold Dragon = 210 Silver Stags = 11,760 Copper Pennies. The game tracks this automatically — you only need to know what things cost.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">What Things Cost</div>
+          <div class="tut-p">
+            • A loaf of bread — <em>1 copper penny</em><br>
+            • A night at an inn — <em>1 copper star (8 cp)</em><br>
+            • A decent meal and ale — <em>1–2 copper groats</em><br>
+            • A cheap horse — <em>5–10 silver stags</em><br>
+            • A riding horse — <em>1–2 gold dragons</em><br>
+            • A warhorse — <em>3–10 gold dragons</em><br>
+            • Bribing a Gold Cloak — <em>1–3 silver stags</em><br>
+            • Sea passage (cabin) — <em>1–2 gold dragons</em><br>
+            • Hiring a sellsword company (month) — <em>5–20 gold dragons</em>
+          </div>
+          <div class="tut-tip">The GM deducts coin automatically for meals, lodging, bribes, and travel. Watch your purse — a lord who cannot pay his men does not keep them long.</div>
+        </div>
+        <div class="tut-section">
+          <div class="tut-head">Income &amp; Holdings</div>
+          <div class="tut-p">If you hold lands, you receive <em>seasonal income</em> — collected automatically when the realm clock advances. Lords with villages and mills are rich; hedge knights with nothing are not. Debt is real. The Iron Bank remembers.</div>
+        </div>
+      </div>
+
+      <!-- PAGE 2: TRAVEL -->
+      <div class="tut-panel" id="tut-2">
+        <div class="tut-section">
           <div class="tut-head">Moving Through the Realm</div>
-          <div class="tut-p">Travel happens <em>through your actions</em> — simply tell the GM you wish to travel somewhere and it will play out as a scene. You do not click a button or select a destination.</div>
+          <div class="tut-p">Travel happens <em>through your actions</em> — tell the GM you wish to go somewhere and it plays out as a scene. You do not click a button or select a destination.</div>
           <div class="tut-p">For example: <em>"I make arrangements to depart for King's Landing at dawn"</em> or <em>"I ride hard for Winterfell, resting only when the horse demands it."</em></div>
-          <div class="tut-tip">The GM will handle the journey as a scene — road conditions, weather, who you meet on the way. It will not simply skip you to the destination.</div>
+          <div class="tut-tip">The GM handles the journey — road conditions, weather, who you meet on the way. It will not simply skip you to the destination.</div>
         </div>
         <div class="tut-section">
           <div class="tut-head">Travel Costs</div>
-          <div class="tut-p">Moving between locations <em>costs gold</em> automatically when your location changes. Rough costs:</div>
-          <div class="tut-p">• Within a city or castle — <em>free</em><br>• Within a region — <em>5–15 gold dragons</em><br>• Across regions — <em>20–60 gold dragons</em><br>• Sea voyage — <em>30–80 gold dragons</em>, with storm risk</div>
-          <div class="tut-tip">Winter travel costs the same in gold but carries far greater danger in the narrative. A knight who cannot afford the road simply cannot leave.</div>
+          <div class="tut-p">Moving between locations <em>costs coin</em> automatically. Rough costs:</div>
+          <div class="tut-p">• Within a city or castle — <em>free</em><br>• Within a region — <em>5–15 silver stags</em><br>• Across regions — <em>~2–5 gold dragons</em><br>• Sea voyage — <em>1–2 gold dragons</em>, with real storm risk</div>
+          <div class="tut-tip">Winter travel costs the same in coin but far more in the narrative. A character who cannot afford the road cannot leave.</div>
         </div>
         <div class="tut-section">
           <div class="tut-head">Your Location on the Map</div>
-          <div class="tut-p">The map on the left panel shows <em>your current position</em> as a glowing gold dot. Small house sigils mark where other players currently are. If sigils cluster around your dot, you share a location with other characters.</div>
+          <div class="tut-p">The map on the left shows <em>your current position</em> as a glowing gold dot. Other dots show where other players are. Dots at your location mean other characters share your position — shared scenes are possible.</div>
         </div>
       </div>
 
-      <!-- PAGE 2: SHARED SCENES -->
-      <div class="tut-panel" id="tut-2">
+      <!-- PAGE 3: SHARED SCENES -->
+      <div class="tut-panel" id="tut-3">
         <div class="tut-section">
           <div class="tut-head">Playing with Other Characters</div>
-          <div class="tut-p">When another player's character is at <em>the same location as you</em>, you can invite them into a shared scene. Both characters are then present in the same narrative — the GM sees you both and writes for both.</div>
-          <div class="tut-tip">You cannot invite someone who is in a different location. They must travel to you — or you to them — first. This is intentional.</div>
+          <div class="tut-p">When another player's character is at <em>the same location</em>, you can invite them into a shared scene. Both characters are present in the same narrative — the GM sees you both and writes for both.</div>
+          <div class="tut-tip">You cannot invite someone in a different location. They must travel to you — or you to them — first.</div>
         </div>
         <div class="tut-section">
           <div class="tut-head">How to Start a Shared Scene</div>
-          <div class="tut-p"><em>1.</em> Look at the <em>"Who Is Here"</em> panel on the right side of the game screen. It lists every living character currently at your location.</div>
-          <div class="tut-p"><em>2.</em> Click the <em>⚔ invite</em> button next to their name.</div>
-          <div class="tut-p"><em>3.</em> Confirm the invitation. They will receive a notification and can accept or decline.</div>
-          <div class="tut-p"><em>4.</em> Once they accept, a banner appears in both your scenes. Either of you can act. The GM writes for both characters.</div>
-          <div class="tut-tip">Either player can leave a shared scene at any time using the <em>"Leave Scene"</em> button in the banner. The scene ends for both of you.</div>
-        </div>
-        <div class="tut-section">
-          <div class="tut-head">What the GM Sees</div>
-          <div class="tut-p">In a shared scene the GM knows both characters' names, houses, health, and traits. It will write NPCs who react to <em>both</em> of you. It will not speak for your partner — only for NPCs.</div>
+          <div class="tut-p"><em>1.</em> Look at the <em>"Who Is Here"</em> panel. It lists every living character at your location.<br><em>2.</em> Click <em>⚔ invite</em> next to their name.<br><em>3.</em> Confirm. They receive a notification and can accept or decline.<br><em>4.</em> Once accepted, a banner appears in both scenes. Either of you can act.</div>
+          <div class="tut-tip">Either player can leave using the <em>"Leave Scene"</em> button. The scene ends for both.</div>
         </div>
       </div>
 
-      <!-- PAGE 3: RAVENS -->
-      <div class="tut-panel" id="tut-3">
+      <!-- PAGE 4: RAVENS -->
+      <div class="tut-panel" id="tut-4">
         <div class="tut-section">
           <div class="tut-head">Sending Messages Across the Realm</div>
-          <div class="tut-p">Ravens allow you to send <em>in-character messages</em> to any other living character, regardless of where they are. A message you send as your character — not as a player — as though you had written a letter and sent it by bird.</div>
-          <div class="tut-p">To send a raven, click the <em>Ravens</em> button in the top bar of the game screen. Search for the recipient by character name, write your message, and dispatch it.</div>
-          <div class="tut-tip">Ravens are the correct in-world mechanism for sharing information. If you want another character to know something — a warning, an alliance offer, a threat — a raven is how you tell them.</div>
+          <div class="tut-p">Ravens allow you to send <em>in-character messages</em> to any living character, regardless of where they are — as though you had written a letter and sent it by bird.</div>
+          <div class="tut-p">Click the <em>Ravens</em> button in the top bar. Search by character name, write your message, dispatch it.</div>
+          <div class="tut-tip">Write ravens in character. <em>"Lord Stark — I write to warn you of movements in the Riverlands..."</em> not "hey can you come to King's Landing".</div>
         </div>
         <div class="tut-section">
           <div class="tut-head">What Ravens Are Not</div>
-          <div class="tut-p">Ravens are <em>not</em> seen by the GM and do not affect your story directly. They are player-to-player communication. What your character does with the information in a raven — that plays out in your own scenes.</div>
-          <div class="tut-tip">Write ravens in character. "Lord Stark — I write to warn you of movements in the Riverlands..." not "hey can you come to King's Landing".</div>
+          <div class="tut-p">Ravens are <em>not</em> seen by the GM and do not affect your story directly. They are player-to-player communication. What your character does with the information plays out in your own scenes.</div>
         </div>
       </div>
 
-      <!-- PAGE 4: THE CHRONICLE -->
-      <div class="tut-panel" id="tut-4">
+      <!-- PAGE 5: THE CHRONICLE -->
+      <div class="tut-panel" id="tut-5">
         <div class="tut-section">
           <div class="tut-head">Inscribing Your Deeds</div>
-          <div class="tut-p">After any scene, you will see a small link beneath the narrative — <em>✦ Inscribe this deed in the chronicles</em>. Clicking it saves an excerpt of that scene to the public chronicle, readable by all players.</div>
-          <div class="tut-p">The chronicle is a living record of what has happened in the realm. Great deeds, deaths, betrayals, alliances — anything worth remembering can be inscribed.</div>
-          <div class="tut-tip">You choose what to inscribe and what to keep private. Not every scene needs to be public. A conspiracy that goes into the chronicle is a conspiracy someone might read.</div>
+          <div class="tut-p">After any scene, you will see — <em>✦ Inscribe this deed in the chronicles</em>. Clicking it saves an excerpt to the public chronicle, readable by all players.</div>
+          <div class="tut-tip">You choose what to inscribe. A conspiracy that goes into the chronicle is a conspiracy someone might read.</div>
         </div>
         <div class="tut-section">
           <div class="tut-head">Reading the Chronicle</div>
-          <div class="tut-p">The Great Chronicle is accessible from the main page. It shows all inscribed deeds, filterable by house and location. It is the closest thing the realm has to shared history.</div>
-          <div class="tut-p">What you read there <em>your character can know</em> — formally inscribed deeds are public record. Rumours and private events that were never inscribed are not.</div>
+          <div class="tut-p">The Great Chronicle shows all inscribed deeds, filterable by house and location. Formally inscribed deeds are public record — <em>your character can know what was inscribed</em>. Rumours that were never inscribed are not.</div>
         </div>
       </div>
 
@@ -4668,6 +4746,7 @@ function renderFinances() {
         <div class="tut-dot" id="tdot-2" onclick="tutTab(2)"></div>
         <div class="tut-dot" id="tdot-3" onclick="tutTab(3)"></div>
         <div class="tut-dot" id="tdot-4" onclick="tutTab(4)"></div>
+        <div class="tut-dot" id="tdot-5" onclick="tutTab(5)"></div>
         <button class="tut-next" id="tut-next-btn" onclick="tutNext()">Next →</button>
       </div>
     </div>
@@ -4724,12 +4803,12 @@ function renderFinances() {
     <div class="debug-sub">Direct character state injection — bypasses normal game flow</div>
 
     <div class="debug-section">
-      <span class="debug-lbl">💰 Gold</span>
+      <span class="debug-lbl">💰 Wealth (in Copper Pennies)</span>
       <div class="debug-row">
-        <input class="debug-input" id="db-gold" type="number" placeholder="Amount to set" style="max-width:160px"/>
-        <button class="debug-btn" onclick="debugSetGold()">Set Gold</button>
-        <input class="debug-input" id="db-gold-add" type="number" placeholder="Amount to add/remove" style="max-width:160px"/>
-        <button class="debug-btn" onclick="debugAddGold()">± Add</button>
+        <input class="debug-input" id="db-gold" type="number" placeholder="Amount to set (cp — 11760 = 1gd)" style="max-width:220px"/>
+        <button class="debug-btn" onclick="debugSetGold()">Set Wealth</button>
+        <input class="debug-input" id="db-gold-add" type="number" placeholder="Add/remove (cp)" style="max-width:160px"/>
+        <button class="debug-btn" onclick="debugAddGold()">± Adjust</button>
       </div>
       <div class="debug-feedback" id="db-gold-fb"></div>
     </div>
@@ -4788,6 +4867,16 @@ function renderFinances() {
         <button class="debug-btn" onclick="debugInject('milk_of_poppy','Dependency developing — the relief it brings is becoming necessary')">⚗ Milk of Poppy</button>
         <button class="debug-btn" onclick="debugInject('scandal_known','What was done in private is now spoken of openly in the halls')">💬 Scandal</button>
         <button class="debug-btn" onclick="debugInjectPending('Mira','pregnancy_reveal',1,'She is with child. She has not said so yet.')">Mira Pregnant →</button>
+      </div>
+      <div style="margin-top:10px;border-top:1px solid rgba(60,90,150,.1);padding-top:10px">
+        <span class="debug-lbl" style="font-size:7px">💰 Coin Quick-Set</span>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          <button class="debug-btn" onclick="(async()=>{await debugPatch({gold:${10*11760}})})()">Broke Knight (0)</button>
+          <button class="debug-btn" onclick="(async()=>{const g=30*56;await debugPatch({gold:g},'db-gold-fb','✓ '+formatCurrencyPlain(g))})()">30ss Hedge Knight</button>
+          <button class="debug-btn" onclick="(async()=>{const g=2*11760;await debugPatch({gold:g},'db-gold-fb','✓ '+formatCurrencyPlain(g))})()">2gd Landed Knight</button>
+          <button class="debug-btn" onclick="(async()=>{const g=10*11760;await debugPatch({gold:g},'db-gold-fb','✓ '+formatCurrencyPlain(g))})()">10gd Minor Lord</button>
+          <button class="debug-btn" onclick="(async()=>{const g=50*11760;await debugPatch({gold:g},'db-gold-fb','✓ '+formatCurrencyPlain(g))})()">50gd Great Lord</button>
+        </div>
       </div>
     </div>
 
