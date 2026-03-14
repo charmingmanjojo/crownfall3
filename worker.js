@@ -927,6 +927,9 @@ async function handleAdminClock(request, env) {
   if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
   if (!body.season) return json({ error: 'Missing season' }, 400);
 
+  const season = body.season.substring(0, 80);
+
+  // Advance the realm clock
   await fetch(`${env.SUPABASE_URL}/rest/v1/realm_clock?id=eq.1`, {
     method: 'PATCH',
     headers: {
@@ -935,10 +938,22 @@ async function handleAdminClock(request, env) {
       'Content-Type': 'application/json',
       'Prefer': 'return=minimal',
     },
-    body: JSON.stringify({ season: body.season.substring(0, 80), updated_at: new Date().toISOString() }),
+    body: JSON.stringify({ season, updated_at: new Date().toISOString() }),
   });
 
-  return json({ ok: true, season: body.season });
+  // Auto-advance scheduled events based on the new season
+  // Calls the Postgres function we defined in the SQL schema
+  await fetch(`${env.SUPABASE_URL}/rest/v1/rpc/advance_scheduled_events`, {
+    method: 'POST',
+    headers: {
+      'apikey': env.SUPABASE_SERVICE_KEY,
+      'Authorization': `Bearer ${env.SUPABASE_SERVICE_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ current_season: season }),
+  }).catch(() => {}); // non-fatal — clock still advances if this fails
+
+  return json({ ok: true, season });
 }
 
 // ══════════════════════════════════════════════════════════════
