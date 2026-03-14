@@ -70,45 +70,46 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 /* ── CREATE ── */
 #p-create{flex-direction:column;overflow-y:auto;
   background:radial-gradient(ellipse at 25% 15%,rgba(10,25,60,.65) 0%,transparent 50%),var(--bg)}
-.create-wrap{max-width:820px;margin:0 auto;padding:48px 24px 100px;width:100%}
-.create-title{font-family:'Cinzel',serif;font-size:28px;color:var(--gold);margin-bottom:3px}
-.create-sub{font-size:13px;font-style:italic;color:var(--dim);line-height:1.7;margin-bottom:40px}
-.section{margin-bottom:34px}
-.sec-lbl{display:block;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.3em;color:var(--dim);text-transform:uppercase;margin-bottom:11px}
+.create-wrap{max-width:820px;margin:0 auto;padding:36px 24px 80px;width:100%}
+.create-title{font-family:'Cinzel',serif;font-size:24px;color:var(--gold);margin-bottom:2px}
+.create-sub{font-size:11px;font-style:italic;color:var(--dim);line-height:1.6;margin-bottom:28px}
+.section{margin-bottom:26px}
+.sec-lbl{display:block;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.3em;color:rgba(200,168,75,.6);text-transform:uppercase;margin-bottom:10px;border-bottom:1px solid rgba(200,168,75,.08);padding-bottom:4px}
 .two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
 .three-col{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
-.cr-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:18px;padding:7px 0;outline:none;transition:border-color .2s}
+.cr-input{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(200,168,75,.2);color:var(--text);font-family:'IM Fell English',serif;font-size:18px;padding:7px 0;outline:none;transition:border-color .2s}
 .cr-input:focus{border-bottom-color:var(--gold)}
-.cr-input::placeholder{color:rgba(100,140,200,.35);font-style:italic}
+.cr-input::placeholder{color:rgba(200,168,75,.25);font-style:italic}
 .cr-input.sm{font-size:14px}
-.cr-ta{width:100%;background:rgba(255,255,255,.018);border:1px solid rgba(180,140,60,.1);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;line-height:1.65;padding:9px 12px;outline:none;resize:vertical;min-height:72px;transition:border-color .2s}
-.cr-ta:focus{border-color:rgba(180,140,60,.3)}
-.cr-ta::placeholder{color:rgba(100,140,200,.35);font-style:italic}
-.cr-select{width:100%;background:rgba(255,255,255,.02);border:1px solid rgba(180,140,60,.18);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:9px 11px;outline:none;cursor:pointer}
-.cr-select option{background:#080d1c}
+.cr-ta{width:100%;background:rgba(45,28,8,.35);border:1px solid rgba(200,168,75,.12);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;line-height:1.65;padding:9px 12px;outline:none;resize:vertical;min-height:72px;transition:border-color .2s}
+.cr-ta:focus{border-color:rgba(200,168,75,.3)}
+.cr-ta::placeholder{color:rgba(200,168,75,.25);font-style:italic}
+.cr-select{width:100%;background:rgba(45,28,8,.85);border:1px solid rgba(200,168,75,.55);color:#fff;font-family:'IM Fell English',serif;font-size:14px;padding:9px 11px;outline:none;cursor:pointer;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='rgba(200,168,75,.7)'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center}
+.cr-select:focus{border-color:var(--gold)}
+.cr-select option{background:#1a1005;color:#fff}
 
 /* House grid */
-.house-search{width:100%;background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:7px 0;outline:none;margin-bottom:14px}
-.house-search::placeholder{color:rgba(100,140,200,.35);font-style:italic}
+.house-search{width:100%;background:rgba(45,28,8,.6);border:none;border-bottom:1px solid rgba(200,168,75,.25);color:var(--text);font-family:'IM Fell English',serif;font-size:14px;padding:7px 0;outline:none;margin-bottom:12px;transition:border-color .2s}
+.house-search:focus{border-bottom-color:var(--gold)}
+.house-search::placeholder{color:rgba(200,168,75,.3);font-style:italic}
 .house-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;max-height:320px;overflow-y:auto;padding-right:4px}
 .house-tile{border:1px solid rgba(60,90,150,.18);padding:10px 6px 8px;cursor:pointer;transition:all .16s;background:rgba(5,10,28,.3);display:flex;flex-direction:column;align-items:center;gap:5px;text-align:center}
-.house-tile:hover{border-color:rgba(180,140,60,.28);background:rgba(180,140,60,.04)}
-.house-tile.on{border-color:rgba(180,140,60,.5);background:rgba(180,140,60,.08)}
+.house-tile:hover{border-color:rgba(200,168,75,.4);background:rgba(45,28,8,.5)}
+.house-tile.on{border-color:rgba(200,168,75,.65);background:rgba(45,28,8,.9)}
 .house-tile img{width:30px;height:30px;object-fit:contain;opacity:.85}
 .h-name{font-size:10px;color:var(--text);line-height:1.2}
-.h-region-tag{font-size:8px;color:rgba(100,140,200,.5);font-style:italic}
+.h-region-tag{font-size:8px;color:rgba(200,168,75,.4);font-style:italic}
 
 /* Selected house info */
-.house-selected-box{border:1px solid rgba(60,90,150,.25);padding:14px 16px;margin-top:12px;background:rgba(5,10,28,.4);display:none}
+.house-selected-box{border:1px solid rgba(200,168,75,.22);padding:10px 14px;margin-top:10px;background:rgba(45,28,8,.5);display:none}
 .house-selected-box.visible{display:block}
-.hsb-row{display:flex;align-items:center;gap:14px;margin-bottom:10px}
-.hsb-sigil{width:48px;height:48px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.hsb-sigil img{width:44px;height:44px;object-fit:contain}
-.hsb-name{font-family:'Cinzel',serif;font-size:18px;color:var(--gold)}
+.hsb-row{display:flex;align-items:center;gap:12px;margin-bottom:4px}
+.hsb-sigil{width:40px;height:40px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.hsb-sigil img{width:36px;height:36px;object-fit:contain}
+.hsb-name{font-family:'Cinzel',serif;font-size:16px;color:var(--gold)}
 .hsb-words{font-size:11px;font-style:italic;color:var(--dim);margin-top:1px}
-.hsb-region{font-size:10px;color:rgba(100,140,200,.55);margin-top:2px}
-.hsb-desc{font-size:13px;font-style:italic;color:rgba(180,210,240,.6);line-height:1.6;margin-bottom:10px}
-.hsb-bonus{font-size:11px;color:rgba(100,160,200,.6)}
+.hsb-region{font-size:10px;color:rgba(200,168,75,.45);margin-top:2px}
+.hsb-bonus{font-size:11px;color:rgba(130,190,130,.6);margin-top:3px}
 
 /* Stats */
 .stat-pool-note{font-size:12px;color:var(--dim);margin-bottom:10px}
@@ -127,45 +128,56 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 /* Traits */
 .trait-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .trait-col-head{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.2em;color:var(--dim);text-transform:uppercase;margin-bottom:8px;display:block}
-.trait-item{display:flex;gap:7px;padding:7px 8px;border:1px solid rgba(100,78,35,.1);cursor:pointer;margin-bottom:4px;transition:all .16s;align-items:flex-start}
-.trait-item:hover{border-color:rgba(180,140,60,.22);background:rgba(180,140,60,.03)}
-.trait-item.on{border-color:rgba(180,140,60,.4);background:rgba(180,140,60,.07)}
-.trait-item.neg.on{border-color:rgba(180,60,40,.28);background:rgba(180,60,40,.06)}
-.trait-box{width:12px;height:12px;border:1px solid rgba(180,140,60,.22);flex-shrink:0;margin-top:2px;position:relative}
+.trait-item{display:flex;gap:8px;padding:8px 10px;border:1px solid rgba(100,78,35,.15);cursor:pointer;margin-bottom:3px;transition:all .16s;align-items:center;background:rgba(45,28,8,.4)}
+.trait-item:hover{border-color:rgba(200,168,75,.4);background:rgba(45,28,8,.7)}
+.trait-item.on{border-color:rgba(200,168,75,.6);background:rgba(45,28,8,.85)}
+.trait-item.neg{background:rgba(35,8,8,.4)}
+.trait-item.neg:hover{border-color:rgba(180,60,40,.35);background:rgba(35,8,8,.7)}
+.trait-item.neg.on{border-color:rgba(180,60,40,.5);background:rgba(35,8,8,.85)}
+.trait-item.locked{opacity:.35;cursor:not-allowed}
+.trait-item.legendary{border-color:rgba(200,168,75,.25);background:rgba(55,35,5,.5)}
+.trait-item.legendary.taken{opacity:.3;cursor:not-allowed}
+.trait-box{width:13px;height:13px;border:1px solid rgba(200,168,75,.35);flex-shrink:0;position:relative;background:rgba(0,0,0,.3)}
 .trait-box.on{background:var(--gold);border-color:var(--gold)}
-.trait-box.on::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:7px;color:#100c04}
+.trait-box.on::after{content:"✓";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8px;color:#100c04;font-family:sans-serif}
 .trait-box.neg.on{background:#a03020;border-color:#a03020}
-.t-name{font-size:12px;color:var(--text);margin-bottom:1px}
-.t-desc{font-size:10px;font-style:italic;color:rgba(100,78,35,.55);line-height:1.3}
+.t-name{font-size:12px;color:var(--text);margin-bottom:0;line-height:1}
+.t-badge{font-size:8px;font-family:'Cinzel',serif;letter-spacing:.1em;color:rgba(200,168,75,.5);text-transform:uppercase;margin-left:auto;flex-shrink:0}
+.trait-cap-note{font-size:10px;font-style:italic;color:rgba(200,168,75,.45);margin:6px 0 10px;padding:5px 8px;border-left:2px solid rgba(200,168,75,.2);background:rgba(45,28,8,.3)}
 
 /* Start location */
-.loc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.loc-tile{border:1px solid rgba(100,78,35,.14);padding:9px 8px;cursor:pointer;transition:all .16s;background:rgba(0,0,0,.15);text-align:center}
+.loc-filter-bar{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:8px}
+.loc-filter-btn{background:rgba(45,28,8,.6);border:1px solid rgba(200,168,75,.25);color:rgba(200,168,75,.6);font-family:'Cinzel',serif;font-size:8px;letter-spacing:.15em;padding:4px 10px;cursor:pointer;transition:all .15s;text-transform:uppercase}
+.loc-filter-btn:hover{border-color:rgba(200,168,75,.5);color:var(--gold)}
+.loc-filter-btn.on{background:rgba(45,28,8,.9);border-color:rgba(200,168,75,.7);color:var(--gold)}
+.loc-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;max-height:260px;overflow-y:auto;padding-right:3px}
+.loc-tile{border:1px solid rgba(100,78,35,.14);padding:8px 6px;cursor:pointer;transition:all .16s;background:rgba(0,0,0,.15);text-align:center}
 .loc-tile:hover{border-color:rgba(180,140,60,.25);background:rgba(180,140,60,.04)}
 .loc-tile.on{border-color:rgba(180,140,60,.45);background:rgba(180,140,60,.08)}
-.loc-tile-name{font-size:11px;color:var(--text)}
-.loc-tile-region{font-size:9px;font-style:italic;color:rgba(100,78,35,.5);margin-top:2px}
+.loc-tile-name{font-size:10px;color:var(--text)}
+.loc-tile-region{font-size:8px;font-style:italic;color:rgba(100,78,35,.5);margin-top:1px}
+.loc-tile-desc{display:none}
 
 /* Begin btn */
-.begin-btn{width:100%;padding:13px;background:transparent;border:1px solid rgba(180,140,60,.35);color:var(--gold);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.25em;text-transform:uppercase;cursor:pointer;transition:all .22s}
-.begin-btn:hover:not(:disabled){background:rgba(180,140,60,.07);border-color:var(--gold)}
+.begin-btn{width:100%;padding:14px;background:rgba(45,28,8,.7);border:1px solid rgba(200,168,75,.5);color:var(--gold);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.28em;text-transform:uppercase;cursor:pointer;transition:all .22s;margin-top:8px}
+.begin-btn:hover:not(:disabled){background:rgba(65,42,10,.9);border-color:var(--gold2);color:var(--gold2)}
 .begin-btn:disabled{opacity:.2;cursor:not-allowed}
 /* ── PRE-EXISTING RELATIONSHIPS ── */
 .rel-entry{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;padding:10px;border:1px solid rgba(180,140,60,.1);background:rgba(255,255,255,.012)}
-.rel-entry input,.rel-entry select,.rel-entry textarea{background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;padding:5px 0;outline:none;width:100%}
+.rel-entry input,.rel-entry textarea{background:transparent;border:none;border-bottom:1px solid rgba(180,140,60,.15);color:var(--text);font-family:'IM Fell English',serif;font-size:13px;padding:5px 0;outline:none;width:100%}
+.rel-entry select{background:rgba(45,28,8,.85);border:1px solid rgba(200,168,75,.45);color:#fff;font-family:'IM Fell English',serif;font-size:13px;padding:5px 8px;outline:none;cursor:pointer;width:100%;appearance:none;-webkit-appearance:none}
+.rel-entry select option{background:#1a1005;color:#fff}
 .rel-entry textarea{resize:none;grid-column:1/-1;margin-top:4px;min-height:44px;border:1px solid rgba(180,140,60,.12);padding:5px 8px}
-.rel-entry select{cursor:pointer}
-.rel-entry select option{background:#0a0e1a}
-.rel-add-btn{background:transparent;border:1px dashed rgba(180,140,60,.25);color:rgba(200,168,75,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:7px;width:100%;cursor:pointer;text-transform:uppercase;transition:all .2s;margin-top:4px}
-.rel-add-btn:hover{border-color:rgba(180,140,60,.5);color:var(--gold)}
+.rel-add-btn{background:rgba(45,28,8,.5);border:1px dashed rgba(200,168,75,.3);color:rgba(200,168,75,.6);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;padding:7px;width:100%;cursor:pointer;text-transform:uppercase;transition:all .2s;margin-top:4px}
+.rel-add-btn:hover{border-color:rgba(200,168,75,.6);color:var(--gold)}
 .rel-remove-btn{background:transparent;border:none;color:rgba(180,60,40,.5);cursor:pointer;font-size:11px;text-align:right;grid-column:1/-1;padding:0;font-family:'IM Fell English',serif;font-style:italic}
 .rel-remove-btn:hover{color:var(--red)}
 .canon-note{font-size:10px;font-style:italic;color:rgba(100,140,200,.4);margin-top:3px}
 /* ── FACE CLAIM ── */
 .face-upload-wrap{display:flex;flex-direction:column;gap:8px}
-.face-upload-label{display:flex;align-items:center;gap:10px;cursor:pointer;border:1px dashed rgba(180,140,60,.2);padding:10px 14px;transition:border-color .2s}
-.face-upload-label:hover{border-color:rgba(180,140,60,.45)}
-.face-upload-label span{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:rgba(200,168,75,.6);text-transform:uppercase}
+.face-upload-label{display:flex;align-items:center;gap:10px;cursor:pointer;border:1px dashed rgba(200,168,75,.22);padding:10px 14px;transition:border-color .2s;background:rgba(45,28,8,.3)}
+.face-upload-label:hover{border-color:rgba(200,168,75,.5)}
+.face-upload-label span{font-family:'Cinzel',serif;font-size:9px;letter-spacing:.2em;color:rgba(200,168,75,.55);text-transform:uppercase}
 .face-preview{width:56px;height:56px;object-fit:cover;border:1px solid rgba(180,140,60,.2);display:none}
 .face-preview.on{display:block}
 /* ── PROFILE MODAL ── */
@@ -194,6 +206,18 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .hb-Dead{color:#555;border-color:rgba(80,80,80,.22)}
 /* ── Conditions panel ── */
 #conditions-panel{padding:8px 12px 4px;border-bottom:1px solid rgba(60,90,150,.1)}
+#crimes-panel{padding:8px 12px 4px;border-bottom:1px solid rgba(60,90,150,.1);display:none}
+.crime-entry{font-size:11px;color:rgba(200,80,60,.7);margin:2px 0;line-height:1.4}
+.crime-region{font-size:10px;color:rgba(180,140,60,.4);margin-left:4px}
+.bounty-badge{display:inline-block;margin-top:4px;padding:2px 8px;background:rgba(180,60,20,.15);border:1px solid rgba(180,60,20,.3);font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em;color:rgba(200,100,60,.8)}
+.ftree-add-btn{background:rgba(10,18,40,.6);border:1px solid rgba(60,90,150,.25);color:rgba(100,140,200,.6);padding:5px 12px;cursor:pointer;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.1em;transition:all .2s}
+.ftree-add-btn:hover{border-color:rgba(60,90,150,.5);color:var(--dim)}
+.ftree-person{display:inline-block;background:rgba(10,18,40,.6);border:1px solid rgba(60,90,150,.2);padding:6px 12px;margin:4px;font-size:12px;position:relative}
+.ftree-person-name{font-family:'Cinzel',serif;font-size:12px;color:var(--gold)}
+.ftree-person-detail{font-size:10px;color:rgba(180,160,120,.5);margin-top:2px}
+.ftree-relation{font-size:9px;letter-spacing:.1em;color:rgba(60,90,150,.5);text-transform:uppercase;margin-bottom:4px}
+.ftree-row{margin:10px 0}
+.ftree-pc-badge{font-size:8px;letter-spacing:.08em;color:rgba(180,140,60,.7);border:1px solid rgba(180,140,60,.3);padding:1px 5px;margin-left:6px;vertical-align:middle}
 .condition-pip{display:flex;align-items:flex-start;gap:7px;padding:4px 0;border-bottom:1px solid rgba(60,90,150,.07)}
 .condition-pip:last-child{border-bottom:none}
 .condition-icon{font-size:14px;flex-shrink:0;margin-top:1px}
@@ -454,6 +478,8 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 .modal-box{max-width:560px;width:100%;margin:20px;background:rgba(10,7,3,.98);border:1px solid rgba(100,78,35,.2);padding:30px 26px;position:relative}
 .modal-close{position:absolute;top:13px;right:14px;background:transparent;border:none;color:var(--dim);font-size:18px;cursor:pointer}
 .modal-close:hover{color:var(--text)}
+.page-btn{background:transparent;border:1px solid rgba(100,140,200,.2);color:var(--dim);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.18em;padding:8px 18px;cursor:pointer;text-transform:uppercase;transition:all .18s}
+.page-btn:hover{border-color:rgba(200,168,75,.35);color:var(--gold)}
 .modal-name{font-family:'Cinzel',serif;font-size:21px;color:var(--gold);margin-bottom:2px}
 .modal-sub{font-size:12px;font-style:italic;color:var(--dim);margin-bottom:20px}
 .modal-lbl{font-family:'Cinzel',serif;font-size:8px;letter-spacing:.25em;color:rgba(100,140,200,.5);text-transform:uppercase;margin-bottom:7px;display:block}
@@ -645,7 +671,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
 <div id="p-create" class="page">
   <div class="create-wrap">
     <div class="create-title">Create Your Character</div>
-    <div class="create-sub">You are not the hero of this story. You are a person in it.<br>The world existed before you. It will continue after.</div>
+    <div class="create-sub" style="margin-bottom:24px;font-size:11px">250 AC · The Reign of Aegon V · An original character, not a hero</div>
 
     <div class="two-col">
       <div class="section">
@@ -681,7 +707,6 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
             <div class="hsb-region" id="hsb-region">—</div>
           </div>
         </div>
-        <div class="hsb-desc" id="hsb-desc"></div>
         <div class="hsb-bonus" id="hsb-bonus"></div>
       </div>
     </div>
@@ -691,6 +716,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <select id="c-relation" class="cr-select" onchange="checkForm()">
         <option value="">Select your position...</option>
       </select>
+      <div id="ftree-creation-wrap" style="margin-top:10px;display:none">
+        <button type="button" onclick="openFamilyTreeFromCreation()" style="background:rgba(10,18,40,.5);border:1px solid rgba(60,90,150,.2);color:rgba(100,140,200,.5);padding:6px 14px;cursor:pointer;font-family:'Cinzel',serif;font-size:8px;letter-spacing:.12em;width:100%">
+          🌳 View &amp; Edit Your House's Family Tree
+        </button>
+        <div style="font-size:10px;font-style:italic;color:rgba(100,120,160,.4);margin-top:4px;text-align:center">Establish your ancestors, siblings, and relatives before you begin</div>
+      </div>
     </div>
 
     <div class="section">
@@ -718,14 +749,15 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     </div>
 
     <div class="section">
-      <span class="sec-lbl">Traits</span>
+      <span class="sec-lbl">Traits — <span id="trait-cap-display" style="color:var(--gold);font-size:12px">0 / 1 virtue · 0 / 1 flaw</span></span>
+      <div class="trait-cap-note">Choose one virtue and one flaw. Your character is defined by constraint, not abundance.</div>
       <div class="trait-cols">
         <div>
-          <span class="trait-col-head">Virtues (choose any)</span>
+          <span class="trait-col-head">Virtues — choose one</span>
           <div id="traits-pos"></div>
         </div>
         <div>
-          <span class="trait-col-head">Flaws — unlock new options</span>
+          <span class="trait-col-head">Flaws — choose one</span>
           <div id="traits-neg"></div>
         </div>
       </div>
@@ -777,6 +809,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
         <div class="raven-unread" id="raven-badge">0</div>
       </div>
       <button class="tb-btn" onclick="openSheet()">Character</button>
+      <button class="tb-btn" onclick="openFamilyTreeFromGame()" title="Your house's family tree">Family</button>
       <button class="tb-btn" onclick="goChars()">Characters</button>
       <button class="tb-btn danger" onclick="confirmNewChar()">New Char</button>
       <button class="tb-btn" id="debug-btn" onclick="openDebug()" title="Stress Test Panel" style="display:none;border-color:rgba(180,100,20,.4);color:rgba(220,150,60,.8)">⚙ Debug</button>
@@ -806,6 +839,10 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
       <div id="conditions-panel" style="display:none">
         <span class="plbl">Afflictions</span>
         <div id="conditions-list"></div>
+      </div>
+      <div id="crimes-panel">
+        <span class="plbl">Crimes &amp; Bounties</span>
+        <div id="crimes-list"></div>
       </div>
       <div id="rep-panel" style="display:none">
         <span class="plbl">Reputation</span>
@@ -978,6 +1015,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:'IM Fel
     <div class="death-btns">
       <button class="death-btn" onclick="goChars()">My Characters</button>
       <button class="death-btn" onclick="goCreate()">New Character</button>
+      <button class="death-btn" id="btn-legacy" style="display:none" onclick="startLegacy()">Raise an Heir</button>
     </div>
   </div>
 </div>
@@ -1241,7 +1279,7 @@ const HOUSES = {
     color:'#c0392b', region:'The Crownlands', seat:'kings_landing',
     icon:'targaryen', major:true,
     desc:'The blood of Old Valyria still runs in your veins, but the dragons are gone. Aegon V sits the Iron Throne — the smallfolk king, the reformer, the man his own lords despise. As a Targaryen you are close to power and close to danger. The throne is not yours. But it watches you.',
-    bonus:{learning:1}, startTraits:['Valyrian Heritage'],
+    bonus:{learning:1}, startTraits:[],
     positions:['Prince (Cousin of the King)','Princess (Cousin of the King)','Bastard of Dragonstone','Legitimised Bastard','Kingsguard Knight','Steward of Dragonstone','Scholar of the Citadel'],
   },
   stark: {
@@ -1297,7 +1335,7 @@ const HOUSES = {
     color:'#e67e22', region:'Dorne', seat:'sunspear',
     icon:'martell', major:true,
     desc:'The sand and sun of Dorne. They play the long game. The Targaryens never truly conquered them — they negotiated. A century later the Dornish still remember the difference. They are still playing.',
-    bonus:{intrigue:1}, startTraits:['Dornish Blood'],
+    bonus:{intrigue:1}, startTraits:[],
     positions:["Son of the Prince",'Daughter of the Prince','Bastard Sand','Cousin of Sunspear','Ward of Dorne','Knight of Dorne'],
   },
   arryn: {
@@ -1313,7 +1351,7 @@ const HOUSES = {
     color:'#2c3e50', region:'The Iron Islands', seat:'pyke',
     icon:'greyjoy', major:true,
     desc:'The ironborn do not kneel. They take. The Iron Price is the only price worth paying — until you try to pay it at scale.',
-    bonus:{martial:1}, startTraits:['Ironborn'],
+    bonus:{martial:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Pyke','Cousin of Pyke','Reaved Ward','Ironborn Raider'],
   },
 
@@ -1419,7 +1457,7 @@ const HOUSES = {
     color:'#7b0000', region:'Essos', seat:'volantis',
     icon:'none', major:false, essos:true,
     desc:"The oldest blood in the Free Cities — they claim descent from Valyria itself. Volantis is the largest city in the known world and they own most of it. Their wealth is measured in thousands of slaves and they see nothing wrong in this.",
-    bonus:{learning:1, stewardship:1}, startTraits:['Valyrian Heritage','essosi_merchant'],
+    bonus:{learning:1, stewardship:1}, startTraits:['essosi_merchant'],
     startGold:1200, startIncome:180,
     positions:['Old Blood Scion','Slave-Master Heir','Tiger Cloak Officer','Volantene Noblewoman','Red Priest Patron','Triarch Cousin'],
   },
@@ -1506,7 +1544,7 @@ const HOUSES = {
     color:'#e74c3c', region:'Dorne', seat:'sunspear',
     icon:'allyrion', major:false,
     desc:'Lords of Godsgrace at the confluence of the Greenblood. The Allyrions guard the approaches to Sunspear and have done so for centuries without blinking.',
-    bonus:{martial:1}, startTraits:['Dornish Blood'],
+    bonus:{martial:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Sand','Knight of Godsgrace','Ward of Dorne'],
   },
   blackmont: {
@@ -1514,7 +1552,7 @@ const HOUSES = {
     color:'#2c2c2c', region:'Dorne', seat:'sunspear',
     icon:'blackmont', major:false,
     desc:'Mountain Dornish lords of Blackmont. They live in the Red Mountains and have the patience of stone. They have been waiting for something for a very long time.',
-    bonus:{intrigue:1}, startTraits:['Dornish Blood'],
+    bonus:{intrigue:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Sand','Mountain Rider','Ward of the Mountains'],
   },
 
@@ -1586,7 +1624,7 @@ const HOUSES = {
     color:'#34495e', region:'The Iron Islands', seat:'pyke',
     icon:'drumm', major:false,
     desc:'Lords of Old Wyk, one of the elder ironborn houses. They claim descent from the Grey King himself. All the old ironborn families claim this. Only some are right.',
-    bonus:{martial:1}, startTraits:['Ironborn'],
+    bonus:{martial:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Pyke','Longship Captain','Ward of the Iron Islands'],
   },
   blacktyde: {
@@ -1594,7 +1632,7 @@ const HOUSES = {
     color:'#1b2631', region:'The Iron Islands', seat:'pyke',
     icon:'blacktyde', major:false,
     desc:'Lords of Blacktyde on Harlaw. They were Andal converts once, which the other ironborn have mostly forgiven but not forgotten.',
-    bonus:{diplomacy:1}, startTraits:['Ironborn'],
+    bonus:{diplomacy:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Pyke','Ward of the Iron Islands','Longship Crewman'],
   },
   botley: {
@@ -1602,7 +1640,7 @@ const HOUSES = {
     color:'#1f618d', region:'The Iron Islands', seat:'pyke',
     icon:'botley', major:false,
     desc:'Lords of Lordsport on Pyke. The port means trade, which means the Botleys are richer than most ironborn and more tolerated for it. Money is a better weapon than an axe, most of the time.',
-    bonus:{stewardship:1}, startTraits:['Ironborn'],
+    bonus:{stewardship:1}, startTraits:[],
     positions:["Lord's Son",'Lord\'s Daughter','Bastard Pyke','Port Master','Ward of Lordsport'],
   },
 
@@ -1645,14 +1683,11 @@ const TRAITS_POS = [
   // ── Mind & Learning ──
   {id:'shrewd',           name:'Shrewd',               desc:'The GM gives you extra context. You notice what others miss.', category:'mind'},
   {id:'scholar',          name:'Scholar',              desc:'+2 learning. You are sought for counsel and knowledge.', category:'mind'},
-  {id:'prodigy',          name:'Prodigy',              desc:'All stat ceilings raised by 1. You learn unnaturally fast.', category:'mind'},
+  {id:'prodigy',          name:'Prodigy',              desc:'All stat ceilings raised by 1. You learn unnaturally fast.', category:'mind', legendary:true},
   {id:'eidetic_memory',   name:'Eidetic Memory',       desc:'You remember everything. Every insult. Every promise. Every face.', category:'mind'},
   {id:'maester_trained',  name:'Maester-Trained',      desc:'Citadel education. Medicine, history, ravens. +2 learning, Citadel contacts.', category:'mind'},
-  // ── Background & Heritage ──
-  {id:'Valyrian Heritage',name:'Valyrian Heritage',    desc:'Dragon dreams may come. Silver hair or violet eyes. Something old stirs in your blood.', category:'heritage'},
+  // ── Background ──
   {id:'old_gods',         name:'Old Gods',             desc:'Weirwood-touched. Instinct over reason. The North feels like home anywhere.', category:'heritage'},
-  {id:'ironborn',         name:'Ironborn',             desc:'The Iron Price. You were raised to take. The sea is in your bones.', category:'heritage'},
-  {id:'dornish_blood',    name:'Dornish Blood',        desc:'Unbowed. Passion over propriety. Southern courts find you unsettling.', category:'heritage'},
   {id:'braavosi_born',    name:'Braavosi-Born',        desc:'Free city upbringing. You know the Iron Bank, the canals, the faceless streets.', category:'heritage'},
   {id:'essosi_merchant',  name:'Essosi Merchant',      desc:'Trade routes, languages, contacts in three Free Cities. Gold finds you.', category:'heritage'},
 ];
@@ -2164,7 +2199,25 @@ function go(id) {
   document.getElementById('p-' + id).classList.add('on');
 }
 
-function goCreate() { buildCreation(); go('create'); }
+async function goCreate() {
+  // Check which legendary traits are already taken across all living characters
+  S.legendaryTakenIds = new Set();
+  const LEGENDARY_IDS = TRAITS_POS.filter(t => t.legendary).map(t => t.id);
+  if (LEGENDARY_IDS.length && S.user) {
+    try {
+      const { data } = await sb.from('characters').select('traits').eq('dead', false);
+      if (data) {
+        data.forEach(c => {
+          (c.traits || []).forEach(tid => {
+            if (LEGENDARY_IDS.includes(tid)) S.legendaryTakenIds.add(tid);
+          });
+        });
+      }
+    } catch(e) { console.warn('Could not check legendary traits:', e); }
+  }
+  buildCreation();
+  go('create');
+}
 
 function goChars() {
   currentScene = null; currentChoices = [];
@@ -2191,12 +2244,16 @@ function buildCreation() {
   S.startLoc = 'kings_landing';
   S.cStats = {martial:2,diplomacy:2,intrigue:2,stewardship:2,learning:2};
   S.cTraits = new Set();
+  if (!S.legendaryTakenIds) S.legendaryTakenIds = new Set();
 
   buildHouseGrid('');
   buildLocGrid();
   buildStatRows();
   buildTraitList('traits-pos', TRAITS_POS, false);
   buildTraitList('traits-neg', TRAITS_NEG, true);
+  // Reset cap display
+  const capEl = document.getElementById('trait-cap-display');
+  if (capEl) capEl.textContent = '0 / 1 virtue · 0 / 1 flaw';
   document.getElementById('c-name').value = '';
   document.getElementById('c-age').value = '20';
   document.getElementById('c-gender').value = '';
@@ -2249,7 +2306,6 @@ function selectHouse(key) {
   document.getElementById('hsb-name').textContent = h.full;
   document.getElementById('hsb-words').textContent = h.words || '(no known words)';
   document.getElementById('hsb-region').textContent = '📍 ' + h.region;
-  document.getElementById('hsb-desc').textContent = h.desc;
   const bonusText = Object.entries(h.bonus||{}).map(([k,v])=>`+${v} ${k}`).join(', ');
   document.getElementById('hsb-bonus').textContent = bonusText ? 'Bonus: ' + bonusText : '';
   document.getElementById('house-selected-box').classList.add('visible');
@@ -2262,6 +2318,9 @@ function selectHouse(key) {
 
   buildStatRows();
   setLocForHouse(key);
+  // Show family tree button
+  const ftWrap = document.getElementById('ftree-creation-wrap');
+  if (ftWrap) ftWrap.style.display = '';
   checkForm();
 }
 
@@ -2358,26 +2417,58 @@ function buildTraitList(id, list, isNeg) {
   const wrap = document.getElementById(id);
   wrap.innerHTML = '';
   list.forEach(t => {
+    const isLegendary = t.legendary === true;
+    const isTaken = isLegendary && S.legendaryTakenIds && S.legendaryTakenIds.has(t.id);
     const d = document.createElement('div');
-    d.className = 'trait-item' + (isNeg ? ' neg' : '');
+    d.className = 'trait-item' + (isNeg ? ' neg' : '') + (isLegendary ? ' legendary' : '') + (isTaken ? ' taken' : '');
     d.id = 'titem-' + t.id;
+    let badge = '';
+    if (isLegendary && isTaken) badge = '<span class="t-badge" style="color:rgba(180,60,40,.6)">CLAIMED</span>';
+    else if (isLegendary) badge = '<span class="t-badge" style="color:rgba(200,168,75,.8)">✦ LEGENDARY</span>';
     d.innerHTML = `<div class="trait-box${isNeg?' neg':''}" id="tbox-${t.id}"></div>
-      <div><div class="t-name">${t.name}</div><div class="t-desc">${t.desc}</div></div>`;
-    d.onclick = () => toggleTrait(t.id, isNeg);
+      <div class="t-name">${t.name}</div>${badge}`;
+    if (!isTaken) d.onclick = () => toggleTrait(t.id, isNeg);
     wrap.appendChild(d);
   });
 }
 
 function toggleTrait(id, isNeg) {
+  const POS_CAP = 1;
+  const NEG_CAP = 1;
   if (S.cTraits.has(id)) {
     S.cTraits.delete(id);
     document.getElementById('titem-'+id)?.classList.remove('on');
     document.getElementById('tbox-'+id)?.classList.remove('on');
   } else {
+    // Check cap
+    const posCount = [...S.cTraits].filter(tid => !NEG_IDS.has(tid)).length;
+    const negCount = [...S.cTraits].filter(tid => NEG_IDS.has(tid)).length;
+    if (!isNeg && posCount >= POS_CAP) {
+      // deselect existing positive first
+      const existing = [...S.cTraits].find(tid => !NEG_IDS.has(tid));
+      if (existing) {
+        S.cTraits.delete(existing);
+        document.getElementById('titem-'+existing)?.classList.remove('on');
+        document.getElementById('tbox-'+existing)?.classList.remove('on');
+      }
+    }
+    if (isNeg && negCount >= NEG_CAP) {
+      const existing = [...S.cTraits].find(tid => NEG_IDS.has(tid));
+      if (existing) {
+        S.cTraits.delete(existing);
+        document.getElementById('titem-'+existing)?.classList.remove('on');
+        document.getElementById('tbox-'+existing)?.classList.remove('on');
+      }
+    }
     S.cTraits.add(id);
     document.getElementById('titem-'+id)?.classList.add('on');
     document.getElementById('tbox-'+id)?.classList.add('on');
   }
+  // Update cap display
+  const posCount = [...S.cTraits].filter(tid => !NEG_IDS.has(tid)).length;
+  const negCount = [...S.cTraits].filter(tid => NEG_IDS.has(tid)).length;
+  const capEl = document.getElementById('trait-cap-display');
+  if (capEl) capEl.textContent = `${posCount} / ${POS_CAP} virtue · ${negCount} / ${NEG_CAP} flaw`;
 }
 
 
@@ -2794,6 +2885,7 @@ function mountGame() {
   renderEvents();
   renderNPCs();
   renderConditions();
+  renderCrimesPanel();
   renderReputation();
   fetchRealmClock();
   fetchRealmEvents();
@@ -2801,6 +2893,114 @@ function mountGame() {
   startScenePolling();
   // Show tutorial on first-ever game entry
   if (!S.char?.msgs?.length) maybeShowTutorial();
+}
+
+function openFamilyTreeFromCreation() {
+  const key = S.houseKey;
+  if (!key) return;
+  openFamilyTree(key);
+}
+
+function openFamilyTreeFromGame() {
+  const key = S.char?.house_key;
+  if (!key) return;
+  openFamilyTree(key);
+}
+
+// ── Family Tree ──────────────────────────────────────────────
+let _ftreeHouseKey = null;
+let _ftreeAddType  = null;
+
+async function openFamilyTree(houseKey) {
+  _ftreeHouseKey = houseKey || S.char?.house_key;
+  if (!_ftreeHouseKey) return;
+  const h = HOUSES[_ftreeHouseKey] || {};
+  document.getElementById('ftree-house-name').textContent = 'House ' + (h.full || _ftreeHouseKey);
+  document.getElementById('ftree-house-words').textContent = h.words || '';
+  document.getElementById('ftree-modal').classList.add('open');
+  document.getElementById('ftree-add-form').style.display = 'none';
+  renderFamilyTree({ loading: true });
+  try {
+    const res = await fetch(PROXY_URL + '/family-tree', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ houseKey: _ftreeHouseKey }),
+    });
+    const data = await res.json();
+    renderFamilyTree(data.tree || {});
+  } catch {
+    renderFamilyTree({ error: true });
+  }
+}
+
+function closeFamilyTree() {
+  document.getElementById('ftree-modal').classList.remove('open');
+}
+
+function renderFamilyTree(tree) {
+  const el = document.getElementById('ftree-content');
+  if (!el) return;
+  if (tree?.loading) { el.innerHTML = '<div style="text-align:center;color:rgba(100,140,200,.4);padding:20px 0">Consulting the Citadel records...</div>'; return; }
+  if (tree?.error || !tree) { el.innerHTML = '<div style="color:rgba(160,80,60,.6);padding:10px 0">No records found for this house.</div>'; return; }
+  const RELS = ['grandparents','parents','player','siblings','spouses','children','grandchildren'];
+  const REL_LABELS = { grandparents:'Grandparents', parents:'Parents', player:'You', siblings:'Siblings & Cousins', spouses:'Spouses', children:'Children', grandchildren:'Grandchildren' };
+  let html = '';
+  RELS.forEach(rel => {
+    const members = tree[rel];
+    if (!members?.length) return;
+    html += `<div class="ftree-row"><div class="ftree-relation">${REL_LABELS[rel] || rel}</div><div>`;
+    members.forEach(m => {
+      const isPC = m.is_pc;
+      html += `<span class="ftree-person">
+        <div class="ftree-person-name">${esc(m.name||'Unknown')}${isPC ? '<span class="ftree-pc-badge">PC</span>' : ''}</div>
+        <div class="ftree-person-detail">${m.age ? 'Age ' + m.age + (m.status ? ' · ' : '') : ''}${m.status ? esc(m.status) : ''}${m.note ? ' — ' + esc(m.note) : ''}</div>
+      </span>`;
+    });
+    html += '</div></div>';
+  });
+  if (!html) html = '<div style="color:rgba(100,140,200,.3);font-style:italic">No family records exist yet. Add members below, or let the AI discover them through play.</div>';
+  el.innerHTML = html;
+}
+
+function ftreeAddMember(type) {
+  _ftreeAddType = type;
+  const form = document.getElementById('ftree-add-form');
+  document.getElementById('ftree-input-name').value = '';
+  document.getElementById('ftree-input-age').value = '';
+  document.getElementById('ftree-input-note').value = '';
+  form.style.display = '';
+  document.getElementById('ftree-input-name').focus();
+}
+
+async function ftreeSubmitMember() {
+  const name = document.getElementById('ftree-input-name').value.trim();
+  if (!name || !_ftreeHouseKey) return;
+  const age  = document.getElementById('ftree-input-age').value || '';
+  const note = document.getElementById('ftree-input-note').value.trim();
+  try {
+    // Load current tree, add member, save back
+    const res = await fetch(PROXY_URL + '/family-tree', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ houseKey: _ftreeHouseKey }),
+    });
+    const data = await res.json();
+    const tree = data.tree || {};
+    const rel = _ftreeAddType === 'parent' ? 'parents' : _ftreeAddType === 'sibling' ? 'siblings' :
+                _ftreeAddType === 'child'  ? 'children' : _ftreeAddType === 'spouse' ? 'spouses' : 'siblings';
+    if (!tree[rel]) tree[rel] = [];
+    tree[rel].push({ name, age: age ? parseInt(age) : null, note: note || null });
+
+    await fetch(PROXY_URL + '/family-tree', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        houseKey: _ftreeHouseKey,
+        tree,
+        userId: S.session?.user?.id,
+        characterId: S.charId,
+      }),
+    });
+    document.getElementById('ftree-add-form').style.display = 'none';
+    renderFamilyTree(tree);
+  } catch { showToast('Error', 'Could not save family member.'); }
 }
 
 function traitLabel(id) {
@@ -3103,6 +3303,45 @@ function renderConditions() {
   }).join('');
 }
 
+function renderCrimesPanel() {
+  const panel = document.getElementById('crimes-panel');
+  const list  = document.getElementById('crimes-list');
+  if (!panel || !list) return;
+  const crimes  = S.char?.crimes  || [];
+  const bounty  = S.char?.bounty  || 0;
+  const bastards= S.char?.bastards|| [];
+  if (!crimes.length && !bounty && !bastards.length) { panel.style.display = 'none'; return; }
+  panel.style.display = '';
+  let html = '';
+  if (bounty > 0) {
+    html += `<div class="bounty-badge">⚔ WANTED — ${formatGold(bounty)}</div>`;
+    if (S.char?.bounty_reason) html += `<div class="crime-region">${esc(S.char.bounty_reason)}</div>`;
+  }
+  crimes.forEach(cr => {
+    const sev = cr.severity || 1;
+    const color = sev >= 4 ? 'rgba(200,50,30,.8)' : sev >= 3 ? 'rgba(200,80,40,.7)' : 'rgba(160,100,60,.6)';
+    html += `<div class="crime-entry" style="color:${color}">${cr.known?'⚖':'◌'} ${esc(cr.act)}<span class="crime-region">${esc(cr.region)}</span></div>`;
+  });
+  if (bastards.length) {
+    html += `<div style="margin-top:4px;font-size:10px;color:rgba(180,140,60,.5)">Children: ${bastards.map(b=>`<span title="${esc(b.mother||'')}">${esc(b.name)}</span>`).join(', ')}</div>`;
+  }
+  list.innerHTML = html;
+}
+
+function formatGold(cp) {
+  if (!cp) return '0d';
+  const GD = 210, SS = 21;
+  const dragons = Math.floor(cp / GD);
+  const rem1    = cp % GD;
+  const stags   = Math.floor(rem1 / SS);
+  const pennies = rem1 % SS;
+  const parts = [];
+  if (dragons) parts.push(dragons + 'd');
+  if (stags)   parts.push(stags   + 's');
+  if (pennies) parts.push(pennies + 'p');
+  return parts.join(' ') || '0p';
+}
+
 let tickerI = 0;
 function tickerTick() {
   const events = S.char?.events || DEFAULT_EVENTS;
@@ -3263,6 +3502,51 @@ async function act(text) {
       });
       renderConditions();
     }
+    if (cs.crimes != null) {
+      const prevCount = (S.char.crimes || []).length;
+      S.char.crimes = cs.crimes;
+      if (cs.crimes.length > prevCount) {
+        const latest = cs.crimes[0];
+        if (latest?.known) showToast('⚖', latest.act + (latest.region ? ' · ' + latest.region : ''));
+      }
+      renderCrimesPanel();
+    }
+    if (cs.bounty != null) {
+      S.char.bounty = cs.bounty;
+      S.char.bounty_reason = cs.bounty_reason || S.char.bounty_reason;
+      if (cs.bounty > 0 && cs.bounty > (S.char.bounty || 0)) {
+        showToast('💰 Bounty', 'A bounty has been placed on your head: ' + formatGold(cs.bounty));
+      }
+    }
+    if (cs.bastards != null) {
+      const prevCount = (S.char.bastards || []).length;
+      S.char.bastards = cs.bastards;
+      if (cs.bastards.length > prevCount) {
+        const b = cs.bastards[cs.bastards.length - 1];
+        showToast('🌿 A child born', b.name + (b.mother ? ' · mother: ' + b.mother : ''));
+      }
+    }
+    if (cs.specialization) {
+      const prev = S.char.specialization || {};
+      S.char.specialization = cs.specialization;
+      Object.entries(cs.specialization).forEach(([stat, path]) => {
+        if (!prev[stat]) {
+          const label = stat.charAt(0).toUpperCase() + stat.slice(1);
+          showToast('⚜ Specialization', label + ' → ' + path);
+        }
+      });
+    }
+    if (cs.maester_chain) {
+      const prevLen = (S.char.maester_chain || []).length;
+      S.char.maester_chain = cs.maester_chain;
+      if (cs.maester_chain.length > prevLen) {
+        const link = cs.maester_chain[cs.maester_chain.length - 1];
+        showToast('⛓ Chain Link', link.replace(/_/g,' ') + ' link earned');
+      }
+    }
+    if (cs.prophecy != null) S.char.prophecy = cs.prophecy;
+    if (cs.alliances != null) S.char.alliances = cs.alliances;
+    if (cs.legacy_from != null) S.char.legacy_from = cs.legacy_from;
   }
 
   // NPC memories are shown via the Known Persons panel (click for full history)
@@ -3553,8 +3837,20 @@ function showDeathScreen(narrative, summary) {
   document.getElementById('d-sigil').src = icon;
   document.getElementById('d-name').textContent = S.char?.name || '—';
   document.getElementById('d-prose').innerHTML = proseHTML(narrative || 'The candle guttered and went out.');
-  document.getElementById('d-epi').textContent = summary || ((S.char?.name||'They') + ' is gone.');
+  const houseWords = S.char?.house_key ? (HOUSES[S.char.house_key]?.words || '') : '';
+  const epitaph = summary || ((S.char?.name||'They') + ' is gone.');
+  document.getElementById('d-epi').textContent = epitaph + (houseWords ? '\n"' + houseWords + '"' : '');
+  // Show legacy button if character has meaningful inheritance
+  const legacyBtn = document.getElementById('btn-legacy');
+  if (legacyBtn) legacyBtn.style.display = (S.char?.gold > 0 || (S.char?.debts||[]).length > 0) ? '' : 'none';
   go('death');
+}
+
+function startLegacy() {
+  // Pre-fill the creation form with house of the dead char, then flag it as a legacy
+  S.legacyFrom = S.char;
+  goCreate();
+  showToast('⚔ Legacy', 'Your heir inherits 25% of gold, all debts, and a shadow of their predecessor\'s reputation.');
 }
 
 function openSheet() {
@@ -5266,6 +5562,37 @@ function renderFinances() {
     <div class="profile-name" id="profile-modal-name">—</div>
     <div class="profile-sub" id="profile-modal-sub">—</div>
     <button class="profile-close" onclick="closeProfileModal()">Close</button>
+  </div>
+</div>
+
+<!-- FAMILY TREE MODAL -->
+<div class="modal-bg" id="ftree-modal" style="z-index:600">
+  <div class="modal-box" style="max-width:680px;width:95vw;max-height:85vh;overflow-y:auto">
+    <button class="modal-close" onclick="closeFamilyTree()">✕</button>
+    <div class="modal-name" id="ftree-house-name">House —</div>
+    <div style="font-size:11px;font-style:italic;color:var(--dim);margin-bottom:12px" id="ftree-house-words"></div>
+    <div id="ftree-content" style="font-size:13px;color:rgba(200,180,140,.75);line-height:1.8">
+      <div style="text-align:center;color:rgba(100,140,200,.4);padding:20px 0">Loading family records...</div>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid rgba(60,90,150,.15);padding-top:12px">
+      <span style="font-family:'Cinzel',serif;font-size:9px;letter-spacing:.15em;color:rgba(60,90,150,.5)">EXTEND THIS LINEAGE</span>
+      <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="ftree-add-btn" onclick="ftreeAddMember('parent')">+ Add Parent</button>
+        <button class="ftree-add-btn" onclick="ftreeAddMember('sibling')">+ Add Sibling</button>
+        <button class="ftree-add-btn" onclick="ftreeAddMember('child')">+ Add Child</button>
+        <button class="ftree-add-btn" onclick="ftreeAddMember('spouse')">+ Add Spouse</button>
+      </div>
+      <div id="ftree-add-form" style="display:none;margin-top:10px">
+        <input id="ftree-input-name" placeholder="Name" style="background:rgba(10,18,40,.8);border:1px solid rgba(60,90,150,.3);color:var(--text);padding:6px 10px;font-size:12px;width:180px;margin-right:6px"/>
+        <input id="ftree-input-age" placeholder="Age" type="number" style="background:rgba(10,18,40,.8);border:1px solid rgba(60,90,150,.3);color:var(--text);padding:6px 10px;font-size:12px;width:70px;margin-right:6px"/>
+        <input id="ftree-input-note" placeholder="Note (optional)" style="background:rgba(10,18,40,.8);border:1px solid rgba(60,90,150,.3);color:var(--text);padding:6px 10px;font-size:12px;width:200px;margin-right:6px"/>
+        <button onclick="ftreeSubmitMember()" style="background:rgba(60,90,150,.2);border:1px solid rgba(60,90,150,.4);color:var(--dim);padding:6px 12px;cursor:pointer;font-family:'Cinzel',serif;font-size:9px;letter-spacing:.1em">Add</button>
+        <button onclick="document.getElementById('ftree-add-form').style.display='none'" style="background:transparent;border:none;color:rgba(100,120,160,.4);cursor:pointer;font-size:11px;margin-left:4px">cancel</button>
+      </div>
+      <div style="margin-top:10px;font-size:10px;color:rgba(100,140,200,.35);font-style:italic">
+        You can also ask the AI directly — "describe my father" or "my sister married Lord Tully" — and it will weave your family into the story.
+      </div>
+    </div>
   </div>
 </div>
 </body>
