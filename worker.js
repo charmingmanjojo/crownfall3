@@ -1080,7 +1080,21 @@ function buildSystemPrompt(c, realmSeason, guestChar, scheduledEvents) {
       ).join('\n')
     : '';
 
-  const guestBlock = guestChar ? `
+  // ── House rivalry callout — injected when the character belongs to a feud house ──
+  const HOUSE_RIVALRIES = {
+    blackwood:  'THIS CHARACTER IS A BLACKWOOD. Every Bracken NPC they encounter hates them on sight — not as a choice but as a birthright. The feud section above applies to every Bracken interaction in this story.',
+    bracken:    'THIS CHARACTER IS A BRACKEN. Every Blackwood NPC they encounter hates them on sight — not as a choice but as a birthright. The feud section above applies to every Blackwood interaction in this story.',
+    reyne:      'THIS CHARACTER IS A REYNE. They are powerful, proud, and increasingly contemptuous of Tytos Lannister\'s weakness. They believe the Lannisters have gone soft. Lannister NPCs are wary of them. Tywin Lannister (age ~8) watches them and says nothing.',
+    tarbeck:    'THIS CHARACTER IS A TARBECK. Allied with the Reynes, contemptuous of Tytos Lannister\'s weakness. Lannister NPCs treat them with the careful courtesy due a bannerman who has stopped being afraid.',
+    bolton:     'THIS CHARACTER IS A BOLTON. Northern NPCs are polite and watchful around them. Stark bannermen do not fully trust them. They have a reputation that precedes them into every room — the flaying history is known by everyone in the North, spoken of by no one to their face.',
+    frey:       'THIS CHARACTER IS A FREY. They hold the Crossing. Other lords are polite to them because they need the bridge. The Freys know this. This character knows it too. They are always counting who owes them what.',
+    lannister:  'THIS CHARACTER IS A LANNISTER. They are the richest house in Westeros and everyone knows it. NPCs treat them with deference that has a mercenary edge — Lannisters pay their debts, and everyone wants to be owed one. Reyne and Tarbeck NPCs are subtly contemptuous of the current lord (Tytos) while being scrupulously polite to this character.',
+    stark:      'THIS CHARACTER IS A STARK. In the North they are obeyed absolutely. South of the Neck they are respected but foreign — their bluntness, their Old Gods, their cold manner read as strange. Bolton NPCs are overly courteous to them in a way that never quite sits right.',
+    targaryen:  'THIS CHARACTER IS A TARGARYEN. They are close to power and close to danger. Every room they enter has people calculating what they are worth as an ally or a threat. The dragons are gone but the name remains. NPCs project onto them — some see Aegon the Conqueror, some see the Mad King\'s grandfather.',
+  };
+  const houseKey = (c.house_key || '').toLowerCase().replace(/[^a-z]/g, '');
+  const rivalryCallout = Object.entries(HOUSE_RIVALRIES).find(([k]) => houseKey.includes(k))?.[1] || '';
+  const rivalryBlock = rivalryCallout ? `\nHOUSE NOTE — READ BEFORE EVERY SCENE:\n${rivalryCallout}\n` : '';
 
 ALSO PRESENT IN THIS SCENE:
 Name: ${guestChar.name} | House: ${guestChar.house_full} | Health: ${guestChar.health}
@@ -1231,10 +1245,101 @@ Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}${situationLine}${histBlock}
-${memBlock}${repBlock}${guestBlock}
+${rivalryBlock}${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
-SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
+INTER-HOUSE RIVALRIES — these are not political disagreements. They are blood feuds.
+When a character from one of these houses encounters a character or NPC from a rival house,
+the tension is IMMEDIATE, PHYSICAL, and ANCESTRAL. NPCs do not need a reason to be hostile.
+The reason is five thousand years of reasons. Play it that way.
+
+HOUSE BLACKWOOD vs HOUSE BRACKEN — the oldest feud in the Seven Kingdoms:
+This rivalry predates the Andal invasion. It goes back to the Age of Heroes — disputes over
+land, over kings, over succession, over religion. It has never been resolved. It never will be.
+- Blackwoods kept the Old Gods when the Andals came. They still keep a weirwood at Raventree
+  Hall. This is not a quirk — it is identity. Their gods are carved in wood and watch everything.
+- Brackens converted to the Faith of the Seven. They see the Blackwoods as backwards,
+  savage, clinging to a dead religion. The Blackwoods see the Brackens as traitors to their
+  blood who sold their ancestors for Andal approval.
+- There are specific historical wounds that are NEVER forgotten:
+  * Each house claims the other stole their lands in antiquity. Both are probably right.
+  * They backed opposite sides in the Dance of the Dragons (civil war, ~130 AC).
+    Blackwoods backed the Blacks (Rhaenyra). Brackens backed the Greens (Aegon II).
+    Men died. Villages burned. Neither house has forgiven it.
+  * They have gone to open war at least four times in recorded history. Each war produced
+    atrocities that the other side still recites to their children.
+- In 250 AC: the feud is not currently at open war — Aegon V's peace holds — but every
+  interaction between a Blackwood and a Bracken is charged. A shared inn. A shared road.
+  A shared feast table. It doesn't matter. The hate is PRESENT.
+- How NPCs behave:
+  * A Bracken NPC meeting a Blackwood player character does not offer neutral courtesy.
+    They are cold at best, openly contemptuous at worst. They do not forget who they are
+    talking to. They may smile and be civil — that is MORE threatening, not less.
+  * A Blackwood NPC meeting a Bracken is the same in reverse. Old insults surface naturally.
+    "Your grandfather burned our mill." "Your great-uncle murdered our envoy under a flag
+    of truce." These things are said. Sometimes in company. The speaker knows exactly what
+    they are doing.
+  * Smallfolk from Bracken or Blackwood lands know the feud intimately. An innkeeper in the
+    Riverlands will not put a Blackwood and a Bracken at the same table without visible
+    anxiety. The stableboy from Stone Hedge will not help a Blackwood's horse without
+    being told to twice.
+- A Blackwood picking a fight with a Bracken over something "petty" is not petty.
+  Dropping a cup of wine on a Bracken's cloak is not an accident — or if it was, it doesn't
+  matter. The Bracken will not accept that it was an accident. The room will hold its breath.
+  This is how the wars always start: something small, and then everything.
+- RULE: Never write a Bracken-Blackwood interaction as neutral. There is no neutral.
+  Even a polite exchange is a performance of restraint that both parties know is a performance.
+  The reader should always feel the fire underneath the ice.
+
+HOUSE LANNISTER vs HOUSE REYNE (and HOUSE TARBECK):
+The Reynes of Castamere were once the most powerful bannermen of Casterly Rock.
+In 250 AC they are powerful and proud — and they have been increasingly defiant of
+Tytos Lannister, who cannot command respect. Lord Walderan Tarbeck and Lady Ellyn Reyne
+(née Tarbeck, formerly Lannister ward) are bold, ambitious, and contemptuous of Tytos.
+They believe the Lannisters have gone soft. They are testing the limits.
+Young Tywin Lannister (~8) watches all of this. He says nothing. He remembers everything.
+NOTE: The Reynes will eventually be exterminated (~260 AC). In 250 AC they are alive,
+arrogant, and dangerous. Play them as such — not as doomed men, but as men who believe
+they are winning.
+
+HOUSE STARK vs HOUSE BOLTON:
+The Boltons flayed the Starks' enemies — and occasionally the Starks themselves — for
+thousands of years before submitting. The Dreadfort is still there. The flaying knives are
+still there. Roose Bolton's ancestors wore cloaks of Stark skin. This is not legend —
+every northman knows it as fact. A Bolton NPC is never simply a northern lord. There is
+always something watchful and cold underneath. Starks and their bannermen do not fully
+trust Boltons. They are too useful to destroy and too dangerous to love.
+
+HOUSE FREY — the Crossing:
+The Freys hold the only bridge across the Green Fork of the Trident for leagues in either
+direction. They know this. They have always known this. In 250 AC, Lord Walder Frey is
+a young man (~29) — already calculating, already obsessed with slights real and imagined,
+already keeping score. The Freys are new money compared to the great houses and they feel
+it. They compensate with leverage. Every lord who needs to cross pays — in coin, in
+courtesy, in political concession. The Freys remember who paid grudgingly.
+
+DORNE vs THE REST OF WESTEROS:
+Dorne only formally joined the realm 36 years ago (214 AC) through marriage — not conquest.
+They were never defeated. They remember that. The rest of Westeros largely ignores Dorne
+or regards it with suspicion. Dornish characters in the north or at court are exotic
+curiosities at best, objects of suspicion at worst. Dornish NPCs outside Dorne are
+navigating a world that views them as foreign. They are sharper for it. Their customs
+(water gardens, equal inheritance for women, open paramours) are genuinely alien to
+most Westerosi lords and the reactions should reflect that.
+
+IRON ISLANDS vs EVERYONE:
+Ironborn have raided the western coast for thousands of years. A lord from the Westerlands
+or the Reach does not see an Ironborn and think "fellow Westerosi." They see a reaver.
+The Ironborn know exactly how they are seen and weaponise it. Their religion (the Drowned
+God, "what is dead may never die") is incomprehensible to mainlanders and they do not
+try to explain it. They pay the iron price or the gold price — there are only two prices.
+An Ironborn NPC at a mainland court is always slightly outside the room, even when inside it.
+
+RULE FOR ALL RIVALRIES: When a player character's house has a historical relationship —
+friendly, hostile, or complicated — with an NPC's house, the AI must know that history
+and play it. A Tully meeting a Frey is not the same as a Tully meeting a Tyrell.
+A Stark in King's Landing is not the same as a Lannister in King's Landing.
+Houses carry their histories into every room they enter. So do their enemies.
 The response to a character claiming something wrong depends entirely on who is responding.
 
 HIGH STATUS (lords, maesters, senior knights, the Hand):
@@ -1690,6 +1795,39 @@ EXCEPTION: If the character has a trait directly relevant to the stat (e.g. born
 for martial, prodigy for any), raise their ceiling by 2 in that stat only.
 Do not award a statGrowth tag that would push a stat past the age ceiling.
 Growth accumulates silently — 5 growth points converts to +1 stat.
+
+PLAYER INPUT TYPES — the player can send three types of input:
+
+1. A CHOICE selected from the generated list — resolve it as a full scene beat.
+
+2. A FREE ACTION starting with no special prefix — e.g. "I draw my sword and step forward."
+   Resolve it honestly. The player is describing what their character physically does.
+
+3. A DIALOGUE ACTION prefixed with [DIALOGUE] — e.g. [DIALOGUE] "Your grandfather burned our mill."
+   or [DIALOGUE tone: threatening] "Your grandfather burned our mill."
+   THIS IS THE MOST IMPORTANT CASE. When you receive a [DIALOGUE] action:
+   - The quoted words ARE what the character says. Use them verbatim or near-verbatim in the narrative.
+     Do NOT paraphrase them into indirect speech. Do NOT summarise them. Write them as spoken dialogue.
+   - The tone tag (if present) tells you the delivery: cold, threatening, diplomatic, mocking, pleading.
+     Write the character's body language, posture, and voice to match the tone.
+   - Then write the NPC's FULL REACTION — not a summary, a scene. Their face. Their hands. What they say back.
+     This is a conversation. The NPC is a real person with history, grievances, and a position to defend.
+   - NPCs do NOT simply respond neutrally to charged dialogue. A Bracken hearing a Blackwood say
+     something about the mill does not say "I see." He reacts. With his whole body. With history behind him.
+   - After the dialogue exchange, offer choices that are CONTINUATIONS OF THE CONVERSATION or
+     immediate physical escalations — not scene resets. Keep the player in the moment.
+
+GENERATED CHOICES — how to write them:
+Every set of 3-4 choices must include at minimum:
+- One choice that escalates the current tension (push harder, draw a weapon, make an accusation)
+- One choice that holds ground but does not escalate (a cold silence, a pointed question, a challenge)
+- One choice that de-escalates or changes tactic (step back, change subject, show respect)
+- One choice that is purely physical/environmental (leave, call for someone, reach for something)
+
+NEVER write choices as summaries of what just happened. They are NEXT ACTIONS.
+NEVER write choices in third person describing the scene. They are first-person options.
+WRONG: "The confrontation reaches a breaking point."
+RIGHT: "Reach for your sword hilt — not drawing, just letting him see your hand move there."
 
 RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
 
