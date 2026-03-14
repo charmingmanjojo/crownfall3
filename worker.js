@@ -193,7 +193,7 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1000,
+      max_tokens: 600,
       system: buildSystemPrompt(char, realmSeason, guestChar, scheduledEvents),
       messages: windowedMsgs,
     }),
@@ -370,9 +370,11 @@ function applyStateChanges(char, parsed) {
   // The AI prompt tells it to use copper pennies for goldChange.
   // Legacy saves stored gold in "dragons" — auto-migrate on first read.
   let gold = char.gold ?? STARTING_WEALTH.default;
+  let goldMigrated = char.gold_migrated || false;
   // Migration: if gold looks like a small "dragons" value (≤ 10000), convert to cp
   if (gold > 0 && gold <= 10000 && !char.gold_migrated) {
     gold = gold * GD_IN_CP;
+    goldMigrated = true; // mark so we persist this flag and never migrate again
   }
   if (typeof s.goldChange === 'number' && Number.isFinite(s.goldChange)) {
     // goldChange may arrive as copper pennies (new) or be auto-converted from
@@ -392,6 +394,7 @@ function applyStateChanges(char, parsed) {
   // Migrate legacy income (small values = gold dragons)
   if (income_per_turn > 0 && income_per_turn < 1000 && !char.gold_migrated) {
     income_per_turn = income_per_turn * GD_IN_CP;
+    goldMigrated = true;
   }
   if (typeof s.incomeChange === 'number' && Number.isFinite(s.incomeChange)) {
     income_per_turn = Math.max(0, income_per_turn + Math.round(s.incomeChange));
@@ -613,7 +616,7 @@ function applyStateChanges(char, parsed) {
   });
 
   return {
-    health, gold, income_per_turn, lands, debts,
+    health, gold, gold_migrated: goldMigrated, income_per_turn, lands, debts,
     location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
@@ -1871,7 +1874,13 @@ RIGHT: "Reach for your sword hilt — not drawing, just letting him see your han
 
 RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
 
-<narrative>2-4 paragraphs of prose only. NO <choices> or <status> or any XML inside here.</narrative>
+<narrative>
+Prose only. Scale length to what actually happened:
+- Routine action (travel, simple chat, shopping, rest): 1–2 short paragraphs. Get in, get out.
+- Meaningful scene (negotiation, first meeting, minor conflict): 2–3 paragraphs.
+- High-stakes or dramatic moment (combat, betrayal, death, major decision): 3–4 paragraphs.
+Never pad. Never recap what the player just said. Every sentence must earn its place.
+NO <choices> or <status> or any XML inside here.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
 <status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
 
