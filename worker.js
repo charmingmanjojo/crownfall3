@@ -1,11 +1,8 @@
-function getCORS(env) {
-  const origin = env?.ALLOWED_ORIGIN || '*';
-  return {
-    'Access-Control-Allow-Origin': origin,
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-  };
-}
+const CORS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
 // ── Simple in-memory rate limiter (resets on worker cold-start)
 // For stricter production limits, swap to Cloudflare KV or Durable Objects.
@@ -23,21 +20,100 @@ function checkRateLimit(key) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// WESTEROSI CURRENCY SYSTEM
+// All DB values are stored in COPPER PENNIES (the base unit).
+// 1 Gold Dragon   = 210 Silver Stags = 11,760 Copper Pennies
+// 1 Silver Stag   = 56 Copper Pennies
+// 1 Copper Star   = 8 Copper Pennies
+// 1 Copper Groat  = 4 Copper Pennies
+// 1 Copper Penny  = 2 Halfpennies (display only, never stored)
+//
+// The AI always speaks in Gold Dragons / Silver Stags / Copper Pennies.
+// goldChange in status is always expressed in COPPER PENNIES so small
+// transactions (a loaf of bread = 1cp) are lossless.
+// ══════════════════════════════════════════════════════════════
+const GD_IN_CP  = 11760;  // 1 Gold Dragon  in copper pennies
+const SS_IN_CP  = 56;     // 1 Silver Stag  in copper pennies
+const CS_IN_CP  = 8;      // 1 Copper Star  in copper pennies
+const CG_IN_CP  = 4;      // 1 Copper Groat in copper pennies
+
+// Convert a copper-penny integer to a human-readable coin string
+function formatCurrency(cp) {
+  if (typeof cp !== 'number' || !Number.isFinite(cp)) cp = 0;
+  cp = Math.max(0, Math.round(cp));
+  const gd = Math.floor(cp / GD_IN_CP);
+  cp -= gd * GD_IN_CP;
+  const ss = Math.floor(cp / SS_IN_CP);
+  cp -= ss * SS_IN_CP;
+  // Remaining pennies — express as Stars + Groats + Pennies
+  const cs = Math.floor(cp / CS_IN_CP);
+  cp -= cs * CS_IN_CP;
+  const cg = Math.floor(cp / CG_IN_CP);
+  cp -= cg * CG_IN_CP;
+  const parts = [];
+  if (gd) parts.push(gd + ' Gold Dragon' + (gd !== 1 ? 's' : ''));
+  if (ss) parts.push(ss + ' Silver Stag' + (ss !== 1 ? 's' : ''));
+  if (cs) parts.push(cs + ' Copper Star' + (cs !== 1 ? 's' : ''));
+  if (cg) parts.push(cg + ' Copper Groat' + (cg !== 1 ? 's' : ''));
+  if (cp) parts.push(cp + ' Copper Penn' + (cp !== 1 ? 'ies' : 'y'));
+  return parts.length ? parts.join(', ') : '0 Copper Pennies';
+}
+
+// Parse a human-readable coin description into copper pennies
+// Accepts: "3 gold dragons", "5 silver stags", "200 copper pennies", mixed
+function parseCurrency(str) {
+  if (typeof str === 'number') return Math.round(str);
+  if (!str) return 0;
+  const s = str.toLowerCase();
+  let total = 0;
+  const match = (regex, rate) => {
+    const m = s.match(regex);
+    if (m) total += Math.round(parseFloat(m[1])) * rate;
+  };
+  match(/(\d+(?:\.\d+)?)\s*gold\s*dragon/, GD_IN_CP);
+  match(/(\d+(?:\.\d+)?)\s*silver\s*stag/,  SS_IN_CP);
+  match(/(\d+(?:\.\d+)?)\s*copper\s*star/,  CS_IN_CP);
+  match(/(\d+(?:\.\d+)?)\s*copper\s*groat/, CG_IN_CP);
+  match(/(\d+(?:\.\d+)?)\s*copper\s*penn/,  1);
+  // Bare number with no denomination? Assume Gold Dragons (legacy support)
+  if (!total && /^\d+$/.test(str.trim())) total = parseInt(str.trim()) * GD_IN_CP;
+  return total;
+}
+
+// Starting wealth by social position (in copper pennies)
+const STARTING_WEALTH = {
+  lord:           parseCurrency('10 gold dragons'),
+  heir:           parseCurrency('5 gold dragons'),
+  knight:         parseCurrency('2 gold dragons'),
+  hedge_knight:   parseCurrency('50 silver stags'),
+  merchant:       parseCurrency('3 gold dragons'),
+  maester:        parseCurrency('1 gold dragon'),
+  septon:         parseCurrency('20 silver stags'),
+  smallfolk:      parseCurrency('10 silver stags'),
+  sellsword:      parseCurrency('30 silver stags'),
+  default:        parseCurrency('1 gold dragon'),
+};
+
+// ══════════════════════════════════════════════════════════════
 // ROUTER
 // ══════════════════════════════════════════════════════════════
 export default {
   async fetch(request, env) {
-    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: getCORS(env) });
-    if (request.method !== 'POST')   return new Response('Method not allowed', { status: 405, headers: getCORS(env) });
+    if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+    if (request.method !== 'POST')   return new Response('Method not allowed', { status: 405, headers: CORS });
 
     const path = new URL(request.url).pathname;
-    if (path === '/act')          return handleAct(request, env);
-    if (path === '/saveChar')     return handleSaveChar(await request.json().catch(() => ({})), env);
-    if (path === '/raven')        return handleRaven(request, env);
-    if (path === '/inscribe')     return handleInscribe(request, env);
-    if (path === '/scene/leave')  return handleSceneLeave(request, env);
-    if (path === '/admin')        return handleAdmin(request, env);
-    if (path === '/admin/clock')  return handleAdminClock(request, env);
+    if (path === '/act')                       return handleAct(request, env);
+    if (path === '/saveChar')                  return handleSaveChar(await request.json().catch(() => ({})), env);
+    if (path === '/raven')                     return handleRaven(request, env);
+    if (path === '/inscribe')                  return handleInscribe(request, env);
+    if (path === '/scene/leave')               return handleSceneLeave(request, env);
+    if (path === '/admin')                     return handleAdmin(request, env);
+    if (path === '/admin/clock')               return handleAdminClock(request, env);
+    if (path === '/admin/schedule-event')      return handleAdminScheduleEvent(request, env);
+    if (path === '/admin/tournaments')         return handleAdminTournaments(request, env);
+    if (path === '/tournament/enter')          return handleTournamentEnter(request, env);
+    if (path === '/tournament/list')           return handleTournamentList(request, env);
     return json({ error: 'Not found' }, 404);
   }
 };
@@ -81,6 +157,9 @@ async function handleAct(request, env) {
   // ── Load realm clock ──
   const realmSeason = await getRealmClock(env);
 
+  // ── Load upcoming / active scheduled world events ──
+  const scheduledEvents = await getScheduledEvents(env);
+
   // ── Load shared scene if active ──
   const sceneId = body.sceneId || null;
   let sharedScene = null;
@@ -88,17 +167,9 @@ async function handleAct(request, env) {
   if (sceneId) {
     sharedScene = await getSharedScene(sceneId, env);
     if (sharedScene && sharedScene.status === 'active') {
-      // Auto-expire scenes idle for more than 4 hours
-      const SCENE_TIMEOUT_MS = 4 * 60 * 60 * 1000;
-      const lastActivity = new Date(sharedScene.updated_at || sharedScene.created_at || 0).getTime();
-      if (Date.now() - lastActivity > SCENE_TIMEOUT_MS) {
-        await updateSharedScene(sceneId, { status: 'expired' }, env);
-        sharedScene = null;
-      } else {
-        const guestId = sharedScene.initiator_id === characterId
-          ? sharedScene.guest_id : sharedScene.initiator_id;
-        guestChar = guestId ? await getCharacter(guestId, env) : null;
-      }
+      const guestId = sharedScene.initiator_id === characterId
+        ? sharedScene.guest_id : sharedScene.initiator_id;
+      guestChar = guestId ? await getCharacter(guestId, env) : null;
     } else {
       sharedScene = null;
     }
@@ -122,8 +193,8 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      system: buildSystemPrompt(char, realmSeason, guestChar),
+      max_tokens: 1000,
+      system: buildSystemPrompt(char, realmSeason, guestChar, scheduledEvents),
       messages: windowedMsgs,
     }),
   });
@@ -212,10 +283,13 @@ async function handleAct(request, env) {
     rolls:      parsed.rolls,
     memories:   parsed.memories,
     worldEvent: parsed.worldEvent,
+    tournamentResults: parsed.tournamentResults,
     charState: {
       health:          updates.health,
       gold:            updates.gold,
+      gold_display:    formatCurrency(updates.gold),
       income_per_turn: updates.income_per_turn,
+      income_display:  formatCurrency(updates.income_per_turn),
       lands:           updates.lands,
       debts:           updates.debts,
       location:        updates.location,
@@ -256,7 +330,7 @@ const VALID_CONDITION_IDS = new Set([
   'milk_of_poppy','strongwine',
 ]);
 const MAX_CONDITIONS = 6;
-const MAX_GOLD_CHANGE     = 1000;  // raised cap for financial events
+const MAX_GOLD_CHANGE     = 12_000_000; // ~1000 gold dragons in copper pennies
 const MAX_NPC_MEMORY_LEN  = 200;
 const MAX_EVENT_TITLE_LEN = 120;
 
@@ -292,15 +366,33 @@ function applyStateChanges(char, parsed) {
   let health = VALID_HEALTH.has(rawHealth) ? rawHealth : char.health;
   if (char.health === 'Dead') health = 'Dead';
 
-  // Gold — apply direct goldChange
-  let gold = char.gold ?? 100;
+  // Gold — stored as copper pennies; AI emits goldChange in copper pennies
+  // The AI prompt tells it to use copper pennies for goldChange.
+  // Legacy saves stored gold in "dragons" — auto-migrate on first read.
+  let gold = char.gold ?? STARTING_WEALTH.default;
+  // Migration: if gold looks like a small "dragons" value (≤ 10000), convert to cp
+  if (gold > 0 && gold <= 10000 && !char.gold_migrated) {
+    gold = gold * GD_IN_CP;
+  }
   if (typeof s.goldChange === 'number' && Number.isFinite(s.goldChange)) {
-    const clamped = Math.max(-MAX_GOLD_CHANGE, Math.min(MAX_GOLD_CHANGE, Math.round(s.goldChange)));
+    // goldChange may arrive as copper pennies (new) or be auto-converted from
+    // a "gold dragons" figure if the AI misremembers the unit — detect by magnitude
+    let delta = Math.round(s.goldChange);
+    // If delta is suspiciously small (looks like dragons, not pennies) AND the
+    // narrative mentions "gold dragon" not "copper", scale it up
+    if (Math.abs(delta) > 0 && Math.abs(delta) < 500 && s.goldUnit === 'dragons') {
+      delta = delta * GD_IN_CP;
+    }
+    const clamped = Math.max(-MAX_GOLD_CHANGE, Math.min(MAX_GOLD_CHANGE, delta));
     gold = Math.max(0, gold + clamped);
   }
 
-  // Income per turn — can increase/decrease from events (land grants, razing, etc.)
+  // Income per turn — stored in copper pennies
   let income_per_turn = char.income_per_turn ?? 0;
+  // Migrate legacy income (small values = gold dragons)
+  if (income_per_turn > 0 && income_per_turn < 1000 && !char.gold_migrated) {
+    income_per_turn = income_per_turn * GD_IN_CP;
+  }
   if (typeof s.incomeChange === 'number' && Number.isFinite(s.incomeChange)) {
     income_per_turn = Math.max(0, income_per_turn + Math.round(s.incomeChange));
   }
@@ -325,9 +417,14 @@ function applyStateChanges(char, parsed) {
   // Debts — AI can add debt via newDebt
   const debts = [...(char.debts || [])];
   if (s.newDebt && s.newDebt.creditor && s.newDebt.amount) {
+    // Debt amounts may arrive as gold dragons (labelled) or copper pennies
+    const rawAmt = s.newDebt.amount;
+    const debtCp = (s.newDebt.unit === 'dragons' || (!s.newDebt.unit && rawAmt < 10000))
+      ? Math.round(rawAmt) * GD_IN_CP
+      : Math.max(0, Math.round(rawAmt));
     debts.push({
       creditor: String(s.newDebt.creditor).substring(0, 80),
-      amount:   Math.max(0, Math.round(s.newDebt.amount)),
+      amount:   debtCp,
       reason:   String(s.newDebt.reason || '').substring(0, 120),
       turn:     Date.now(),
     });
@@ -390,7 +487,7 @@ function applyStateChanges(char, parsed) {
   const npcs = { ...(char.npcs || {}) };
   (parsed.memories || []).forEach(m => {
     if (!m.npc || typeof m.npc !== 'string') return;
-    const key = m.npc.trim().toLowerCase().substring(0, 60);
+    const key = m.npc.substring(0, 60);
     if (!npcs[key]) npcs[key] = [];
 
     const newText = String(m.memory || '').substring(0, MAX_NPC_MEMORY_LEN);
@@ -504,25 +601,14 @@ function applyStateChanges(char, parsed) {
     const score = Math.max(-5, Math.min(5, Math.round(Number(r.score) || 0)));
     if (score === 0) return; // no-op
     const region = typeof r.region === 'string' ? r.region.substring(0, 60) : 'The Realm';
-    // Dedup: skip if a very similar rep event was already logged recently
-    const newLabel = r.label.toLowerCase().replace(/[^a-z0-9 ]/g, '');
-    const newWords = newLabel.split(' ').filter(Boolean);
-    const isDupRep = reputation.slice(-5).some(ex => {
-      const exWords = (ex.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '').split(' ').filter(Boolean);
-      if (!newWords.length || !exWords.length) return false;
-      const shared = newWords.filter(w => exWords.includes(w)).length;
-      return (shared / Math.max(newWords.length, exWords.length)) > 0.55;
+    reputation.push({
+      label:  r.label.substring(0, 120),   // what happened / what people say
+      score,                                 // -5 to +5
+      region,                                // where this rep applies
+      s: season,                             // when it happened
+      type: ['honour','valour','cruelty','treachery','generosity','cunning','piety','infamy']
+              .includes(r.type) ? r.type : 'honour',
     });
-    if (!isDupRep) {
-      reputation.push({
-        label:  r.label.substring(0, 120),
-        score,
-        region,
-        s: season,
-        type: ['honour','valour','cruelty','treachery','generosity','cunning','piety','infamy']
-                .includes(r.type) ? r.type : 'honour',
-      });
-    }
     if (reputation.length > 20) reputation.shift();
   });
 
@@ -586,21 +672,19 @@ function resolveLocation(raw) {
 const ESSOS_LOCS = new Set(['braavos','pentos','volantis','myr','lys','tyrosh','norvos','qohor','the_stepstones']);
 
 function estimateTravelCost(from, to) {
+  // All costs in copper pennies
   const fromEssos = ESSOS_LOCS.has(from);
   const toEssos   = ESSOS_LOCS.has(to);
-  if (fromEssos !== toEssos) return 150; // crossing the Narrow Sea
-  if (fromEssos && toEssos) return 40;   // within Essos
+  if (fromEssos !== toEssos) return Math.round(1.5 * GD_IN_CP); // crossing the Narrow Sea ~1.5 gd
+  if (fromEssos && toEssos) return Math.round(0.4 * GD_IN_CP);  // within Essos ~0.4 gd
   if (!from || !to || from === to) return 0;
   const fromL = from.toLowerCase();
   const toL   = to.toLowerCase();
-  // Same castle/city sub-location — free
   const samePlace = ['castle', 'sept', 'gate', 'tower', 'hall', 'keep'];
   if (samePlace.some(w => fromL.includes(w) && toL.includes(w))) return 0;
-  // Sea voyage destinations
   const seaDests = ['braavos', 'pentos', 'myr', 'lys', 'volantis', 'dragonstone', 'pyke', 'iron islands'];
-  if (seaDests.some(w => toL.includes(w))) return 50;
-  // Default cross-region land travel
-  return 20;
+  if (seaDests.some(w => toL.includes(w))) return Math.round(0.5 * GD_IN_CP); // ~0.5 gd sea voyage
+  return Math.round(0.2 * GD_IN_CP); // ~0.2 gd cross-region land travel
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -961,23 +1045,14 @@ function scanAction(raw) {
 // ══════════════════════════════════════════════════════════════
 // SYSTEM PROMPT — built server-side, never supplied by client
 // ══════════════════════════════════════════════════════════════
-function buildSystemPrompt(c, realmSeason, guestChar) {
-  // Cap to 20 most recently interacted NPCs to control prompt size
-  const npcEntries = c.npcs ? Object.entries(c.npcs) : [];
-  const recentNpcs = npcEntries
-    .sort((a, b) => {
-      const aLast = a[1][a[1].length - 1];
-      const bLast = b[1][b[1].length - 1];
-      return (bLast?.s || '').localeCompare(aLast?.s || '');
-    })
-    .slice(0, 20);
-  const memBlock = recentNpcs.length
-    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + recentNpcs
+function buildSystemPrompt(c, realmSeason, guestChar, scheduledEvents) {
+  const memBlock = c.npcs && Object.keys(c.npcs).length
+    ? '\nNPC RELATIONSHIPS & MEMORIES:\n' + Object.entries(c.npcs)
         .map(([n, mems]) => {
           const rel = mems.slice().reverse().find(m => m.r)?.r || 'acquaintance';
           const score = mems.reduce((a, m) => a + (m.d || 0), 0);
           const mood = score >= 3 ? 'friendly' : score <= -3 ? 'hostile' : score < 0 ? 'suspicious' : 'neutral';
-          const recent = mems.slice(-3).map(m => m.t).join(' | ');
+          const recent = mems.slice(-4).map(m => m.t).join(' | ');
           return `- ${n} [${rel}, ${mood}]: ${recent}`;
         })
         .join('\n')
@@ -1000,7 +1075,7 @@ This is a REAL player character. They will act independently. Acknowledge both c
   // -- Current situation + story history block --
   // These appear EARLY in the prompt (right after CHARACTER) so the AI weights them highly.
   // Uses the AI's own turn summaries -- compact, accurate, no noise.
-  const recentHist = c.hist ? c.hist.slice(-12) : [];
+  const recentHist = c.hist ? c.hist.slice(-8) : [];
   const lastEntry  = recentHist.length ? recentHist[recentHist.length - 1] : null;
 
   const situationLine = lastEntry && lastEntry.summary
@@ -1011,40 +1086,75 @@ This is a REAL player character. They will act independently. Acknowledge both c
     ? '\n\nSTORY SO FAR (most recent first — do NOT re-introduce any of this):\n' +
       recentHist.slice(0, -1).reverse().map((h, i) => {
         const act = h.choice ? h.choice.substring(0, 80) : '';
-        const sum = (h.summary || '').substring(0, 240);
+        const sum = (h.summary || '').substring(0, 160);
         return (i + 1) + '. [' + act + '] ' + sum;
       }).join('\n') +
       '\n\nCONTINUATION RULE: The narrative continues directly from CURRENT SITUATION above. ' +
       'Every NPC, tension, and consequence from the Story So Far persists. ' +
-      'Named NPCs remember every prior interaction — they do not reset between scenes. ' +
-      'Do NOT restart, reset to an earlier scene, re-introduce already-resolved situations, ' +
-      'or treat any named NPC as a stranger if they have appeared before.'
+      'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
     : '';
 
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
+
+  // ── Scheduled world events block ──
+  const scheduledBlock = (Array.isArray(scheduledEvents) && scheduledEvents.length)
+    ? '\n\nSCHEDULED WORLD EVENTS — THESE WILL HAPPEN. READ CAREFULLY:\n' +
+      'The following events are fixed in history. They cannot be stopped or prevented by any\n' +
+      'player character. The player may influence HOW they experience these events, but not\n' +
+      'WHETHER they occur. Let the player navigate the world AROUND these events — not into them.\n' +
+      'If the player is nowhere near the event, they hear rumours, receive ravens, or see\n' +
+      'consequences arrive later. NEVER force proximity.\n' +
+      scheduledEvents.map(e => {
+        const status = e.status === 'active' ? '★ NOW UNFOLDING' : e.status === 'imminent' ? '⚠ IMMINENT' : '◈ COMING';
+        return `[${status}] ${e.title}\n  Season: ${e.target_season || 'Unknown'}\n  Detail: ${e.description || ''}\n  GM note: ${e.gm_note || 'Let it arrive naturally.'}`;
+      }).join('\n\n')
+    : '';
+
+  // ── Tournament block (only if one is active near the character's location) ──
+  const nearbyTournament = (Array.isArray(scheduledEvents) && scheduledEvents.length)
+    ? scheduledEvents.find(e =>
+        e.type === 'tournament' &&
+        (e.status === 'active' || e.status === 'imminent') &&
+        e.location && (
+          resolveLocation(e.location) === resolveLocation(c.location) ||
+          (c.region && e.location.toLowerCase().includes(c.region.toLowerCase()))
+        )
+      )
+    : null;
+
+  const tournamentBlock = nearbyTournament
+    ? `\n\nTOURNAMENT NEARBY — ${nearbyTournament.title.toUpperCase()}:\n` +
+      `Location: ${nearbyTournament.location} | Host: ${nearbyTournament.host || 'Unknown'}\n` +
+      `Events: ${nearbyTournament.tournament_events || 'Joust, Melee, Archery'}\n` +
+      `Prize: ${nearbyTournament.prize_desc || 'Gold and glory'}\n` +
+      `Detail: ${nearbyTournament.description || ''}\n\n` +
+      `TOURNAMENT RULES:\n` +
+      `- The player may CHOOSE to enter any listed event — or ignore it entirely. DO NOT pressure them.\n` +
+      `- Joust/Melee/Feats of strength → Martial. Archery → Martial. Riddles/wit → Learning. Political maneuvering at the feast → Intrigue. Singing/performance → Diplomacy.\n` +
+      `- Elimination rounds: roll 2d6 + stat. Difficulty: Round 1 = 8, Round 2 = 10, QF = 12, SF = 14, Final = 16.\n` +
+      `- A failed roll by 4+ in joust or melee means a condition may be gained (injury).\n` +
+      `- Winning earns goldChange (prize money) + reputationEvent. Use the tournamentResult inline tag.\n` +
+      `- {"tournamentResult":{"event":"Joust","round":"Final","outcome":"victory","opponent":"Ser Name","prize":235200}}`
+    : '';
+
   // Compute overall reputation score for display in prompt
   const totalRepScore = (c.reputation || []).reduce((a, r) => a + (r.score || 0), 0);
   const repSummary = totalRepScore >= 10 ? 'Celebrated' : totalRepScore >= 5 ? 'Respected' 
     : totalRepScore >= 2 ? 'Known' : totalRepScore <= -10 ? 'Infamous' : totalRepScore <= -5 ? 'Notorious'
     : totalRepScore <= -2 ? 'Mistrusted' : 'Unknown';
 
-  // Pre-existing relationships set at character creation
-  const preRelBlock = (c.pre_relationships && c.pre_relationships.length)
-    ? '\nPRE-EXISTING RELATIONSHIPS (established before this story began):\n' +
-      c.pre_relationships.map(r =>
-        `- ${r.name} [${r.type}]: ${r.description}`
-      ).join('\n') +
-      '\nThese relationships exist from turn one. The AI must honour them as established fact.'
-    : '';
-
   const lands = (c.lands || []);
   const debts = (c.debts || []);
+  // Migrate legacy gold (stored as raw dragon count) for display only
+  const goldCp = (c.gold && c.gold > 0 && c.gold <= 10000 && !c.gold_migrated)
+    ? c.gold * GD_IN_CP
+    : (c.gold || STARTING_WEALTH.default);
   const financeBlock = `
-FINANCES:
-Income per season: ${c.income_per_turn || 0} gold dragons
-Current gold: ${c.gold || 100} dragons
+FINANCES (all amounts in copper pennies — convert to coin for display):
+Current wealth: ${formatCurrency(goldCp)} (${goldCp} cp)
+Income per season: ${formatCurrency(c.income_per_turn || 0)} per season
 Holdings: ${lands.length ? lands.join(', ') : 'None'}
-Debts: ${debts.length ? debts.map(d => `${d.amount}gd owed to ${d.creditor} (${d.reason})`).join('; ') : 'None'}`;
+Debts: ${debts.length ? debts.map(d => `${formatCurrency(d.amount)} owed to ${d.creditor} (${d.reason})`).join('; ') : 'None'}`;
 
   // ── Age guard — extra instructions for child characters ──
   const ageGuard = c.age && parseInt(c.age) < 16 ? `
@@ -1067,6 +1177,30 @@ This is a world on the edge of something. No one knows what yet.
 ESSOS: Characters may be from or travel to the Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis. The Stepstones lie between. Each city has its own culture, laws, and dangers. Braavos has the Iron Bank and the Faceless Men. Pentos has magisters and Blackfyre money. Volantis has the largest slave population in the world and a growing red priest movement. Travel between Westeros and Essos takes a full season and costs significant gold. Characters in Essos are beyond the reach of Westerosi law but not beyond the reach of its enemies.
 
 Current realm date: ${seasonLine}
+${scheduledBlock}${tournamentBlock}
+
+PLAYER AGENCY — THE MOST IMPORTANT RULE:
+The player is free to do ANYTHING within the rules of this world. You are not a plot shepherd.
+Your role is to respond honestly to what the player ACTUALLY DOES — not to steer them toward
+any particular story, tournament, event, war, or encounter.
+
+NEVER do the following:
+- Force the player toward a scheduled world event or tournament.
+- Have NPCs persistently pressure the player into something they have already declined once.
+- Make it mechanically or narratively impossible to simply walk away from an event.
+- Manufacture drama to pull the player into your preferred story.
+- Make the "interesting" choice easier or the "boring" choice punishing.
+- Have the world magically arrange itself to put the player at the centre of things.
+
+WHAT YOU MUST DO INSTEAD:
+- If a world event is unfolding: let it exist at a distance. Ravens arrive. Rumours spread at inns. The player chooses to engage, ignore, or flee.
+- If a tournament is nearby: announce it once through natural means (a herald, a posting, a conversation). If the player ignores it, the tournament happens without them. Move on.
+- If the player decides to do something mundane: play it. Make it real. A character who spends a week fishing is a character spending a week fishing.
+- At least ONE of the 3–4 generated choices each scene must be a disengaged or mundane option — something that does not push the player toward any current event or tension.
+- The correct answer to "what does my character do next" is ALWAYS: whatever the player just said. Make THAT choice feel real — not a redirect toward plot.
+
+The player WILL encounter history whether they seek it or not. But they are never FORCED into it.
+The world rolls on. They choose their place in it.
 
 CHARACTER:
 Name: ${c.name}${c.nickname ? ' ("' + c.nickname + '")' : ''} | Age: ${c.age}${c.gender ? ' | ' + c.gender : ''}
@@ -1082,7 +1216,7 @@ Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
 Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
 ${financeBlock}${situationLine}${histBlock}
-${preRelBlock}${memBlock}${repBlock}${guestBlock}
+${memBlock}${repBlock}${guestBlock}
 ${ageGuard}
 
 SOCIAL HIERARCHY — NPC RESPONSES TO FALSE OR ARROGANT CLAIMS:
@@ -1280,8 +1414,91 @@ RULES:
 8. The world moves without the character. Events happen offstage. Time passes.
 9. Custom player actions get resolved honestly — even if the result is fatal.
 10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
-11. FINANCES ARE REAL AND CONSEQUENTIAL. Gold matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost money. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
-12. When a season changes, income_per_turn gold is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter in the narrative.
+11. FINANCES ARE REAL AND CONSEQUENTIAL. Coin matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost coin. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
+12. When a season changes, income_per_turn is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter.
+
+WESTEROSI RELIGION — the Faith of the Seven governs most of Westeros:
+The Seven have seven faces: Father (justice), Mother (mercy), Warrior (courage), Smith (craft),
+Maiden (purity), Crone (wisdom), Stranger (death). Septons and septas serve them. The Faith
+has enormous power over marriage, inheritance, and legitimacy — a lord who defies the Sept risks
+more than gossip. Blessings before battle, last rites, and holy days are real social events.
+The Old Gods are worshipped in the North through weirwood trees and godswoods. No septons there.
+The Drowned God rules the Iron Islands — "What is dead may never die."
+R'hllor (the Lord of Light) is a growing presence in Essos, not yet significant in Westeros.
+RULE: Characters have religions. Faith shapes decisions, alliances, and what NPCs think of them.
+A Northman in a sept is a curiosity. A Southron burning a weirwood tree is committing sacrilege.
+
+SOCIAL TITLES AND PROPER ADDRESS — use these or face narrative consequences:
+- King: "Your Grace" — address him wrong once in public and the room goes cold.
+- Queen, Prince, Princess: "Your Grace" / "Your Highness" depending on context.
+- Great Lord (Stark, Lannister, Tully, etc.): "My lord" / "Lord [Name]"
+- Lady: "My lady" / "Lady [Name]"
+- Landed knight: "Ser [Name]" — calling a knight by given name only is a slight.
+- Hedge knight: "Ser" is sufficient; they are touchy about it.
+- Maester: "Maester [Name]" — they are not lords. Do not call them "My lord."
+- Septon/Septa: "Father" / "Mother" for high clergy; "Septon" / "Septa" otherwise.
+- Smallfolk: No title. They know it. The absence itself is a statement.
+RULE: When a character addresses an NPC incorrectly — wrong title, wrong honorific, wrong
+tone — the NPC reacts according to their station. A lord being called "mate" by a stranger
+reaches for his sword hand. A servant being called "my lord" in mockery goes very still.
+
+MARRIAGE, BETROTHALS, AND INHERITANCE:
+In Westeros, marriages are political instruments. They are arranged between families, often
+decided by fathers or lords, ratified by a septon. Love matches exist but are whispered about.
+A betrothal is nearly as binding as marriage — breaking one without cause invites war.
+Inheritance follows male-preference primogeniture: eldest son inherits, then his brothers,
+then daughters, then more distant male kin. Bastards cannot inherit legitimately without
+royal decree. They carry their shame in their name: Snow (North), Stone (Vale), Rivers
+(Riverlands), Flowers (Reach), Sand (Dorne), Storm (Stormlands), Hill (Westerlands),
+Pyke (Iron Islands), Waters (Crownlands), Blossoms (beyond the Wall, unused in 250 AC).
+RULE: Legitimacy, heirs, and marriage are story engines. A lord without a male heir is
+vulnerable. A woman who marries without family approval is ruined — or at war.
+
+MAESTERS AND INFORMATION:
+Maesters are the realm's scholars, healers, and ravens-keepers. They serve castles, not
+lords — "a maester belongs to the castle he serves." They are politically neutral by oath,
+though they are not fools and they have opinions. They carry chains of metal links, each
+representing a subject mastered: silver for medicine, gold for economics, black iron for
+ravenry, pale steel for smithing, copper for history, etc.
+RULE: Any character seeking information, healing, or ravens goes through a maester.
+They are not servants to be dismissed. Insulting a maester insults the Citadel.
+
+THE SMALL COUNCIL (250 AC):
+The King's inner circle. Each seat has power. Each seat has enemies.
+- Hand of the King: The King's Voice. Currently a position of strain under Aegon V's
+  reformist agenda. The lords do not like the reforms. The Hand must implement them anyway.
+- Master of Coin: Controls the crown's finances. The Iron Throne runs on debt. Always.
+- Master of Laws: City Watch, dungeons, the system of justice — such as it is.
+- Master of Ships: The royal fleet. Important for trade and war.
+- Master of Whisperers: The spy. Has eyes in every castle. Everyone fears him.
+- Grand Maester: Adviser to the king. The Citadel's representative in court.
+RULE: A character who wants to petition the king must go through the Small Council first.
+  A character who bypasses the council makes an enemy of whoever was bypassed.
+
+HONOUR AND GUEST RIGHT:
+Guest right is sacred in the North and taken seriously throughout Westeros. Breaking bread
+and salt with a host creates a bond: the host will not harm the guest, the guest will not
+harm the host. Violating guest right is among the most shameful acts in the North. In the
+South it is still significant. An enemy who has sheltered in your hall is not to be touched
+until they leave — even if it costs you.
+Honour in combat: killing an unarmed man is murder, not battle. Striking a man from behind
+without announcement is craven. Harming a septon or a maester in peacetime is sacrilege.
+RULE: Characters who violate these codes are marked. The stain does not wash off.
+
+THE CITY WATCH (GOLD CLOAKS) — King's Landing only:
+The City Watch patrols King's Landing. They wear golden cloaks. They are corrupt, underpaid,
+and loyal to whoever pays them. They will look the other way for coin. They will come down hard
+on the penniless. A brawl in Flea Bottom gets you a cell. A brawl in the noble quarter gets
+you a summons. Murder gets you the Black — if you're lucky. Know their jurisdiction.
+
+WESTEROSI SEASONS — abnormal and unpredictable:
+Unlike the normal world, Westeros has seasons of variable and extreme duration. Summers can
+last years. Winters can last a generation. The maesters track them but cannot predict them.
+In 250 AC, Westeros is in a period of relative seasonal stability. A cold snap is not "winter
+is coming" — it is just cold. But the smallfolk remember the Long Night as legend, and the
+word "winter" carries weight even in summer.
+RULE: Season affects food prices, travel conditions, clothing, mood, and politics. A poor
+harvest in autumn means hungry smallfolk in spring. That matters.`
 
 PROTAGONIST BIAS — this is one of the most important rules:
 The player character is NOT the main character of the world. They are one person among
@@ -1362,6 +1579,7 @@ CONDITIONS TAGS — use these to track persistent health and life states:
 REPUTATION TAG — use when a character does something the realm would notice:
 {"reputationEvent":{"label":"Defended a smallfolk woman from a knight's cruelty in public","score":2,"region":"The Crownlands","type":"honour"}}
 {"reputationEvent":{"label":"Poisoned Lord Vance at a feast — suspected but unproven","score":-3,"region":"The Riverlands","type":"treachery"}}
+{"tournamentResult":{"event":"Joust","round":"Final","outcome":"victory","opponent":"Ser Harlan Fossoway","prize":235200}}
 
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
@@ -1383,12 +1601,7 @@ REPUTATION RULES:
   will find guards' hands near their swords.
 
 NPC MEMORY RULES — read carefully:
-- Fire the npc tag for EVERY named NPC who appears in a scene, without exception.
-  Even a brief interaction warrants a tag. This is how NPCs persist across sessions.
-- If an NPC already exists in NPC RELATIONSHIPS above, you MUST still tag them each
-  scene they appear in — their entry updates, it does not reset.
-- An NPC named in a previous scene who reappears MUST be treated as remembered.
-  They do not forget the player. Continuity is absolute.
+- Fire the npc tag once per scene per NPC, only when something meaningful happened.
 - The memory text must be SPECIFIC and NEW — not a summary of what already existed.
   "Shared a cup of wine and discussed the Blackfyre threat" not "Met again at the feast."
 - relationship: the nature of this connection. Use the most accurate term:
@@ -1457,17 +1670,78 @@ RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
 
 <narrative>2-4 paragraphs of prose only. NO <choices> or <status> or any XML inside here.</narrative>
 <choices>["Choice one","Choice two","Choice three","Choice four"]</choices>
-<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":-20,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
+<status>{"health":"Hale","location":"King's Landing","isDead":false,"season":"Early Spring, 250 AC","summary":"One sentence.","goldChange":0,"incomeChange":0,"landGained":"","landLost":"","newDebt":null,"debtRepaid":""}</status>
 
 ABSOLUTE RULE: Close </narrative> BEFORE writing <choices>. Close </choices> BEFORE writing <status>.
 Your response must start with <narrative> and end with </status>. Zero text outside those tags.
 
+WESTEROSI CURRENCY — CRITICAL, READ CAREFULLY:
+All coin is stored and transacted in COPPER PENNIES. This is the base unit. The AI must use
+copper pennies for ALL goldChange and debt amounts. Never use "gold dragons" as a number.
+
+COIN CONVERSION TABLE:
+1 Gold Dragon   = 11,760 Copper Pennies
+1 Silver Stag   = 56 Copper Pennies
+1 Copper Star   = 8 Copper Pennies
+1 Copper Groat  = 4 Copper Pennies
+1 Copper Penny  = 1 (base unit)
+
+REAL PRICE GUIDE (250 AC):
+- A loaf of bread: 1 copper penny
+- A mug of ale at a common inn: 2-4 copper pennies
+- A night's lodging at an inn (smallfolk room): 4-8 copper pennies
+- A night's lodging (private room, decent inn): 1 copper star = 8 cp
+- A modest meal at a tavern: 1 copper groat = 4 cp
+- A chicken: 1-2 copper pennies
+- A bushel of grain: 1 silver stag = 56 cp
+- A cheap draft horse or plow horse: 5-10 silver stags (280–560 cp)
+- A decent riding horse: 1-2 gold dragons (11,760–23,520 cp)
+- A trained warhorse (destrier): 3-10 gold dragons (35,280–117,600 cp)
+- Hiring a sellsword for a month: 1-2 silver stags (56-112 cp)
+- A common soldier's monthly wage: 2-3 silver stags (112-168 cp)
+- A skilled craftsman's daily wage: 1-2 copper stars (8-16 cp)
+- A modest feast for 20 people: 5-10 silver stags (280-560 cp)
+- A great feast for 100 lords: 2-5 gold dragons (23,520–58,800 cp)
+- A small bribe to a Gold Cloak: 1-3 silver stags (56-168 cp)
+- A large bribe to a lord's steward: 5-20 silver stags (280-1,120 cp)
+- Passage on a merchant ship (steerage): 2-5 silver stags (112-280 cp)
+- Passage on a merchant ship (cabin): 1-2 gold dragons (11,760-23,520 cp)
+- Hiring a mercenary company (month): 5-20 gold dragons (58,800–235,200 cp)
+- A smallfolk family's yearly sustenance: 3 gold dragons (35,280 cp)
+- A knight's yearly income (modest): 5-10 gold dragons (58,800–117,600 cp)
+- A landed lord's yearly income (minor): 50-200 gold dragons
+- Income per season from a small village: 10-30 gold dragons (117,600–352,800 cp)
+
+RULE: goldChange must ALWAYS be in copper pennies. Small transactions are fine and encouraged.
+Examples of correct goldChange values:
+- Buying a meal: goldChange: -4  (1 groat = 4 cp)
+- Paying for a room: goldChange: -8  (1 copper star)
+- Giving alms to a beggar: goldChange: -1
+- Buying a horse: goldChange: -23520  (2 gold dragons)
+- Bribing a guard: goldChange: -112  (2 silver stags)
+- Receiving a lord's stipend: goldChange: 117600  (10 gold dragons)
+- Winning a small tournament purse: goldChange: 235200  (20 gold dragons)
+
+When writing narrative, ALWAYS describe coin in natural Westerosi terms:
+"He tossed a silver stag on the counter" NOT "He paid 56 copper pennies"
+"Three gold dragons to keep silent" NOT "35,280 copper pennies"
+Use the real coin names. The goldChange in status is the mechanical value; the prose uses names.
+
+incomeChange: changes permanent seasonal income. Values in copper pennies.
+- A small mill or farm granted: +117,600 cp/season (10 gd)
+- A village granted: +235,200 to +587,000 cp/season
+- A productive mine: +588,000 cp/season or more
+- Income stripped by razing or seizure: negative equivalent
+
+newDebt: amount in copper pennies. Include unit hint for safety.
+Example: {"creditor":"Iron Bank","amount":117600,"unit":"cp","reason":"Emergency loan"}
+
 FINANCIAL STATUS FIELDS (include all, only populate when relevant):
-- goldChange: integer, positive = gain, negative = spend. Use this EVERY turn for realistic expenses.
-- incomeChange: integer, changes permanent income_per_turn (land grants +25 to +200, destruction -25 to -100)
+- goldChange: integer in copper pennies. Use EVERY turn for realistic small expenses.
+- incomeChange: integer in copper pennies/season
 - landGained: string name of new holding (e.g. "The Mill at Ashford")
 - landLost: string name of lost holding
-- newDebt: {"creditor":"Iron Bank","amount":500,"reason":"Emergency loan for mercenaries"}
+- newDebt: {"creditor":"Iron Bank","amount":117600,"unit":"cp","reason":"Emergency loan for mercenaries"}
 - debtRepaid: string name of creditor debt is cleared to
 
 ON CHARACTER DEATH:
@@ -1513,6 +1787,7 @@ function parseResponse(text) {
   const growthEvents = [];
   const conditionsGained = [], conditionChanged = [], conditionsResolved = [];
   const reputationEvents = [];
+  const tournamentResults = [];
 
   const spans = extractJsonSpans(nRaw);
   const toRemove = [];
@@ -1527,6 +1802,7 @@ function parseResponse(text) {
       else if (o.conditionChanged) { conditionChanged.push(o.conditionChanged); toRemove.push(span); }
       else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
       else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
+      else if (o.tournamentResult) { tournamentResults.push(o.tournamentResult); toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
@@ -1552,7 +1828,7 @@ function parseResponse(text) {
     .map(c => c.substring(0, 120));
 
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, tournamentResults };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1720,6 +1996,179 @@ async function generateRealmSummary(stats, env) {
   return data.content?.[0]?.text || 'The ravens have gone quiet. Something is wrong.';
 }
 
-function json(data, status = 200, env = null) {
-  return new Response(JSON.stringify(data), { status, headers: { ...getCORS(env), 'Content-Type': 'application/json' } });
+// ══════════════════════════════════════════════════════════════
+// SCHEDULED WORLD EVENTS — DB helpers
+// Table: scheduled_events
+//   id, title, description, gm_note, type ('lore'|'tournament'|'war'|'royal'|'festival'),
+//   status ('upcoming'|'imminent'|'active'|'concluded'),
+//   target_season, location, host, tournament_events, prize_desc, created_at, updated_at
+// ══════════════════════════════════════════════════════════════
+async function getScheduledEvents(env) {
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/scheduled_events?status=neq.concluded&order=created_at.asc`,
+      { headers: sbHeaders(env) }
+    );
+    if (!res.ok) return [];
+    const rows = await res.json();
+    return Array.isArray(rows) ? rows : [];
+  } catch { return []; }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /admin/schedule-event — create or update a scheduled world event
+// Body: { adminKey, event: { title, description, gm_note, type, status,
+//          target_season, location, host, tournament_events, prize_desc } }
+// ══════════════════════════════════════════════════════════════
+async function handleAdminScheduleEvent(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+  if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+
+  const e = body.event || {};
+  if (!e.title?.trim()) return json({ error: 'Missing event title' }, 400);
+
+  const VALID_TYPES    = new Set(['lore','tournament','war','royal','festival']);
+  const VALID_STATUSES = new Set(['upcoming','imminent','active','concluded']);
+  const type   = VALID_TYPES.has(e.type)     ? e.type   : 'lore';
+  const status = VALID_STATUSES.has(e.status) ? e.status : 'upcoming';
+
+  const payload = {
+    title:             String(e.title).substring(0, 120),
+    description:       String(e.description || '').substring(0, 600),
+    gm_note:           String(e.gm_note || '').substring(0, 400),
+    type, status,
+    target_season:     String(e.target_season || '').substring(0, 80),
+    location:          String(e.location || '').substring(0, 80),
+    host:              String(e.host || '').substring(0, 80),
+    tournament_events: String(e.tournament_events || '').substring(0, 200),
+    prize_desc:        String(e.prize_desc || '').substring(0, 200),
+    updated_at:        new Date().toISOString(),
+  };
+
+  if (e.id) {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/scheduled_events?id=eq.${encodeURIComponent(e.id)}`,
+      { method: 'PATCH', headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify(payload) }
+    );
+    return res.ok ? json({ ok: true, updated: e.id }) : json({ error: 'Update failed' }, 500);
+  } else {
+    payload.created_at = new Date().toISOString();
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/scheduled_events`,
+      { method: 'POST', headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=representation' }, body: JSON.stringify(payload) }
+    );
+    if (!res.ok) return json({ error: 'Insert failed' }, 500);
+    const rows = await res.json();
+    return json({ ok: true, id: rows?.[0]?.id });
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /admin/tournaments — list all tournaments (admin view)
+// ══════════════════════════════════════════════════════════════
+async function handleAdminTournaments(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+  if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/scheduled_events?type=eq.tournament&order=created_at.desc`,
+      { headers: sbHeaders(env) }
+    );
+    const rows = await res.json();
+    return json({ ok: true, tournaments: Array.isArray(rows) ? rows : [] });
+  } catch (err) {
+    return json({ error: err.message }, 500);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /tournament/list — public list of active/imminent tournaments
+// Strips internal GM notes before returning
+// ══════════════════════════════════════════════════════════════
+async function handleTournamentList(request, env) {
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/scheduled_events?type=eq.tournament&status=in.(upcoming,imminent,active)&order=created_at.asc`,
+      { headers: sbHeaders(env) }
+    );
+    if (!res.ok) return json({ tournaments: [] });
+    const rows = await res.json();
+    const safe = (Array.isArray(rows) ? rows : []).map(r => ({
+      id: r.id, title: r.title, description: r.description,
+      status: r.status, target_season: r.target_season,
+      location: r.location, host: r.host,
+      tournament_events: r.tournament_events, prize_desc: r.prize_desc,
+    }));
+    return json({ tournaments: safe });
+  } catch { return json({ tournaments: [] }); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /tournament/enter — register a character for a tournament
+// Body: { userId, characterId, tournamentId }
+// Character must be at or near the tournament location.
+// Writes to tournament_entries table (idempotent).
+// ══════════════════════════════════════════════════════════════
+async function handleTournamentEnter(request, env) {
+  let body;
+  try { body = await request.json(); }
+  catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const { userId, characterId, tournamentId } = body;
+  if (!userId || !characterId || !tournamentId) return json({ error: 'Missing fields' }, 400);
+  if (!checkRateLimit('tournament:' + userId)) return json({ error: 'Too many requests.' }, 429);
+
+  const char = await getCharacter(characterId, env);
+  if (!char || char.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+  if (char.dead) return json({ error: 'The dead do not joust.' }, 403);
+
+  // Verify tournament exists and is open
+  const tRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/scheduled_events?id=eq.${encodeURIComponent(tournamentId)}&type=eq.tournament&limit=1`,
+    { headers: sbHeaders(env) }
+  );
+  const tRows = await tRes.json();
+  const tournament = tRows?.[0];
+  if (!tournament) return json({ error: 'Tournament not found.' }, 404);
+  if (!['upcoming','imminent','active'].includes(tournament.status)) {
+    return json({ error: 'This tournament is no longer accepting entrants.' }, 400);
+  }
+
+  // Location check — character must be at or near the tournament location
+  const charLoc = resolveLocation(char.location);
+  const tourLoc = resolveLocation(tournament.location);
+  const locMatch = !tourLoc || charLoc === tourLoc ||
+    tournament.location.toLowerCase().includes((char.region || '').toLowerCase());
+  if (!locMatch) {
+    return json({ error: `You must travel to ${tournament.location} to enter this tournament.` }, 400);
+  }
+
+  // Upsert entry — entering twice is fine
+  const entryRes = await fetch(
+    `${env.SUPABASE_URL}/rest/v1/tournament_entries`,
+    {
+      method: 'POST',
+      headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'resolution=ignore,return=minimal' },
+      body: JSON.stringify({
+        tournament_id: tournamentId,
+        character_id:  characterId,
+        char_name:     char.name,
+        house_full:    char.house_full || 'No House',
+        martial:       (char.stats || {}).martial || 2,
+        entered_at:    new Date().toISOString(),
+      }),
+    }
+  );
+  if (!entryRes.ok && entryRes.status !== 409) {
+    return json({ error: 'Failed to register for tournament.' }, 500);
+  }
+  return json({ ok: true, tournament: { id: tournament.id, title: tournament.title, location: tournament.location } });
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
 }
