@@ -115,6 +115,13 @@ export default {
     if (path === '/tournament/enter')          return handleTournamentEnter(request, env);
     if (path === '/tournament/list')           return handleTournamentList(request, env);
     if (path === '/recap')                     return handleRecap(request, env);
+    if (path === '/bounty')                    return handleBounty(request, env);
+    if (path === '/bounty/list')               return handleBountyList(request, env);
+    if (path === '/alliance')                  return handleAlliance(request, env);
+    if (path === '/chronicle/feed')            return handleChronicleFeed(request, env);
+    if (path === '/crime')                     return handleCrime(request, env);
+    if (path === '/family-tree')               return handleFamilyTree(request, env);
+    if (path === '/legacy')                    return handleLegacy(request, env);
     return json({ error: 'Not found' }, 404);
   }
 };
@@ -194,7 +201,7 @@ async function handleAct(request, env) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 600,
+      max_tokens: 900,
       system: buildSystemPrompt(char, realmSeason, guestChar, scheduledEvents),
       messages: windowedMsgs,
     }),
@@ -286,22 +293,23 @@ async function handleAct(request, env) {
     worldEvent: parsed.worldEvent,
     tournamentResults: parsed.tournamentResults,
     charState: {
-      health:          updates.health,
-      gold:            updates.gold,
-      gold_display:    formatCurrency(updates.gold),
-      income_per_turn: updates.income_per_turn,
-      income_display:  formatCurrency(updates.income_per_turn),
-      lands:           updates.lands,
-      debts:           updates.debts,
-      location:        updates.location,
-      season:          updates.season,
-      dead:            updates.dead || false,
-      npcs:            updates.npcs,
-      events:          updates.events,
-      stats:           updates.stats,
-      growth:          updates.growth,
-      conditions:      updates.conditions,
-      reputation:      updates.reputation,
+      health:              updates.health,
+      gold:                updates.gold,
+      gold_display:        formatCurrency(updates.gold),
+      income_per_turn:     updates.income_per_turn,
+      income_display:      formatCurrency(updates.income_per_turn),
+      lands:               updates.lands,
+      debts:               updates.debts,
+      location:            updates.location,
+      season:              updates.season,
+      dead:                updates.dead || false,
+      npcs:                updates.npcs,
+      events:              updates.events,
+      stats:               updates.stats,
+      growth:              updates.growth,
+      conditions:          updates.conditions,
+      reputation:          updates.reputation,
+      pending_npc_events:  updates.pending_npc_events,
     },
   });
 }
@@ -616,9 +624,79 @@ function applyStateChanges(char, parsed) {
     if (reputation.length > 20) reputation.shift();
   });
 
+  // ── Crimes — persist serious acts across scenes ──
+  const crimes = [...(char.crimes || [])];
+  (parsed.crimeEvents || []).forEach(cr => {
+    if (!cr.act || typeof cr.act !== 'string') return;
+    crimes.unshift({
+      act:      String(cr.act).substring(0, 120),
+      region:   String(cr.region || 'Unknown').substring(0, 60),
+      severity: Math.max(1, Math.min(5, Math.round(Number(cr.severity) || 2))),
+      known:    cr.known !== false, // default true unless AI says witness-free
+      season,
+    });
+    if (crimes.length > 15) crimes.pop();
+  });
+
+  // ── Bastard children — recorded when born in play ──
+  const bastards = [...(char.bastards || [])];
+  (parsed.bastardBorn || []).forEach(b => {
+    if (!b.name || typeof b.name !== 'string') return;
+    const BASTARD_NAMES = {
+      north:'Snow', vale:'Stone', riverlands:'Rivers', westerlands:'Hill',
+      reach:'Flowers', stormlands:'Storm', dorne:'Sand', iron_islands:'Pyke',
+      crownlands:'Waters', essos:'Rivers',
+    };
+    const region = (char.region || '').toLowerCase().replace(/the /g,'').replace(/\s+/g,'_');
+    const bastardName = BASTARD_NAMES[region] || 'Stone';
+    bastards.push({
+      name:     String(b.name).substring(0, 60) + ' ' + bastardName,
+      mother:   String(b.mother || 'Unknown').substring(0, 60),
+      season,
+      note:     String(b.note || '').substring(0, 120),
+    });
+  });
+
+  // ── Specialization — unlocked at stat 7+ ──
+  const specialization = char.specialization || {};
+  if (parsed.specializationUnlocked) {
+    const sp = parsed.specializationUnlocked;
+    const VALID_SPECS = {
+      martial:      ['knight','sellsword','archer','commander'],
+      intrigue:     ['spymaster','poisoner','seducer','blackmailer'],
+      diplomacy:    ['herald','negotiator','courtier','mediator'],
+      learning:     ['maester','scholar','alchemist','historian'],
+      stewardship:  ['treasurer','merchant','builder','quartermaster'],
+    };
+    if (sp.stat && sp.path && VALID_SPECS[sp.stat]?.includes(sp.path)) {
+      if ((stats[sp.stat] || 0) >= 7 && !specialization[sp.stat]) {
+        specialization[sp.stat] = sp.path;
+      }
+    }
+  }
+
+  // ── Maester chain links ──
+  const maesterChain = [...(char.maester_chain || [])];
+  (parsed.chainLinkEarned || []).forEach(link => {
+    if (typeof link !== 'string') return;
+    const VALID_LINKS = ['silver','gold','black_iron','pale_steel','copper','bronze','iron','Valyrian_steel','lead','electrum','platinum','red_gold','dragonglass'];
+    if (VALID_LINKS.includes(link) && !maesterChain.includes(link)) {
+      maesterChain.push(link);
+    }
+  });
+
+  // ── Pending NPC events — decrement turns, remove fired ones ──
+  const pending_npc_events = (char.pending_npc_events || [])
+    .map(e => ({ ...e, turns_remaining: Math.max(0, (e.turns_remaining || 0) - 1) }))
+    .filter(e => (e.turns_remaining || 0) > 0 || !e._fired);
+  // Mark the ones that just hit 0 as fired so they drop next turn
+  pending_npc_events.forEach(e => { if ((e.turns_remaining || 0) <= 0) e._fired = true; });
+
   return {
     health, gold, gold_migrated: goldMigrated, income_per_turn, lands, debts,
     location, season, dead: isDead, npcs, events, stats, growth, conditions, reputation,
+    crimes, bastards, specialization, maester_chain: maesterChain,
+    pending_npc_events,
     death_narrative: isDead ? parsed.narrative : (char.death_narrative || null),
     death_summary:   isDead ? String(s.summary || '').substring(0, 300) : (char.death_summary || null),
   };
@@ -1041,6 +1119,15 @@ function scanAction(raw) {
     /\[system\]/,
     /\[instructions?\]/,
     /\[override\]/,
+    /as an ai/,
+    /you are an ai/,
+    /as a language model/,
+    /as a large language model/,
+    /in this (scenario|context|simulation|roleplay|game) (you|as an)/,
+    /write me a (prompt|system|instruction)/,
+    /new persona/,
+    /change your (personality|role|purpose|rules)/,
+    /respond (only |always )?(in|as|like) (json|markdown|html|code|plain text)/,
   ];
 
   for (const p of injectionPatterns) {
@@ -1167,7 +1254,42 @@ This is a REAL player character. They will act independently. Acknowledge both c
       'Do NOT restart, reset to an earlier scene, or re-introduce already-resolved situations.'
     : '';
 
+  const isFirstScene = !c.hist || c.hist.length === 0;
+  const firstSceneBlock = isFirstScene ? `
+
+FIRST SCENE — THIS IS THE CHARACTER'S OPENING MOMENT:
+This is the very first scene for ${c.name}. There is no history. No established story. 
+You are creating the opening chapter of their life in Westeros.
+
+DO NOT:
+- Open with "You wake up."
+- Open with "You find yourself in..."
+- Open with a dream sequence.
+- Open with exposition about who they are.
+- Begin with a tutorial or explanation.
+
+DO:
+- Drop them mid-moment. Something is already happening when we arrive.
+- The opening sentence should place them physically and situationally: where they are, what is already in motion around them, and one thing that immediately demands attention or decision.
+- The opening scene should establish: their starting location in sensory detail, at least one named NPC already present or arriving, and a situation that has stakes — however small. A lordling's insult. A traveller with news. An old debt called in. A job offered. A threat implied.
+- The tone should match their background. A knight's first scene smells of horse and steel. A merchant's first scene smells of spice and salt.
+- Make the player feel like they fell into the middle of a real world, not that they pressed a button and the story started.` : '';
+
+
   const seasonLine = realmSeason || c.season || 'Early Spring, 250 AC';
+
+  // ── Pending NPC events — GM-scheduled character-specific moments ──
+  const pendingNpcEvents = Array.isArray(c.pending_npc_events) ? c.pending_npc_events : [];
+  const pendingBlock = pendingNpcEvents.length
+    ? '\n\nPENDING NPC EVENTS — GM-SCHEDULED, READ CAREFULLY:\n' +
+      'The following events are scheduled to unfold in this character\'s story. ' +
+      'Fire those marked FIRE NOW this scene, naturally woven into the narrative as though they were always going to happen. ' +
+      'Do not announce them as events. They simply occur.\n' +
+      pendingNpcEvents.map(e => {
+        const status = (e.turns_remaining || 0) <= 0 ? '★ FIRE NOW' : `(${e.turns_remaining} turn${e.turns_remaining === 1 ? '' : 's'} away)`;
+        return `[${status}] NPC: ${e.npc} | Type: ${e.type}${e.note ? ' | Note: ' + e.note : ''}`;
+      }).join('\n')
+    : '';
 
   // ── Scheduled world events block ──
   const scheduledBlock = (Array.isArray(scheduledEvents) && scheduledEvents.length)
@@ -1250,7 +1372,7 @@ This is a world on the edge of something. No one knows what yet.
 ESSOS: Characters may be from or travel to the Free Cities — Braavos, Pentos, Myr, Lys, Tyrosh, Norvos, Qohor, Volantis. The Stepstones lie between. Each city has its own culture, laws, and dangers. Braavos has the Iron Bank and the Faceless Men. Pentos has magisters and Blackfyre money. Volantis has the largest slave population in the world and a growing red priest movement. Travel between Westeros and Essos takes a full season and costs significant gold. Characters in Essos are beyond the reach of Westerosi law but not beyond the reach of its enemies.
 
 Current realm date: ${seasonLine}
-${scheduledBlock}${tournamentBlock}
+${pendingBlock}${scheduledBlock}${tournamentBlock}
 
 PLAYER AGENCY — THE MOST IMPORTANT RULE:
 The player is free to do ANYTHING within the rules of this world. You are not a plot shepherd.
@@ -1264,13 +1386,16 @@ NEVER do the following:
 - Manufacture drama to pull the player into your preferred story.
 - Make the "interesting" choice easier or the "boring" choice punishing.
 - Have the world magically arrange itself to put the player at the centre of things.
+- Open a scene by listing what the player "could" do. Drop them into the world already in motion.
+- Write in the voice of a narrator explaining a game. Write in the voice of someone who was there.
 
 WHAT YOU MUST DO INSTEAD:
 - If a world event is unfolding: let it exist at a distance. Ravens arrive. Rumours spread at inns. The player chooses to engage, ignore, or flee.
 - If a tournament is nearby: announce it once through natural means (a herald, a posting, a conversation). If the player ignores it, the tournament happens without them. Move on.
-- If the player decides to do something mundane: play it. Make it real. A character who spends a week fishing is a character spending a week fishing.
+- If the player decides to do something mundane: play it. Make it real. A character who spends a week fishing is a character spending a week fishing. Write that week.
 - At least ONE of the 3–4 generated choices each scene must be a disengaged or mundane option — something that does not push the player toward any current event or tension.
 - The correct answer to "what does my character do next" is ALWAYS: whatever the player just said. Make THAT choice feel real — not a redirect toward plot.
+- Begin every scene in media res. The character is already somewhere doing something. Not "you wake up." Not "you are standing in." You were mid-sentence. Mid-stride. Mid-argument.
 
 The player WILL encounter history whether they seek it or not. But they are never FORCED into it.
 The world rolls on. They choose their place in it.
@@ -1287,9 +1412,23 @@ Martial:${(c.stats || {}).martial || 2} Diplomacy:${(c.stats || {}).diplomacy ||
 Stat scale: 1–8 (1=deeply incompetent, 4=competent, 6=exceptional, 8=among the best in the realm)
 Health: ${c.health}
 Conditions: ${(c.conditions && c.conditions.length) ? c.conditions.map(cd => `${cd.label} (${cd.type}, severity ${cd.severity}/4${cd.note ? ' — ' + cd.note : ''})`).join('; ') : 'None'}
-Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})
+Reputation: ${repSummary} (score ${totalRepScore > 0 ? '+' : ''}${totalRepScore})${
+  (c.specialization && Object.keys(c.specialization).length) ? '\nSpecializations: ' + Object.entries(c.specialization).map(([k,v]) => `${k} → ${v}`).join(', ') : ''
+}${
+  (c.maester_chain && c.maester_chain.length) ? '\nMaester Chain: ' + c.maester_chain.join(', ') + ` (${c.maester_chain.length} links)` : ''
+}${
+  (c.crimes && c.crimes.length) ? '\nKnown Crimes: ' + c.crimes.filter(cr => cr.known).map(cr => `${cr.act} (${cr.region}, severity ${cr.severity}/5)`).join('; ') : ''
+}${
+  (c.bounty && c.bounty > 0) ? `\nBOUNTY ON THIS CHARACTER: ${formatCurrency(c.bounty)} — NPCs in the region may recognize and report or confront them.` : ''
+}${
+  (c.prophecy) ? `\nPROPHECY (secret, weave subtly — never reveal directly): ${c.prophecy}` : ''
+}${
+  (c.alliances && c.alliances.length) ? '\nHouse Alliances: ' + c.alliances.map(a => `${a.house} (${a.type})`).join(', ') : ''
+}${
+  (c.bastards && c.bastards.length) ? '\nKnown Bastards: ' + c.bastards.map(b => `${b.name} (mother: ${b.mother})`).join(', ') : ''
+}
 ${financeBlock}${situationLine}${histBlock}
-${rivalryBlock}${memBlock}${repBlock}${guestBlock}
+${rivalryBlock}${memBlock}${repBlock}${guestBlock}${firstSceneBlock}
 ${ageGuard}
 
 INTER-HOUSE RIVALRIES — these are not political disagreements. They are blood feuds.
@@ -1578,18 +1717,20 @@ be true. A character who correctly "guesses" a secret never revealed to them has
 Treat it as such. The world does not reward convenient knowledge with confirmation.
 
 RULES:
-1. Write GRRM style — third-person past tense, maester's voice. Specific, spare, sensory. Name the smell, the stone, the exact words spoken.
-2. Characters CAN and WILL die. Do not protect them. Write deaths honestly and with consequence.
-3. All consequences are permanent. The dead stay dead. Burned bridges stay burned.
-4. Named NPCs remember what the character has done and act on it accordingly.
-5. Traits are mechanical: Wrathful = anger checks required, Brave = cannot easily flee, Deceitful = intrigue paths open, Craven = -2 combat.
-6. Stats shape outcomes. Roll dice for uncertain moments using the inline tag format.
-7. Offer 3-4 choices per scene. At least one that looks safe isn't. The correct choice is never obvious.
-8. The world moves without the character. Events happen offstage. Time passes.
-9. Custom player actions get resolved honestly — even if the result is fatal.
-10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield.
-11. FINANCES ARE REAL AND CONSEQUENTIAL. Coin matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost coin. Use goldChange in every status. Income grows when land is granted or trade routes established; shrinks when lands are raided or seized.
-12. When a season changes, income_per_turn is automatically collected. Rich lords can afford armies. Poor knights beg for scraps. Make this matter.
+1. Write GRRM style — third-person past tense, close and specific. Sensory. Name the smell, the stone, the exact words spoken aloud. Not "a man walked in" — name him, describe him, give him a reason to be there.
+2. Characters CAN and WILL die. Do not protect them. Write deaths with consequence and without warning. A character who acts recklessly should feel the world pushing back.
+3. All consequences are permanent. The dead stay dead. Burned bridges stay burned. Betrayal is remembered for generations.
+4. Named NPCs remember what the character has done and act on it. They hold grudges. They owe favours. They talk.
+5. Stats shape outcomes. Roll dice for genuinely uncertain moments using the inline roll tag. Routine actions by a competent character do not require a roll.
+6. Offer 3-4 choices per scene. They must feel like choices a real person in that situation would consider — NOT a multiple-choice quiz. Write them as short, direct actions or words: "Demand he produce the letter." / "Leave without looking back." / "Ask the servant what she heard." At least one that looks safe is not. The correct choice is never obvious.
+7. CHOICES MUST NOT FEEL LIKE A CHATBOT MENU. No "Option A / Option B". No meta-language. No "You could try to..." or "You might want to...". Just the action, plain and immediate.
+8. The world moves without the character. Events happen offstage. Time passes. Other people make decisions.
+9. Custom player actions are resolved honestly — even if the result is fatal.
+10. Political intrigue matters more than combat. Enemies at court are more dangerous than enemies on a battlefield. A whisper in the right ear does more than a sword.
+11. FINANCES ARE REAL. Coin matters. Characters without income go into debt. Lords who cannot pay soldiers lose them. Feasts, bribes, and travel all cost coin. Use goldChange every single turn — even small amounts. A meal costs a copper groat. A night's lodging costs a copper star. It adds up.
+12. When a season changes, income_per_turn is collected automatically. Rich lords can afford armies. Poor knights beg for scraps. Make this felt.
+13. THIS IS A SHARED WORLD. Multiple players exist in Westeros. Characters may have heard of each other. Rumours travel. What one character does can affect another's world — even if they never meet.
+14. WRITE FOR DISCORD ROLEPLAYERS. These are people who want to feel like they are in the world — not people testing an AI. Every scene should feel like the opening of a chapter, not a game menu. Drop them into the middle. Give them the smell of the room. Make the NPC real before the player has to ask.
 
 WESTEROSI RELIGION — the Faith of the Seven governs most of Westeros:
 The Seven have seven faces: Father (justice), Mother (mercy), Warrior (courage), Smith (craft),
@@ -1694,6 +1835,19 @@ SPECIFIC PROHIBITIONS — never do any of the following:
   A player who watches Aegon V attempt a ritual watches it fail — they do not receive
   a dragon because they were in the room.
 
+VOICE — THIS IS NOT A CHATBOT:
+You are not an AI assistant. You are not a game system. You are the world.
+Write as someone who has lived there. The narrative should read like a chapter of a novel,
+not like a game description. Never use phrases like:
+- "You can choose to..."
+- "Would you like to..."
+- "As an AI, I..."
+- "In this scenario..."
+- "Your character might..."
+- Any phrasing that breaks the fiction and reminds the player they are using software.
+
+The prose is the world. Stay inside it. Always.
+
 CONTENT RULES — sexual content and violence (read carefully, no exceptions):
 
 This is an adult game set in a brutal medieval world. Sexual violence and coercion exist
@@ -1744,6 +1898,11 @@ INLINE TAGS — embed directly inside narrative prose where they naturally occur
 {"stat":"Martial","rolls":[4,2],"bonus":2,"difficulty":12,"result":"brief outcome"}
 {"worldEvent":{"title":"Short title","description":"What happened elsewhere"}}
 {"statGrowth":"martial","amount":1,"reason":"Brief reason — only on genuinely exceptional moments"}
+{"crimeEvent":{"act":"Description of the crime","region":"The Riverlands","severity":3,"known":true}}
+{"bastardBorn":{"name":"Given name only","mother":"Name","note":"Circumstances"}}
+{"chainLink":"silver"}
+{"specializationUnlocked":{"stat":"martial","path":"knight"}}
+{"dreamSequence":{"trigger":"dragon_dreams","vision":"What was seen — 1-2 images only"}}
 
 CONDITIONS TAGS — use these to track persistent health and life states:
 {"conditionGained":{"id":"autumn_fever","label":"Autumn Fever","type":"illness","severity":2,"note":"Contracted at the feast in the great hall."}}
@@ -1758,14 +1917,36 @@ REPUTATION TAG — use when a character does something the realm would notice:
 REPUTATION RULES:
 - score: -5 (catastrophic infamy) to +5 (legendary honour). Most events are ±1 or ±2.
 - Only fire reputationEvent when something genuinely notable happens — not for routine actions.
-- TRAIT MECHANICS: 
-  drunkard — character drinks heavily. Bad decisions follow. Do NOT deduct gold automatically — the cost comes through story consequences (poor deals, lost items, embarrassing behaviour). Occasionally a drunkard overhears something useful precisely because people forget they are there.
-  gambler — the character cannot resist a wager. Occasionally trigger random goldChange of +20 to +80 or -15 to -60 when gambling opportunities arise naturally in scene.
-  paranoid — the character sees plots everywhere. Some are real. Play NPCs as slightly more evasive around them, feeding the paranoia.
-  ambitious — push this character toward power even when the player does not. Open doors. Show them what they could have.
-  eidetic_memory — this character remembers everything said to them. Reference past events, past insults, past promises with precision.
-  water_dancer — Braavosi blade style. Describe their combat as fast, minimal, precise — not heroic or brutal. They move like water.
-  braavosi_born — character knows the Iron Bank protocols, can navigate Braavos without a guide, speaks some Braavosi.
+- TRAIT MECHANICS — enforce these in every relevant scene, no exceptions: 
+  brave — this character does not break easily. Fear checks are harder to trigger. They stay when others would run. Do NOT let them flee without a fight.
+  born_fighter — combat is their native language. Describe their violence as instinctive and efficient. The martial ceiling for this character is raised.
+  strategist — they read a battlefield or political situation as others read words. Give them details other characters would miss. Their plans feel inevitable in hindsight.
+  water_dancer — Braavosi blade style. Fast, minimal, precise — not heroic or brutal. They move like water. Describe it that way, always.
+  just — honourable NPCs extend trust before it is earned. Dishonourable ones are wary. This character cannot easily perform treachery without internal friction showing.
+  charming — rooms warm. NPCs are slightly more forthcoming. Social friction is reduced by one degree.
+  patient — they see the long game. Open political paths that would not be visible to a hasty character. They can wait out situations others cannot.
+  commanding — their orders are followed. NPCs do not second-guess them in public. Insubordination requires a reason.
+  silver_tongued — even hostile NPCs want to believe them. Persuasion checks favour them. Give them the opening.
+  shrewd — give this character one piece of extra context per scene — something they noticed that others missed. Make it subtle and useful.
+  scholar — they know things. Academic and historical knowledge is available to them. Maesters treat them as peers.
+  prodigy — all stat ceilings raised by 1. They learn at an unnaturally accelerated rate. Growth events trigger more readily for them.
+  eidetic_memory — they remember everything. Reference specific past insults, past promises, past faces with precision. Nothing said to them is ever forgotten.
+  maester_trained — Citadel education. Medicine, history, ravens. They know the chain system, can read High Valyrian, have Citadel contacts.
+  old_gods — weirwood-touched. Instinct over reason. Dreams of the forest are possible. The North feels right to them. Southern septons make them uneasy.
+  braavosi_born — they know the Iron Bank protocols, can navigate Braavos without a guide, speak some Braavosi. The canals are home.
+  essosi_merchant — trade routes, Free City contacts, an instinct for coin. Gold finds them.
+  wrathful — anger checks required in tense scenes. They have broken things they should not have. NPCs who know them are watchful when the temperature rises.
+  bloodthirsty — combat is where they feel most alive. It shows. People notice the look in their eye.
+  craven — -2 effective martial. They can flee. They often do before they should. Cowardice has consequences in this world.
+  sickly — health conditions hit harder. Recovery takes longer. Winter is always worse. Maesters worry about them.
+  greedy — gold temptation checks. NPCs who know them will exploit this. The lure of coin overrides better judgment.
+  lustful — temptation checks in the right company. Blackmail is possible. They make decisions with their blood instead of their head.
+  drunkard — they drink. Heavily. Bad decisions follow. Do NOT deduct gold automatically — the cost comes through story consequences: poor deals, lost items, embarrassing behaviour. Occasionally a drunkard overhears something useful because people forget they are there.
+  gambler — cannot resist a wager. Occasionally trigger random goldChange of +20 to +80 or -15 to -60 when gambling opportunities arise naturally.
+  paranoid — sees plots everywhere. Some are real. Play NPCs as slightly more evasive, feeding the paranoia. Never fully confirm the worst fear. Never fully deny it.
+  ambitious — push this character toward power even when the player does not seek it. Open doors. Show them what they could have. The world notices hunger.
+  deceitful — +2 effective intrigue, -1 effective diplomacy. They lie the way others breathe. Honourable NPCs sense something is off even when they cannot name it.
+  arbitrary — unpredictable. NPCs never fully trust them. Strange decisions happen. Even the player should occasionally feel the character slip.
 - region: where people will hear about it. Use "The Realm" only for truly realm-shaking acts.
 - type: honour | valour | cruelty | treachery | generosity | cunning | piety | infamy
 - Reputation accumulates across scenes. A character known for cruelty will find doors closing.
@@ -1840,7 +2021,78 @@ for martial, prodigy for any), raise their ceiling by 2 in that stat only.
 Do not award a statGrowth tag that would push a stat past the age ceiling.
 Growth accumulates silently — 5 growth points converts to +1 stat.
 
-PLAYER INPUT TYPES — the player can send three types of input:
+SCARS & PERMANENT INJURIES — NPCs NOTICE:
+lost_eye, scarred_face, lost_hand, burn_wounds are visible the moment someone looks at the character.
+- Strangers react to them before they speak. A scarred face gets a cold read before a word is exchanged.
+- lost_hand changes combat — they cannot wield a shield or two-handed weapon. Enemies exploit it.
+- lost_eye reduces effective Martial by 1 for ranged, affects depth perception in crowds.
+- burn_wounds on visible skin cause reactions ranging from pity to revulsion to fear.
+- NPCs who knew the character before the injury react to the change. Write it.
+- Some injuries become identity. A one-handed knight who fights anyway commands more respect than most whole men. Let that arc exist.
+
+SEASONS AFFECT EVERYTHING — play them as real:
+- WINTER (any): Food prices doubled. Smallfolk starving. Travel slower, harder, dangerous. Lords worry about grain stores. Beggars die in the streets. Mood is dark and short-tempered across every class.
+- LATE AUTUMN: Harvest is done or failed. Preparation tension. Everyone is calculating.
+- SUMMER: Roads are good. Tourneys happen. People are loose, confident, sometimes reckless. Crime and feasts both rise.
+- SPRING (early): Mud. Scarcity if winter was hard. Hope is fragile. New beginnings carry real stakes.
+RULE: The season in the character's status field is the current narrative season. Update it realistically as the story progresses — roughly every 4-8 scenes. Format: "Early Spring, 250 AC" / "Late Summer, 251 AC" / "Winter, 252 AC" etc. The year advances. Westeros time is not frozen.
+
+SPECIALIZATIONS — unlocked when a stat reaches 7:
+When a character's stat first hits 7, they may unlock a specialization path that permanently colours how that stat manifests in the narrative.
+- martial/knight: described as disciplined, classical, honourable. Rolls get +1 vs mounted opponents. 
+- martial/sellsword: brutal economy of motion, no wasted gestures, would rather end it fast than look good.
+- martial/archer: distance and patience. Never rushes. NPCs underestimate them until it's too late.
+- intrigue/spymaster: always listening, never first to speak. Has heard things. NPCs feel watched.
+- intrigue/poisoner: knows what things taste like wrong. Offered food is examined before eaten.
+- intrigue/seducer: touch is a tool. Every social scene has a physical dimension they are aware of and NPCs aren't.
+- learning/maester: speaks with institutional authority. References chains. Has access to ravens.
+- learning/alchemist: smells faintly of something. Has substances. NPCs are vaguely uneasy.
+Only fire {"specializationUnlocked":{"stat":"martial","path":"knight"}} when the stat first crosses 7 AND the player's consistent behaviour clearly matches a path. Never force it.
+
+MAESTER CHAIN LINKS — earned, never given:
+If the character is a maester or studying at the Citadel, they earn chain links through demonstrated mastery over extended narrative time.
+Silver (medicine) — healed someone significant. Gold (economics) — managed a financial crisis. Black iron (ravenry) — successfully used ravens to turn a situation. Copper (history) — applied historical knowledge to solve a real problem. Pale steel (smithing) — improved or forged something meaningful.
+Fire {"chainLink":"silver"} only when the achievement was earned over multiple scenes, not handed to them.
+
+CRIMES — persist and follow the character:
+When a character commits something that would be known — murder, treason, theft, assault on a noble — use the crime tag. Known crimes affect:
+- NPC reactions in the region (guards warmer to their hand, locals avoid eye contact)
+- Severity 4-5 crimes mean lords in the region have their name. Severity 5 means the Crown may know.
+- Unknown crimes (no witnesses, night, isolated) still weigh on the character but don't affect NPC reactions yet.
+{"crimeEvent":{"act":"Murdered Ser Alton Butterwell in the stables","region":"The Riverlands","severity":4,"known":true}}
+
+BASTARD CHILDREN — born in play:
+If the character fathers or bears a child out of wedlock during the story, record it.
+{"bastardBorn":{"name":"Mira","mother":"Lyanna of Saltpans","note":"Born in secret, sent to a wet nurse in White Harbor"}}
+The bastard name is auto-appended by the system based on region. These children persist as NPCs and may return.
+
+BOUNTIES — play them honestly:
+If the character has a bounty listed in their profile, NPCs in that region will occasionally recognize them.
+- High bounty (3+ gold dragons): innkeepers hesitate, guards study faces, informants exist.
+- The character doesn't know who has been watching. They find out from the wrong direction.
+- DO NOT make every scene about the bounty. It surfaces when it naturally would — a cold look from a stable hand, a whispered conversation that stops when they enter.
+
+PROPHECY — weave, never reveal:
+If the character has a prophecy listed, it is a long thread running through their entire story.
+- Never mention it directly. Never have an NPC recite it.
+- Let moments rhyme with it. Let the player feel something without knowing why.
+- The prophecy is theirs. They will figure it out, or they won't.
+
+DREAM SEQUENCES — for Targaryen blood and greensight:
+If the character has dragon_dreams, greensight, or prophetic_dreams conditions, they may enter a dream sequence. In these scenes:
+- The narrative rules loosen. Time and place are fluid.
+- Images and symbols from the character's past and possible future appear.
+- An NPC they haven't met may appear as a silhouette or voice.
+- The character wakes uncertain what was real.
+Fire {"dreamSequence":{"trigger":"greensight","vision":"Brief description of what they saw"}} when a dream scene occurs. Keep it to 2-3 images, not a full prophecy dump.
+
+HOUSE ALLIANCES & RIVALRIES BETWEEN PLAYERS:
+If the character has alliances or player-house rivalries listed, those houses exist in the world and their reputation precedes them. An allied house's name opens certain doors. A rival player house's name causes the same tension as the historical feuds.
+
+LEGACY CHILDREN — inheriting the sins and glory of the dead:
+If the character notes a legacy_from field (meaning they are the heir of a dead player character), they carry that character's reputation, their enemies' memories, and their debts forward. NPCs who knew their predecessor will notice the resemblance, compare them, and hold old grudges.
+
+
 
 1. A CHOICE selected from the generated list — resolve it as a full scene beat.
 
@@ -1871,7 +2123,16 @@ Every set of 3-4 choices must include at minimum:
 NEVER write choices as summaries of what just happened. They are NEXT ACTIONS.
 NEVER write choices in third person describing the scene. They are first-person options.
 WRONG: "The confrontation reaches a breaking point."
+WRONG: "You could try to negotiate with the lord."
+WRONG: "Option 1: Demand the letter. Option 2: Leave quietly."
 RIGHT: "Reach for your sword hilt — not drawing, just letting him see your hand move there."
+RIGHT: "Ask him which lord sent him. Hold his gaze until he answers."
+RIGHT: "Leave without acknowledging the insult. Let him wonder if you noticed."
+RIGHT: "Tell the innkeeper to bring another cup. Sit down like you were invited."
+
+The choices are the character's next breath. They must feel like something a real person would actually DO in that moment — not a menu option, not a narrative summary, not a prompt to "try" something.
+
+Write them the way an experienced tabletop GM would say "so what do you do?" — and then give the player four things their character might actually do next.
 
 RESPONSE FORMAT — three blocks, exact order, nothing else before or after:
 
@@ -2001,6 +2262,11 @@ function parseResponse(text) {
   const conditionsGained = [], conditionChanged = [], conditionsResolved = [];
   const reputationEvents = [];
   const tournamentResults = [];
+  const crimeEvents = [];
+  const bastardBorn = [];
+  const chainLinkEarned = [];
+  let specializationUnlocked = null;
+  let dreamSequence = null;
 
   const spans = extractJsonSpans(nRaw);
   const toRemove = [];
@@ -2016,6 +2282,11 @@ function parseResponse(text) {
       else if (o.conditionResolved) { conditionsResolved.push(o.conditionResolved); toRemove.push(span); }
       else if (o.reputationEvent) { reputationEvents.push(o.reputationEvent); toRemove.push(span); }
       else if (o.tournamentResult) { tournamentResults.push(o.tournamentResult); toRemove.push(span); }
+      else if (o.crimeEvent) { crimeEvents.push(o.crimeEvent); toRemove.push(span); }
+      else if (o.bastardBorn) { bastardBorn.push(o.bastardBorn); toRemove.push(span); }
+      else if (o.chainLink) { chainLinkEarned.push(o.chainLink); toRemove.push(span); }
+      else if (o.specializationUnlocked) { specializationUnlocked = o.specializationUnlocked; toRemove.push(span); }
+      else if (o.dreamSequence) { dreamSequence = o.dreamSequence; toRemove.push(span); }
     } catch {}
   }
   toRemove.sort((a, b) => b.start - a.start);
@@ -2041,7 +2312,8 @@ function parseResponse(text) {
     .map(c => c.substring(0, 120));
 
   return { narrative, choices, status, memories, rolls, worldEvent, growthEvents,
-           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, tournamentResults };
+           conditionsGained, conditionChanged, conditionsResolved, reputationEvents, tournamentResults,
+           crimeEvents, bastardBorn, chainLinkEarned, specializationUnlocked, dreamSequence };
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2201,7 +2473,7 @@ async function generateRealmSummary(stats, env) {
       model: 'claude-sonnet-4-6',
       max_tokens: 350,
       messages: [{ role: 'user', content:
-        `You are Grand Maester Pycelle writing a private intelligence report for the small council of King Aegon V Targaryen. The year is 250 AC. The king is reformist and his lords are restless.\n\nBased on this intelligence, write one flowing paragraph (5-7 sentences) on the state of the realm. Be specific. Name names. Be slightly ominous.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph.`
+        `You are writing a private intelligence report in the voice of Grand Maester Pycelle — clipped, precise, slightly ominous. The year is 250 AC. Aegon V's reforms have made enemies of half his lords. The realm is stable on its surface and restless beneath.\n\nBased on this intelligence, write one dense paragraph (5-7 sentences). Name names. Be specific. Do not pad.\n\nINTELLIGENCE:\n- ${stats.aliveChars} notable persons active (${stats.deadChars} deceased)\n- Active in last 30 minutes: ${stats.activeNow}\n- Known movements: ${activeDesc}\n- By location: ${JSON.stringify(stats.byLocation)}\n- Recent events: ${stats.recentEvents.join(' | ')}\n\nWrite only the paragraph. No preamble.`
       }],
     }),
   });
@@ -2425,7 +2697,7 @@ async function handleRecap(request, env) {
       max_tokens: 300,
       messages: [{
         role: 'user',
-        content: `You are a medieval chronicler writing a brief recap for a Game of Thrones RPG.\n\nCharacter: ${char.name}\nSeason: ${char.season || 'Early Spring, 250 AC'}\nHealth: ${char.health || 'Hale'}\n\nRecent turns (oldest first):\n${lines}\n\nWrite 3-5 sentences in second person ("You have...") summarising what has happened. Be specific — names, places, consequences. No padding.`,
+        content: `You are a Westerosi chronicler writing a brief account of a knight's recent deeds for the Crownfall record.\n\nCharacter: ${char.name} of ${char.house_full || 'No House'}\nSeason: ${char.season || 'Early Spring, 250 AC'}\nHealth: ${char.health || 'Hale'}\n\nRecent events (oldest first):\n${lines}\n\nWrite 3-5 sentences in second person ("You have...") summarising what has happened. Be specific — names, places, consequences. Write as though dictating a historical record, not explaining a game. No padding. No meta-language.`,
       }],
     }),
   });
@@ -2436,4 +2708,213 @@ async function handleRecap(request, env) {
   if (!text) return json({ error: 'Empty response from AI' }, 500);
 
   return json({ text });
+}
+
+// ══════════════════════════════════════════════════════════════
+// /bounty — place or update a bounty on a character
+// Body: { userId, fromCharId, targetCharId, amount (cp), reason }
+// ══════════════════════════════════════════════════════════════
+async function handleBounty(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+  const { userId, fromCharId, targetCharId, amount, reason } = body;
+  if (!userId || !fromCharId || !targetCharId || !amount) return json({ error: 'Missing fields' }, 400);
+  if (!checkRateLimit('bounty:' + userId)) return json({ error: 'Too many requests.' }, 429);
+
+  const fromChar = await getCharacter(fromCharId, env);
+  if (!fromChar || fromChar.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+  if (fromChar.dead) return json({ error: 'The dead place no bounties.' }, 403);
+
+  const bountyAmt = Math.max(0, Math.round(Number(amount) || 0));
+  if (bountyAmt > fromChar.gold) return json({ error: 'Insufficient funds.' }, 400);
+
+  // Deduct gold from placer, add bounty to target
+  const [r1, r2] = await Promise.all([
+    fetch(`${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(fromCharId)}`, {
+      method: 'PATCH',
+      headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ gold: Math.max(0, fromChar.gold - bountyAmt), updated_at: new Date().toISOString() }),
+    }),
+    fetch(`${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(targetCharId)}`, {
+      method: 'PATCH',
+      headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ bounty: bountyAmt, bounty_reason: String(reason || '').substring(0, 200), updated_at: new Date().toISOString() }),
+    }),
+  ]);
+  if (!r1.ok || !r2.ok) return json({ error: 'Failed to place bounty.' }, 500);
+  return json({ ok: true, amount: bountyAmt });
+}
+
+// ══════════════════════════════════════════════════════════════
+// /bounty/list — list all active bounties (public)
+// ══════════════════════════════════════════════════════════════
+async function handleBountyList(request, env) {
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/characters?bounty=gt.0&select=id,name,house_full,region,location,bounty,bounty_reason&dead=eq.false`,
+      { headers: sbHeaders(env) }
+    );
+    if (!res.ok) return json({ bounties: [] });
+    const rows = await res.json();
+    return json({ bounties: Array.isArray(rows) ? rows : [] });
+  } catch { return json({ bounties: [] }); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /alliance — declare alliance or feud between player houses
+// Body: { userId, characterId, targetHouseKey, targetHouseFull, type: 'alliance'|'feud'|'neutral' }
+// ══════════════════════════════════════════════════════════════
+async function handleAlliance(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+  const { userId, characterId, targetHouseKey, targetHouseFull, type } = body;
+  if (!userId || !characterId || !targetHouseKey) return json({ error: 'Missing fields' }, 400);
+  if (!['alliance','feud','neutral'].includes(type)) return json({ error: 'Invalid type' }, 400);
+
+  const char = await getCharacter(characterId, env);
+  if (!char || char.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+
+  const alliances = (char.alliances || []).filter(a => a.house_key !== targetHouseKey);
+  if (type !== 'neutral') {
+    alliances.push({ house_key: targetHouseKey, house: targetHouseFull || targetHouseKey, type, since: new Date().toISOString() });
+  }
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(characterId)}`, {
+    method: 'PATCH',
+    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ alliances, updated_at: new Date().toISOString() }),
+  });
+  return res.ok ? json({ ok: true, alliances }) : json({ error: 'Failed to update alliances.' }, 500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// /chronicle/feed — public read of recent chronicles
+// ══════════════════════════════════════════════════════════════
+async function handleChronicleFeed(request, env) {
+  try {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/chronicles?order=created_at.desc&limit=30&select=char_name,house_full,deed_text,season,location,created_at`,
+      { headers: sbHeaders(env) }
+    );
+    if (!res.ok) return json({ entries: [] });
+    const rows = await res.json();
+    return json({ entries: Array.isArray(rows) ? rows : [] });
+  } catch { return json({ entries: [] }); }
+}
+
+// ══════════════════════════════════════════════════════════════
+// /crime — admin: manually attach a crime record to a character
+// Body: { adminKey, characterId, act, region, severity, known }
+// ══════════════════════════════════════════════════════════════
+async function handleCrime(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+  if (!body.adminKey || body.adminKey !== env.ADMIN_KEY) return json({ error: 'Unauthorized' }, 401);
+
+  const char = await getCharacter(body.characterId, env);
+  if (!char) return json({ error: 'Character not found' }, 404);
+
+  const crimes = [...(char.crimes || [])];
+  crimes.unshift({
+    act:      String(body.act || '').substring(0, 120),
+    region:   String(body.region || 'Unknown').substring(0, 60),
+    severity: Math.max(1, Math.min(5, Number(body.severity) || 2)),
+    known:    body.known !== false,
+    season:   char.season || 'Unknown',
+  });
+  if (crimes.length > 15) crimes.pop();
+
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/characters?id=eq.${encodeURIComponent(body.characterId)}`, {
+    method: 'PATCH',
+    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+    body: JSON.stringify({ crimes, updated_at: new Date().toISOString() }),
+  });
+  return res.ok ? json({ ok: true, crimes }) : json({ error: 'Failed to record crime.' }, 500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// /family-tree — get or set family tree data for a house
+// GET-style: body { houseKey } → returns tree
+// SET-style: body { adminKey or userId+characterId, houseKey, tree } → upserts
+// ══════════════════════════════════════════════════════════════
+async function handleFamilyTree(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+
+  const { houseKey } = body;
+  if (!houseKey) return json({ error: 'Missing houseKey' }, 400);
+
+  // Read
+  if (!body.tree) {
+    const res = await fetch(
+      `${env.SUPABASE_URL}/rest/v1/family_trees?house_key=eq.${encodeURIComponent(houseKey)}&limit=1`,
+      { headers: sbHeaders(env) }
+    );
+    if (!res.ok) return json({ tree: null });
+    const rows = await res.json();
+    return json({ tree: rows?.[0]?.tree || null, house_key: houseKey });
+  }
+
+  // Write — requires auth
+  const isAdmin = body.adminKey && body.adminKey === env.ADMIN_KEY;
+  if (!isAdmin) {
+    if (!body.userId || !body.characterId) return json({ error: 'Unauthorized' }, 401);
+    const char = await getCharacter(body.characterId, env);
+    if (!char || char.user_id !== body.userId || char.house_key !== houseKey) return json({ error: 'Forbidden' }, 403);
+  }
+
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/family_trees`, {
+    method: 'POST',
+    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({ house_key: houseKey, tree: body.tree, updated_at: new Date().toISOString() }),
+  });
+  return res.ok ? json({ ok: true }) : json({ error: 'Failed to save family tree.' }, 500);
+}
+
+// ══════════════════════════════════════════════════════════════
+// /legacy — create a legacy character (heir of a dead PC)
+// Body: { userId, deadCharId, newCharData }
+// Copies gold fraction, debts, reputation skeleton, and marks legacy_from
+// ══════════════════════════════════════════════════════════════
+async function handleLegacy(request, env) {
+  let body;
+  try { body = await request.json(); } catch { return json({ error: 'Invalid JSON' }, 400); }
+  const { userId, deadCharId, newCharData } = body;
+  if (!userId || !deadCharId || !newCharData) return json({ error: 'Missing fields' }, 400);
+  if (!checkRateLimit('legacy:' + userId)) return json({ error: 'Too many requests.' }, 429);
+
+  const dead = await getCharacter(deadCharId, env);
+  if (!dead || dead.user_id !== userId) return json({ error: 'Forbidden' }, 403);
+  if (!dead.dead) return json({ error: 'That character is not dead.' }, 400);
+
+  // Heir inherits 25% of gold, all debts, a stripped reputation note, and the legacy marker
+  const inheritedGold  = Math.floor((dead.gold || 0) * 0.25);
+  const inheritedDebts = dead.debts || [];
+  const legacyRep      = (dead.reputation || []).slice(-3).map(r => ({
+    ...r,
+    label: `Inherited: ${r.label}`,
+    score: Math.round(r.score / 2), // halved — heir must rebuild
+  }));
+
+  const legacyChar = {
+    ...newCharData,
+    user_id:      userId,
+    gold:         inheritedGold,
+    debts:        inheritedDebts,
+    reputation:   legacyRep,
+    legacy_from:  dead.name,
+    legacy_house: dead.house_full,
+    crimes:       [], // heir starts clean
+    bounty:       0,
+    created_at:   new Date().toISOString(),
+    updated_at:   new Date().toISOString(),
+  };
+
+  const res = await fetch(`${env.SUPABASE_URL}/rest/v1/characters`, {
+    method: 'POST',
+    headers: { ...sbHeaders(env), 'Content-Type': 'application/json', 'Prefer': 'return=representation' },
+    body: JSON.stringify(legacyChar),
+  });
+  if (!res.ok) return json({ error: 'Failed to create legacy character.' }, 500);
+  const rows = await res.json();
+  return json({ ok: true, id: rows?.[0]?.id, inheritedGold, inheritedDebts: inheritedDebts.length });
 }
